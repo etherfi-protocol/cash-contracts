@@ -6,96 +6,110 @@ import "@openzeppelin/contracts/token/ERC20/extensions/IERC20Permit.sol";
 import "@openzeppelin-upgradeable/contracts/access/OwnableUpgradeable.sol";
 import "@openzeppelin-upgradeable/contracts/proxy/utils/UUPSUpgradeable.sol";
 import "@openzeppelin-upgradeable/contracts/utils/PausableUpgradeable.sol";
+import "./custom1155.sol";
 
-contract PreorderContract is
+contract Preorder is 
+    CustomERC1155, 
     OwnableUpgradeable,
-    PausableUpgradeable,
+    PausableUpgradeable, 
     UUPSUpgradeable
-{
-    // Amount require for each tier
-    uint256 public lowTierAmount;
-    uint256 public mediumTierAmount;
-    uint256 public premiumTierAmount;
-
-    // ETH and EETH can be used as payment
-    IERC20 public eethToken;
+    {
 
     // Gnosis Safe to receive the preorder payments
-    address payable public gnosisSafe;
+    address public gnosisSafe;
 
-    // Contract owner is the timelock, admin role needed to preform timely actions on the contract
-    address public admin;
-
+    // Semi-fungible token with 3 distinct tiers
     enum Tier { Unknown, Low, Medium, Premium }
 
-    event Preorder(address indexed user, Tier tier, uint256 amount);
-
-    constructor() {
-        _disableInitializers();
+    // Storages the cost to purchase and the maxSupply for each tier
+    struct TierData { 
+        uint128 costWei; 
+        uint32 maxSupply; 
     }
+    mapping(Tier => TierData) public tiers;
+
+    // Contract owner is the timelock, admin role needed to eeform timely actions on the contract
+    address public admin;
 
     function initialize(
         address initialOwner,
-        address payable _gnosisSafe, 
-        uint256 _lowTierAmount, 
-        uint256 _mediumTierAmount, 
-        uint256 _premiumTierAmount,
-        IERC20 _eethToken
-    ) external initializer {
+        address payable _gnosisSafe,
+        uint128 _lowTierCost,
+        uint32 _lowTierSupply,
+        uint128 _mediumTierCost,
+        uint32 _mediumTierSupply,
+        uint128 _premiumTierCost,
+        uint32 _premiumTierSupply
+    ) public initializer {
         __Ownable_init(initialOwner);
-        __UUPSUpgradeable_init();
-        
+        __Pausable_init();
+
         gnosisSafe = _gnosisSafe;
-        lowTierAmount = _lowTierAmount;
-        mediumTierAmount = _mediumTierAmount;
-        premiumTierAmount = _premiumTierAmount;
-        eethToken = _eethToken;
+        admin = _gnosisSafe;
+
+        tiers[Tier.Low] = TierData({
+            costWei: _lowTierCost,
+            maxSupply: _lowTierSupply
+        });
+        tiers[Tier.Medium] = TierData({
+            costWei: _mediumTierCost,
+            maxSupply: _mediumTierSupply
+        });
+        tiers[Tier.Premium] = TierData({
+            costWei: _premiumTierCost,
+            maxSupply: _premiumTierSupply
+        });
     }
 
     //--------------------------------------------------------------------------------------
     //--------------------------------  Public ---------------------------------------------
     //--------------------------------------------------------------------------------------
 
-    function preorder(Tier tier) external payable {
-        uint256 amount = getTierAmount(tier);
-        require(msg.value == amount, "Incorrect amount");
+    // Mints a token with ETH
+    function Mint(Tier _tier) payable external returns (uint256) {
+        require(msg.value == tiers[_tier].costWei, "Incorrect amount sent");
+
         (bool success, ) = gnosisSafe.call{value: msg.value}("");
         require(success, "Transfer failed");
 
-        emit Preorder(msg.sender, tier, msg.value);
+        // TODO: check maxSupply for tier
+        safeMint(msg.sender, uint8(_tier));
+
+        emit Preorder(msg.sender, _tier, msg.value);
     }
 
-    function preorderWithPermit(
-        Tier tier,
-        uint256 value,
-        uint256 deadline,
-        uint8 v,
-        bytes32 r,
-        bytes32 s
-    ) external {
-        uint256 amount = getTierAmount(tier);
-        require(value == amount, "Incorrect amount");
-        IERC20Permit(address(eethToken)).permit(msg.sender, address(this), value, deadline, v, r, s);
-        require(eethToken.transferFrom(msg.sender, gnosisSafe, value), "Transfer failed");
+    // mints a token with eETH
+    function MintWithPermit(Tier _tier, uint256 _amount, uint256 _deadline, uint8 v, bytes32 r, bytes32 s) external {
+        require(_amount == tiers[_tier].costWei, "Incorrect amount sent");
 
-        emit Preorder(msg.sender, tier, value);
+        IERC20Permit(eETH).permit(msg.sender, address(this), _amount, _deadline, v, r, s);
+        // TODO: check maxSupply for tier
+        safeMint(msg.sender, uint8(_tier));
+
+
+        emit Preorder(msg.sender, _tier, _amount);
     }
 
-    function getTierAmount(Tier tier) public view returns (uint256) {
-        if (tier == Tier.Low) {
-            return lowTierAmount;
-        } else if (tier == Tier.Medium) {
-            return mediumTierAmount;
-        } else if (tier == Tier.Premium) {
-            return premiumTierAmount;
-        } else {
-            revert("Invalid tier");
-        }
+    //--------------------------------------------------------------------------------------
+    //----------------------------------  ERC-1155  ----------------------------------------
+    //--------------------------------------------------------------------------------------
+
+    function uri(uint256 id) public view override returns (string memory) {
+        // TODO:
+        return "";
     }
 
     //--------------------------------------------------------------------------------------
     //----------------------------------  Admin  -------------------------------------------
     //--------------------------------------------------------------------------------------
+
+    // Sets the cost and max supply for a tier
+    function setTierData(Tier _tier, uint128 _costWei, uint32 _maxSupply) external onlyAdmin {
+        tiers[_tier] = TierData({
+            costWei: _costWei,
+            maxSupply: _maxSupply
+        });
+    }
 
     // Pauses the contract
     function pauseContract() external onlyAdmin {
