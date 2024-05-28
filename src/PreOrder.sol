@@ -16,7 +16,7 @@ contract PreOrder is
     {
 
     // Gnosis Safe to receive the preorder payments
-    address public gnosisSafe;
+    address payable public gnosisSafe;
 
     // Semi-fungible token with 3 distinct tiers
     enum Tier { Unknown, Low, Medium, Premium }
@@ -35,26 +35,32 @@ contract PreOrder is
     // eETH can also be used as a payment
     address public eEthToken;
 
+    // NFT metadata storage location
+    string private baseURI;
+
     // Event emitted when a PreOrder Token is minted
     event PreOrderMint(address indexed buyer, Tier indexed tier, uint256 amount);
 
     function initialize(
         address initialOwner,
         address payable _gnosisSafe,
+        address _admin,
+        address _eEthToken,
+        string memory _baseURI,
         uint128 _lowTierCost,
         uint32 _lowTierSupply,
         uint128 _mediumTierCost,
         uint32 _mediumTierSupply,
         uint128 _premiumTierCost,
-        uint32 _premiumTierSupply,
-        address _eEthToken
+        uint32 _premiumTierSupply
     ) public initializer {
         __Ownable_init(initialOwner);
         __Pausable_init();
 
         gnosisSafe = _gnosisSafe;
-        admin = _gnosisSafe;
+        admin = _admin;
         eEthToken = _eEthToken;
+        baseURI = _baseURI;
 
         tiers[Tier.Low] = TierData({
             costWei: _lowTierCost,
@@ -113,8 +119,7 @@ contract PreOrder is
     //--------------------------------------------------------------------------------------
 
     function uri(uint256 id) public view override returns (string memory) {
-        // TODO:
-        return "";
+        return string(abi.encodePacked(_baseURI, Strings.toString(id), ".json"));
     }
 
     //--------------------------------------------------------------------------------------
@@ -124,11 +129,6 @@ contract PreOrder is
     // Sets the mint price for a tier 
     function setTierData(Tier _tier, uint128 _costWei) external onlyAdmin {
         tiers[_tier].costWei = _costWei;
-    }
-
-    // Sets the maxSupply for a tier
-    function setMaxSupply(Tier _tier, uint32 _maxSupply) external onlyAdmin {
-        tiers[_tier].maxSupply = _maxSupply;
     }
 
     // Pauses the contract
