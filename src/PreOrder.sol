@@ -78,7 +78,7 @@ contract PreOrder is
     //--------------------------------------------------------------------------------------
 
     // Mints a token with ETH as payment
-    function Mint(Tier _tier) payable external returns (uint256) {
+    function Mint(Tier _tier) payable external {
         require(msg.value == tiers[_tier].costWei, "Incorrect amount sent");
         require(tiers[_tier].minted < tiers[_tier].maxSupply, "Tier sold out");
 
