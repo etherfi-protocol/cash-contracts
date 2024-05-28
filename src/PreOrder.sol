@@ -8,7 +8,7 @@ import "@openzeppelin-upgradeable/contracts/proxy/utils/UUPSUpgradeable.sol";
 import "@openzeppelin-upgradeable/contracts/utils/PausableUpgradeable.sol";
 import "./custom1155.sol";
 
-contract Preorder is 
+contract PreOrder is 
     CustomERC1155, 
     OwnableUpgradeable,
     PausableUpgradeable, 
@@ -25,11 +25,18 @@ contract Preorder is
     struct TierData { 
         uint128 costWei; 
         uint32 maxSupply; 
+        uint minted;
     }
     mapping(Tier => TierData) public tiers;
 
     // Contract owner is the timelock, admin role needed to eeform timely actions on the contract
     address public admin;
+
+    // eETH can also be used as a payment
+    address public eEthToken;
+
+    // Event emitted when a PreOrder Token is minted
+    event PreOrderMint(address indexed buyer, Tier indexed tier, uint256 amount);
 
     function initialize(
         address initialOwner,
@@ -39,25 +46,30 @@ contract Preorder is
         uint128 _mediumTierCost,
         uint32 _mediumTierSupply,
         uint128 _premiumTierCost,
-        uint32 _premiumTierSupply
+        uint32 _premiumTierSupply,
+        address _eEthToken
     ) public initializer {
         __Ownable_init(initialOwner);
         __Pausable_init();
 
         gnosisSafe = _gnosisSafe;
         admin = _gnosisSafe;
+        eEthToken = _eEthToken;
 
         tiers[Tier.Low] = TierData({
             costWei: _lowTierCost,
-            maxSupply: _lowTierSupply
+            maxSupply: _lowTierSupply,
+            minted: 0
         });
         tiers[Tier.Medium] = TierData({
             costWei: _mediumTierCost,
-            maxSupply: _mediumTierSupply
+            maxSupply: _mediumTierSupply,
+            minted: 0
         });
         tiers[Tier.Premium] = TierData({
             costWei: _premiumTierCost,
-            maxSupply: _premiumTierSupply
+            maxSupply: _premiumTierSupply,
+            minted: 0
         });
     }
 
@@ -65,29 +77,35 @@ contract Preorder is
     //--------------------------------  Public ---------------------------------------------
     //--------------------------------------------------------------------------------------
 
-    // Mints a token with ETH
+    // Mints a token with ETH as payment
     function Mint(Tier _tier) payable external returns (uint256) {
         require(msg.value == tiers[_tier].costWei, "Incorrect amount sent");
+        require(tiers[_tier].minted < tiers[_tier].maxSupply, "Tier sold out");
 
         (bool success, ) = gnosisSafe.call{value: msg.value}("");
         require(success, "Transfer failed");
 
-        // TODO: check maxSupply for tier
         safeMint(msg.sender, uint8(_tier));
 
-        emit Preorder(msg.sender, _tier, msg.value);
+        tiers[_tier].minted += 1;
+
+        emit PreOrderMint(msg.sender, _tier, msg.value);
     }
 
-    // mints a token with eETH
+    // mints a token with eETH as payment
     function MintWithPermit(Tier _tier, uint256 _amount, uint256 _deadline, uint8 v, bytes32 r, bytes32 s) external {
         require(_amount == tiers[_tier].costWei, "Incorrect amount sent");
+        require(tiers[_tier].minted < tiers[_tier].maxSupply, "Tier sold out");
 
-        IERC20Permit(eETH).permit(msg.sender, address(this), _amount, _deadline, v, r, s);
-        // TODO: check maxSupply for tier
+        IERC20Permit(eEthToken).permit(msg.sender, address(this), _amount, _deadline, v, r, s);
+
+        IERC20(eEthToken).transferFrom(msg.sender, gnosisSafe, _amount);
+
         safeMint(msg.sender, uint8(_tier));
 
+        tiers[_tier].minted += 1;   
 
-        emit Preorder(msg.sender, _tier, _amount);
+        emit PreOrderMint(msg.sender, _tier, _amount);
     }
 
     //--------------------------------------------------------------------------------------
@@ -103,12 +121,14 @@ contract Preorder is
     //----------------------------------  Admin  -------------------------------------------
     //--------------------------------------------------------------------------------------
 
-    // Sets the cost and max supply for a tier
-    function setTierData(Tier _tier, uint128 _costWei, uint32 _maxSupply) external onlyAdmin {
-        tiers[_tier] = TierData({
-            costWei: _costWei,
-            maxSupply: _maxSupply
-        });
+    // Sets the mint price for a tier 
+    function setTierData(Tier _tier, uint128 _costWei) external onlyAdmin {
+        tiers[_tier].costWei = _costWei;
+    }
+
+    // Sets the maxSupply for a tier
+    function setMaxSupply(Tier _tier, uint32 _maxSupply) external onlyAdmin {
+        tiers[_tier].maxSupply = _maxSupply;
     }
 
     // Pauses the contract
