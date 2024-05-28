@@ -3,6 +3,7 @@ pragma solidity ^0.8.24;
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/extensions/IERC20Permit.sol";
+import "@openzeppelin/contracts/utils/Strings.sol";
 import "@openzeppelin-upgradeable/contracts/access/OwnableUpgradeable.sol";
 import "@openzeppelin-upgradeable/contracts/proxy/utils/UUPSUpgradeable.sol";
 import "@openzeppelin-upgradeable/contracts/utils/PausableUpgradeable.sol";
@@ -24,8 +25,8 @@ contract PreOrder is
     // Storages the cost to purchase and the maxSupply for each tier
     struct TierData { 
         uint128 costWei; 
-        uint32 maxSupply; 
-        uint minted;
+        uint32 maxSupply;
+        uint32 minted;
     }
     mapping(Tier => TierData) public tiers;
 
@@ -47,13 +48,15 @@ contract PreOrder is
         address _admin,
         address _eEthToken,
         string memory _baseURI,
-        uint128 _lowTierCost,
-        uint32 _lowTierSupply,
-        uint128 _mediumTierCost,
-        uint32 _mediumTierSupply,
-        uint128 _premiumTierCost,
-        uint32 _premiumTierSupply
+        TierData memory lowTierData,
+        TierData memory mediumTierData,
+        TierData memory premiumTierData
     ) public initializer {
+        require(
+            lowTierData.minted == 0 && mediumTierData.minted == 0 && premiumTierData.minted == 0,
+            "Tier minted must be 0"
+        );
+
         __Ownable_init(initialOwner);
         __Pausable_init();
 
@@ -62,21 +65,9 @@ contract PreOrder is
         eEthToken = _eEthToken;
         baseURI = _baseURI;
 
-        tiers[Tier.Low] = TierData({
-            costWei: _lowTierCost,
-            maxSupply: _lowTierSupply,
-            minted: 0
-        });
-        tiers[Tier.Medium] = TierData({
-            costWei: _mediumTierCost,
-            maxSupply: _mediumTierSupply,
-            minted: 0
-        });
-        tiers[Tier.Premium] = TierData({
-            costWei: _premiumTierCost,
-            maxSupply: _premiumTierSupply,
-            minted: 0
-        });
+        tiers[Tier.Low] = lowTierData;
+        tiers[Tier.Medium] = mediumTierData;
+        tiers[Tier.Premium] = premiumTierData;
     }
 
     //--------------------------------------------------------------------------------------
@@ -119,7 +110,7 @@ contract PreOrder is
     //--------------------------------------------------------------------------------------
 
     function uri(uint256 id) public view override returns (string memory) {
-        return string(abi.encodePacked(_baseURI, Strings.toString(id), ".json"));
+        return string(abi.encodePacked(baseURI, Strings.toString(id), ".json"));
     }
 
     //--------------------------------------------------------------------------------------
