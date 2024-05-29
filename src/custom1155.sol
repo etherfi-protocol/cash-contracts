@@ -34,7 +34,7 @@ abstract contract CustomERC1155 {
 
     struct TokenData {
         address owner;
-        uint8 tier;
+        uint8 tokenTier;
     }
     TokenData[] public _tokens;
 
