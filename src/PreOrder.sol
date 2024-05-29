@@ -19,16 +19,20 @@ contract PreOrder is
     // Gnosis Safe to receive the preorder payments
     address payable public gnosisSafe;
 
-    // Semi-fungible token with 3 distinct tiers
-    enum Tier { Unknown, Low, Medium, Premium }
+    // Storages the data for each tier
+    // Number of tiers is configurable upon initialization
+    //  * - tiers[0] -> TierData for Tier 0
+    //  * - tiers[1] -> TierData for Tier 1
+    //  ....
+    //  * - tiers[n] -> TierData for Tier n
+    mapping(uint256 => TierData) public tiers;
 
-    // Storages the cost to purchase and the maxSupply for each tier
+    // Congifurable parameters for each tier
     struct TierData { 
         uint128 costWei; 
         uint32 maxSupply;
         uint32 minted;
     }
-    mapping(Tier => TierData) public tiers;
 
     // Contract owner is the timelock, admin role needed to eeform timely actions on the contract
     address public admin;
@@ -40,7 +44,7 @@ contract PreOrder is
     string private baseURI;
 
     // Event emitted when a PreOrder Token is minted
-    event PreOrderMint(address indexed buyer, Tier indexed tier, uint256 amount);
+    event PreOrderMint(address indexed buyer, uint256 indexed tier, uint256 amount);
 
     function initialize(
         address initialOwner,
@@ -48,14 +52,8 @@ contract PreOrder is
         address _admin,
         address _eEthToken,
         string memory _baseURI,
-        TierData memory lowTierData,
-        TierData memory mediumTierData,
-        TierData memory premiumTierData
+        TierData[] memory tierDataArray
     ) public initializer {
-        require(
-            lowTierData.minted == 0 && mediumTierData.minted == 0 && premiumTierData.minted == 0,
-            "Tier minted must be 0"
-        );
 
         __Ownable_init(initialOwner);
         __Pausable_init();
@@ -65,9 +63,10 @@ contract PreOrder is
         eEthToken = _eEthToken;
         baseURI = _baseURI;
 
-        tiers[Tier.Low] = lowTierData;
-        tiers[Tier.Medium] = mediumTierData;
-        tiers[Tier.Premium] = premiumTierData;
+        for (uint256 i = 0; i < tierDataArray.length; i++) {
+            require(tierDataArray[i].minted == 0, "Tier minted must be 0");
+            tiers[i] = tierDataArray[i];
+        }
     }
 
     //--------------------------------------------------------------------------------------
@@ -75,22 +74,22 @@ contract PreOrder is
     //--------------------------------------------------------------------------------------
 
     // Mints a token with ETH as payment
-    function Mint(Tier _tier) payable external {
+    function Mint(uint8 _tier) payable external {
         require(msg.value == tiers[_tier].costWei, "Incorrect amount sent");
         require(tiers[_tier].minted < tiers[_tier].maxSupply, "Tier sold out");
 
         (bool success, ) = gnosisSafe.call{value: msg.value}("");
         require(success, "Transfer failed");
 
-        safeMint(msg.sender, uint8(_tier));
+        safeMint(msg.sender, _tier);
 
         tiers[_tier].minted += 1;
 
         emit PreOrderMint(msg.sender, _tier, msg.value);
     }
 
-    // mints a token with eETH as payment
-    function MintWithPermit(Tier _tier, uint256 _amount, uint256 _deadline, uint8 v, bytes32 r, bytes32 s) external {
+    // Mints a token with eETH as payment
+    function MintWithPermit(uint8 _tier, uint256 _amount, uint256 _deadline, uint8 v, bytes32 r, bytes32 s) external {
         require(_amount == tiers[_tier].costWei, "Incorrect amount sent");
         require(tiers[_tier].minted < tiers[_tier].maxSupply, "Tier sold out");
 
@@ -98,11 +97,11 @@ contract PreOrder is
 
         IERC20(eEthToken).transferFrom(msg.sender, gnosisSafe, _amount);
 
-        safeMint(msg.sender, uint8(_tier));
+        safeMint(msg.sender, _tier);
 
         tiers[_tier].minted += 1;   
 
-        emit PreOrderMint(msg.sender, _tier, _amount);
+        emit PreOrderMint(msg.sender, _tier,  _amount);
     }
 
     //--------------------------------------------------------------------------------------
@@ -118,7 +117,7 @@ contract PreOrder is
     //--------------------------------------------------------------------------------------
 
     // Sets the mint price for a tier 
-    function setTierData(Tier _tier, uint128 _costWei) external onlyAdmin {
+    function setTierData(uint8 _tier, uint128 _costWei) external onlyAdmin {
         tiers[_tier].costWei = _costWei;
     }
 
