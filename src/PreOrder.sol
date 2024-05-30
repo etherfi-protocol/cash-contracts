@@ -75,8 +75,6 @@ contract PreOrder is
         assembly {
             sstore(tokens.slot, totalCards)
         }
-
-
     }
 
     //--------------------------------------------------------------------------------------
@@ -91,9 +89,7 @@ contract PreOrder is
         (bool success, ) = gnosisSafe.call{value: msg.value}("");
         require(success, "Transfer failed");
 
-        safeMint(msg.sender, _tier);
-
-        tiers[_tier].minted += 1;
+        safeMint(msg.sender, _tier, calculateTokenId(_tier));
 
         emit PreOrderMint(msg.sender, _tier, msg.value);
     }
@@ -107,7 +103,7 @@ contract PreOrder is
 
         IERC20(eEthToken).transferFrom(msg.sender, gnosisSafe, _amount);
 
-        safeMint(msg.sender, _tier);
+        safeMint(msg.sender, _tier, calculateTokenId(_tier));
 
         tiers[_tier].minted += 1;   
 
@@ -116,6 +112,15 @@ contract PreOrder is
 
     function maxSupply() external view returns (uint256) {
         return tokens.length;
+    }
+
+    // Helper function to calculate the tokenId
+    function calculateTokenId(uint256 _tier) internal view returns (uint256 tokenId) {
+        if (_tier == 0) {
+            tokenId = tiers[_tier].minted;
+        } else {
+            tokenId = tiers[_tier].minted + tiers[_tier - 1].maxSupply;
+        }
     }
 
     //--------------------------------------------------------------------------------------

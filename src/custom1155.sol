@@ -163,18 +163,18 @@ abstract contract CustomERC1155 {
 
     function safeMint(
         address to,
-        uint8 tier
+        uint8 tier,
+        uint256 tokenId
     ) internal virtual {
 
-        uint256 id = tokens.length;
-        tokens.push(TokenData(to, tier));
+        tokens[tokenId] = TokenData(to, tier);
 
         emit TransferSingle(msg.sender, address(0), to, tokens.length, 1);
 
         require(
             to.code.length == 0
                 ? to != address(0)
-                : ERC1155TokenReceiver(to).onERC1155Received(msg.sender, address(0), id, 1, "") ==
+                : ERC1155TokenReceiver(to).onERC1155Received(msg.sender, address(0), tokenId, 1, "") ==
                     ERC1155TokenReceiver.onERC1155Received.selector,
             "UNSAFE_RECIPIENT"
         );
