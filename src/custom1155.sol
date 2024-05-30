@@ -36,7 +36,7 @@ abstract contract CustomERC1155 {
         address owner;
         uint8 tokenTier;
     }
-    TokenData[] public _tokens;
+    TokenData[] public tokens;
 
     mapping(address => mapping(address => bool)) public isApprovedForAll;
 
@@ -65,10 +65,10 @@ abstract contract CustomERC1155 {
         bytes calldata data
     ) public virtual {
         require(msg.sender == from || isApprovedForAll[from][msg.sender], "NOT_AUTHORIZED");
-        require(_tokens[id].owner == from, "NOT_OWNER");
+        require(tokens[id].owner == from, "NOT_OWNER");
         require(amount == 1, "INVALID_AMOUNT");
 
-        _tokens[id].owner = to;
+        tokens[id].owner = to;
 
         emit TransferSingle(msg.sender, from, to, id, amount);
 
@@ -99,9 +99,9 @@ abstract contract CustomERC1155 {
             id = ids[i];
             amount = amounts[i];
             require(amount == 1, "INVALID_AMOUNT");
-            require(_tokens[id].owner == from, "NOT_OWNER");
+            require(tokens[id].owner == from, "NOT_OWNER");
 
-            _tokens[id].owner = to;
+            tokens[id].owner = to;
 
             // An array can't have a total length
             // larger than the max uint256 value.
@@ -124,7 +124,7 @@ abstract contract CustomERC1155 {
     function balanceOf(address account, uint256 id) public view virtual returns (uint256) {
         require(account != address(0), "ERC1155: balance query for the zero address");
 
-        return _tokens[id].owner == account ? 1 : 0;
+        return tokens[id].owner == account ? 1 : 0;
     }
 
     function balanceOfBatch(address[] calldata owners, uint256[] calldata ids)
@@ -166,10 +166,10 @@ abstract contract CustomERC1155 {
         uint8 tier
     ) internal virtual {
 
-        uint256 id = _tokens.length;
-        _tokens.push(TokenData(to, tier));
+        uint256 id = tokens.length;
+        tokens.push(TokenData(to, tier));
 
-        emit TransferSingle(msg.sender, address(0), to, _tokens.length, 1);
+        emit TransferSingle(msg.sender, address(0), to, tokens.length, 1);
 
         require(
             to.code.length == 0

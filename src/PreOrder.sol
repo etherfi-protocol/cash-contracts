@@ -27,7 +27,7 @@ contract PreOrder is
     //  * - tiers[n] -> TierData for Tier n
     mapping(uint256 => TierData) public tiers;
 
-    // Congifurable parameters for each tier
+    // Configurable parameters for each tier
     struct TierData { 
         uint128 costWei; 
         uint32 maxSupply;
@@ -48,7 +48,7 @@ contract PreOrder is
 
     function initialize(
         address initialOwner,
-        address payable _gnosisSafe,
+        address _gnosisSafe,
         address _admin,
         address _eEthToken,
         string memory _baseURI,
@@ -58,15 +58,25 @@ contract PreOrder is
         __Ownable_init(initialOwner);
         __Pausable_init();
 
-        gnosisSafe = _gnosisSafe;
+        gnosisSafe = payable(_gnosisSafe);
         admin = _admin;
         eEthToken = _eEthToken;
         baseURI = _baseURI;
 
+        uint256 totalCards;
         for (uint256 i = 0; i < tierDataArray.length; i++) {
             require(tierDataArray[i].minted == 0, "Tier minted must be 0");
             tiers[i] = tierDataArray[i];
+            totalCards += tierDataArray[i].maxSupply;
         }
+
+        // If we decide we want infinite of the last tier, we can just statically
+        // initialize to a giant number instead of doing this
+        assembly {
+            sstore(tokens.slot, totalCards)
+        }
+
+
     }
 
     //--------------------------------------------------------------------------------------
@@ -102,6 +112,10 @@ contract PreOrder is
         tiers[_tier].minted += 1;   
 
         emit PreOrderMint(msg.sender, _tier,  _amount);
+    }
+
+    function maxSupply() external view returns (uint256) {
+        return tokens.length;
     }
 
     //--------------------------------------------------------------------------------------
