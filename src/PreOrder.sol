@@ -10,10 +10,10 @@ import "@openzeppelin-upgradeable/contracts/utils/PausableUpgradeable.sol";
 import "./custom1155.sol";
 
 contract PreOrder is 
-    CustomERC1155, 
     OwnableUpgradeable,
     PausableUpgradeable, 
-    UUPSUpgradeable
+    UUPSUpgradeable,
+    CustomERC1155
     {
 
     // Gnosis Safe to receive the preorder payments
@@ -29,9 +29,9 @@ contract PreOrder is
 
     // Configurable parameters for each tier
     struct TierData { 
-        uint128 costWei; 
+        uint128 costInGwei; 
         uint32 maxSupply;
-        uint32 minted;
+        uint32 mintCount;
     }
 
     // Contract owner is the timelock, admin role needed to eeform timely actions on the contract
@@ -43,7 +43,7 @@ contract PreOrder is
     // NFT metadata storage location
     string private baseURI;
 
-    // Event emitted when a PreOrder Token is minted
+    // Event emitted when a PreOrder Token is mintCount
     event PreOrderMint(address indexed buyer, uint256 indexed tier, uint256 amount);
 
     function initialize(
@@ -65,7 +65,7 @@ contract PreOrder is
 
         uint256 totalCards;
         for (uint256 i = 0; i < tierDataArray.length; i++) {
-            require(tierDataArray[i].minted == 0, "Tier minted must be 0");
+            require(tierDataArray[i].mintCount == 0, "Tier mintCount must be 0");
             tiers[i] = tierDataArray[i];
             totalCards += tierDataArray[i].maxSupply;
         }
@@ -82,9 +82,9 @@ contract PreOrder is
     //--------------------------------------------------------------------------------------
 
     // Mints a token with ETH as payment
-    function Mint(uint8 _tier) payable external {
+    function mint(uint8 _tier) payable external {
         require(msg.value == tiers[_tier].costWei, "Incorrect amount sent");
-        require(tiers[_tier].minted < tiers[_tier].maxSupply, "Tier sold out");
+        require(tiers[_tier].mintCount < tiers[_tier].maxSupply, "Tier sold out");
 
         (bool success, ) = gnosisSafe.call{value: msg.value}("");
         require(success, "Transfer failed");
@@ -96,8 +96,8 @@ contract PreOrder is
 
     // Mints a token with eETH as payment
     function MintWithPermit(uint8 _tier, uint256 _amount, uint256 _deadline, uint8 v, bytes32 r, bytes32 s) external {
-        require(_amount == tiers[_tier].costWei, "Incorrect amount sent");
-        require(tiers[_tier].minted < tiers[_tier].maxSupply, "Tier sold out");
+        require(_amount == tiers[_tier].costInGwei, "Incorrect amount sent");
+        require(tiers[_tier].mintCount < tiers[_tier].maxSupply, "Tier sold out");
 
         IERC20Permit(eEthToken).permit(msg.sender, address(this), _amount, _deadline, v, r, s);
 
@@ -105,7 +105,7 @@ contract PreOrder is
 
         safeMint(msg.sender, _tier, calculateTokenId(_tier));
 
-        tiers[_tier].minted += 1;   
+        tiers[_tier].mintCount += 1;   
 
         emit PreOrderMint(msg.sender, _tier,  _amount);
     }
@@ -117,9 +117,9 @@ contract PreOrder is
     // Helper function to calculate the tokenId
     function calculateTokenId(uint256 _tier) internal view returns (uint256 tokenId) {
         if (_tier == 0) {
-            tokenId = tiers[_tier].minted;
+            tokenId = tiers[_tier].mintCount;
         } else {
-            tokenId = tiers[_tier].minted + tiers[_tier - 1].maxSupply;
+            tokenId = tiers[_tier].mintCount + tiers[_tier - 1].maxSupply;
         }
     }
 
