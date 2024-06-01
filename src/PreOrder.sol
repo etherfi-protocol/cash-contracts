@@ -28,10 +28,17 @@ contract PreOrder is
     mapping(uint256 => TierData) public tiers;
 
     // Configurable parameters for each tier
-    struct TierData { 
-        uint128 costInGwei; 
-        uint32 maxSupply;
-        uint32 mintCount;
+    struct TierConfig { 
+        uint128 costGwei; 
+        uint16 maxSupply;
+    }
+
+    // Store the metaData for each tier
+    struct TierData {
+        uint128 costGwei;
+        uint16 maxSupply;
+        uint16 mintCount;
+        uint16 nextTokenId;
     }
 
     // Contract owner is the timelock, admin role needed to eeform timely actions on the contract
@@ -43,7 +50,7 @@ contract PreOrder is
     // NFT metadata storage location
     string private baseURI;
 
-    // Event emitted when a PreOrder Token is mintCount
+    // Event emitted when a PreOrder Token is minted
     event PreOrderMint(address indexed buyer, uint256 indexed tier, uint256 amount);
 
     function initialize(
@@ -52,7 +59,7 @@ contract PreOrder is
         address _admin,
         address _eEthToken,
         string memory _baseURI,
-        TierData[] memory tierDataArray
+        TierConfig[] memory tierConfigArray
     ) public initializer {
 
         __Ownable_init(initialOwner);
@@ -63,11 +70,19 @@ contract PreOrder is
         eEthToken = _eEthToken;
         baseURI = _baseURI;
 
-        uint256 totalCards;
-        for (uint256 i = 0; i < tierDataArray.length; i++) {
-            require(tierDataArray[i].mintCount == 0, "Tier mintCount must be 0");
-            tiers[i] = tierDataArray[i];
-            totalCards += tierDataArray[i].maxSupply;
+        uint16 totalCards = 0;
+        for (uint256 i = 0; i < tierConfigArray.length; i++) {
+            tiers[i] = TierData({
+                costGwei: tierConfigArray[i].costGwei,
+                maxSupply: tierConfigArray[i].maxSupply,
+
+                mintCount: 0,
+                nextTokenId: totalCards
+            });
+
+            // TODO: Check for overflow
+            
+            totalCards += tierConfigArray[i].maxSupply;
         }
 
         // If we decide we want infinite of the last tier, we can just statically
@@ -83,7 +98,7 @@ contract PreOrder is
 
     // Mints a token with ETH as payment
     function mint(uint8 _tier) payable external {
-        require(msg.value == tiers[_tier].costWei, "Incorrect amount sent");
+        require(msg.value == tiers[_tier].costGwei, "Incorrect amount sent");
         require(tiers[_tier].mintCount < tiers[_tier].maxSupply, "Tier sold out");
 
         (bool success, ) = gnosisSafe.call{value: msg.value}("");
@@ -91,12 +106,14 @@ contract PreOrder is
 
         safeMint(msg.sender, _tier, calculateTokenId(_tier));
 
+        tiers[_tier].mintCount += 1;
+
         emit PreOrderMint(msg.sender, _tier, msg.value);
     }
 
     // Mints a token with eETH as payment
     function MintWithPermit(uint8 _tier, uint256 _amount, uint256 _deadline, uint8 v, bytes32 r, bytes32 s) external {
-        require(_amount == tiers[_tier].costInGwei, "Incorrect amount sent");
+        require(_amount == tiers[_tier].costGwei, "Incorrect amount sent");
         require(tiers[_tier].mintCount < tiers[_tier].maxSupply, "Tier sold out");
 
         IERC20Permit(eEthToken).permit(msg.sender, address(this), _amount, _deadline, v, r, s);
@@ -116,11 +133,7 @@ contract PreOrder is
 
     // Helper function to calculate the tokenId
     function calculateTokenId(uint256 _tier) internal view returns (uint256 tokenId) {
-        if (_tier == 0) {
-            tokenId = tiers[_tier].mintCount;
-        } else {
-            tokenId = tiers[_tier].mintCount + tiers[_tier - 1].maxSupply;
-        }
+        tokenId = tiers[_tier].nextTokenId + tiers[_tier].mintCount;
     }
 
     //--------------------------------------------------------------------------------------
@@ -136,8 +149,8 @@ contract PreOrder is
     //--------------------------------------------------------------------------------------
 
     // Sets the mint price for a tier 
-    function setTierData(uint8 _tier, uint128 _costWei) external onlyAdmin {
-        tiers[_tier].costWei = _costWei;
+    function setTierData(uint8 _tier, uint128 _costGwei) external onlyAdmin {
+        tiers[_tier].costGwei = _costGwei;
     }
 
     // Pauses the contract
