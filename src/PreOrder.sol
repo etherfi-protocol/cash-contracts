@@ -72,6 +72,8 @@ contract PreOrder is
 
         uint16 totalCards = 0;
         for (uint256 i = 0; i < tierConfigArray.length; i++) {
+            require(totalCards + tierConfigArray[i].maxSupply <= type(uint16).max, "Total cards will overflow");
+
             tiers[i] = TierData({
                 costGwei: tierConfigArray[i].costGwei,
                 maxSupply: tierConfigArray[i].maxSupply,
@@ -80,8 +82,6 @@ contract PreOrder is
                 nextTokenId: totalCards
             });
 
-            // TODO: Check for overflow
-            
             totalCards += tierConfigArray[i].maxSupply;
         }
 
@@ -106,8 +106,6 @@ contract PreOrder is
 
         safeMint(msg.sender, _tier, calculateTokenId(_tier));
 
-        tiers[_tier].mintCount += 1;
-
         emit PreOrderMint(msg.sender, _tier, msg.value);
     }
 
@@ -122,8 +120,6 @@ contract PreOrder is
 
         safeMint(msg.sender, _tier, calculateTokenId(_tier));
 
-        tiers[_tier].mintCount += 1;   
-
         emit PreOrderMint(msg.sender, _tier,  _amount);
     }
 
@@ -131,9 +127,11 @@ contract PreOrder is
         return tokens.length;
     }
 
-    // Helper function to calculate the tokenId
-    function calculateTokenId(uint256 _tier) internal view returns (uint256 tokenId) {
+    // Helper function to calculate the tokenId and update the mintCount for this token
+    function calculateTokenId(uint256 _tier) internal returns (uint256 tokenId) {
         tokenId = tiers[_tier].nextTokenId + tiers[_tier].mintCount;
+
+        tiers[_tier].mintCount += 1;
     }
 
     //--------------------------------------------------------------------------------------
