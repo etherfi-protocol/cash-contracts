@@ -44,11 +44,11 @@ contract DeployPreOrder is Script {
 
         // Configuring the tiers
         PreOrder.TierConfig memory whales = PreOrder.TierConfig({
-            costGwei: 1000 ether,
+            costWei: 1000 ether,
             maxSupply: 10
         });
         PreOrder.TierConfig memory eBeggars = PreOrder.TierConfig({
-            costGwei: 0.01 ether,
+            costWei: 0.01 ether,
             maxSupply: 10000
         });
 

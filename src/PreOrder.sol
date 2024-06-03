@@ -29,16 +29,16 @@ contract PreOrder is
 
     // Configurable parameters for each tier
     struct TierConfig { 
-        uint128 costGwei; 
+        uint128 costWei; 
         uint16 maxSupply;
     }
 
     // Store the metaData for each tier
     struct TierData {
-        uint128 costGwei;
-        uint16 maxSupply;
-        uint16 mintCount;
-        uint16 nextTokenId;
+        uint128 costWei;
+        uint32 maxSupply;
+        uint32 mintCount;
+        uint32 nextTokenId;
     }
 
     // Contract owner is the timelock, admin role needed to eeform timely actions on the contract
@@ -70,12 +70,11 @@ contract PreOrder is
         eEthToken = _eEthToken;
         baseURI = _baseURI;
 
-        uint16 totalCards = 0;
+        uint32 totalCards = 0;
         for (uint256 i = 0; i < tierConfigArray.length; i++) {
-            require(totalCards + tierConfigArray[i].maxSupply <= type(uint16).max, "Total cards will overflow");
 
             tiers[i] = TierData({
-                costGwei: tierConfigArray[i].costGwei,
+                costWei: tierConfigArray[i].costWei,
                 maxSupply: tierConfigArray[i].maxSupply,
 
                 mintCount: 0,
@@ -98,7 +97,7 @@ contract PreOrder is
 
     // Mints a token with ETH as payment
     function mint(uint8 _tier) payable external {
-        require(msg.value == tiers[_tier].costGwei, "Incorrect amount sent");
+        require(msg.value == tiers[_tier].costWei, "Incorrect amount sent");
         require(tiers[_tier].mintCount < tiers[_tier].maxSupply, "Tier sold out");
 
         (bool success, ) = gnosisSafe.call{value: msg.value}("");
@@ -111,7 +110,7 @@ contract PreOrder is
 
     // Mints a token with eETH as payment
     function MintWithPermit(uint8 _tier, uint256 _amount, uint256 _deadline, uint8 v, bytes32 r, bytes32 s) external {
-        require(_amount == tiers[_tier].costGwei, "Incorrect amount sent");
+        require(_amount == tiers[_tier].costWei, "Incorrect amount sent");
         require(tiers[_tier].mintCount < tiers[_tier].maxSupply, "Tier sold out");
 
         IERC20Permit(eEthToken).permit(msg.sender, address(this), _amount, _deadline, v, r, s);
@@ -147,8 +146,8 @@ contract PreOrder is
     //--------------------------------------------------------------------------------------
 
     // Sets the mint price for a tier 
-    function setTierData(uint8 _tier, uint128 _costGwei) external onlyAdmin {
-        tiers[_tier].costGwei = _costGwei;
+    function setTierData(uint8 _tier, uint128 _costWei) external onlyAdmin {
+        tiers[_tier].costWei = _costWei;
     }
 
     // Pauses the contract

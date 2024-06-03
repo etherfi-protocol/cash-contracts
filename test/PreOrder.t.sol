@@ -35,15 +35,15 @@ contract PreOrderTest is Test {
 
         // Initialize a PreOrder contract
         tiers.push(PreOrder.TierConfig({
-            costGwei: 1000 ether,
+            costWei: 1000 ether,
             maxSupply: 10
         }));
         tiers.push(PreOrder.TierConfig({
-            costGwei: 1 ether,
+            costWei: 1 ether,
             maxSupply: 100
         }));
         tiers.push(PreOrder.TierConfig({
-            costGwei: 0.01 ether,
+            costWei: 0.01 ether,
             maxSupply: 10000
         }));
 
