@@ -7,7 +7,6 @@ import {PreOrder} from "../src/PreOrder.sol";
 contract PreOrderTest is Test {
     // Default contract 
     PreOrder public preorder;
-    MockERC20Permit public eEth;
 
     // Default users
     address public whale;
@@ -32,10 +31,7 @@ contract PreOrderTest is Test {
         admin = vm.addr(0x87654321);
 
         gnosis = address(0xbeef);
-
-        // Deploy the MockERC20Permit token
-        eEth = new MockERC20Permit("Mock eETH", "eETH");
-        eEthToken = address(eEth);
+        eEthToken = address(0xdead);
 
         // Initialize a PreOrder contract
         tiers.push(PreOrder.TierConfig({
@@ -67,8 +63,6 @@ contract PreOrderTest is Test {
         vm.deal(tuna, 10_000 ether);
         vm.deal(eBeggar, 1 ether);
 
-        // Mint some eETH tokens to the users for testing
-        eEth.mint(whale, 1000 ether);
     }
 
     function test_assemblyProperlySetsArrayLength() public view {
