@@ -102,7 +102,12 @@ contract PreOrderTest is Test {
             preorder.mint{value: 1 ether}(1);
         }
 
-        // tuna tier is now maxed out and payment should fail
+        // Tuna user should have all of the tuna tier tokens
+        for (uint256 i = 0; i < 100; i++) {
+            assertEq(preorder.balanceOf(tuna, i + 10), 1);
+        }
+
+        // Tuna tier is now maxed out and payment should fail
         uint gnosisBalanceStart2 = gnosis.balance;
         vm.expectRevert();
         preorder.mint{value: 1 ether}(1);
