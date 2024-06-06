@@ -103,7 +103,10 @@ contract PreOrder is
         (bool success, ) = gnosisSafe.call{value: msg.value}("");
         require(success, "Transfer failed");
 
-        safeMint(msg.sender, _tier, calculateTokenId(_tier));
+        uint256 tokenId = tiers[_tier].nextTokenId + tiers[_tier].mintCount;
+        tiers[_tier].mintCount += 1;
+
+        safeMint(msg.sender, _tier, tokenId);
 
         emit PreOrderMint(msg.sender, _tier, msg.value);
     }
@@ -114,23 +117,18 @@ contract PreOrder is
         require(tiers[_tier].mintCount < tiers[_tier].maxSupply, "Tier sold out");
 
         IERC20Permit(eEthToken).permit(msg.sender, address(this), _amount, _deadline, v, r, s);
-
         IERC20(eEthToken).transferFrom(msg.sender, gnosisSafe, _amount);
 
-        safeMint(msg.sender, _tier, calculateTokenId(_tier));
+        uint256 tokenId = tiers[_tier].nextTokenId + tiers[_tier].mintCount;
+        tiers[_tier].mintCount += 1;
+
+        safeMint(msg.sender, _tier, tokenId);
 
         emit PreOrderMint(msg.sender, _tier,  _amount);
     }
 
     function maxSupply() external view returns (uint256) {
         return tokens.length;
-    }
-
-    // Helper function to calculate the tokenId and update the mintCount for this token
-    function calculateTokenId(uint256 _tier) internal returns (uint256 tokenId) {
-        tokenId = tiers[_tier].nextTokenId + tiers[_tier].mintCount;
-
-        tiers[_tier].mintCount += 1;
     }
 
     //--------------------------------------------------------------------------------------
