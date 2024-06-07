@@ -145,6 +145,7 @@ contract PreOrderTest is Test {
         preorder.pauseContract();
 
         vm.expectRevert();
+        vm.startPrank(whale);
         preorder.mint{value: 1000 ether}(0);
         preorder.unPauseContract();
 

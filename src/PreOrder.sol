@@ -9,9 +9,9 @@ import "@openzeppelin-upgradeable/contracts/proxy/utils/UUPSUpgradeable.sol";
 import "@openzeppelin-upgradeable/contracts/utils/PausableUpgradeable.sol";
 import "./custom1155.sol";
 
-contract PreOrder is 
+contract PreOrder is
     OwnableUpgradeable,
-    PausableUpgradeable, 
+    PausableUpgradeable,
     UUPSUpgradeable,
     CustomERC1155
     {
@@ -76,7 +76,6 @@ contract PreOrder is
             tiers[i] = TierData({
                 costWei: tierConfigArray[i].costWei,
                 maxSupply: tierConfigArray[i].maxSupply,
-
                 mintCount: 0,
                 nextTokenId: totalCards
             });
@@ -143,7 +142,7 @@ contract PreOrder is
     //----------------------------------  Admin  -------------------------------------------
     //--------------------------------------------------------------------------------------
 
-    // Sets the mint price for a tier 
+    // Sets the mint price for a tier
     function setTierData(uint8 _tier, uint128 _costWei) external onlyAdmin {
         tiers[_tier].costWei = _costWei;
     }
@@ -174,7 +173,7 @@ contract PreOrder is
         require(msg.sender == admin, "Not the admin");
         _;
     }
-    
+
     receive() external payable {
         revert("Direct transfers not allowed");
     }
