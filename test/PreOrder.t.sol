@@ -6,6 +6,8 @@ import {PreOrder} from "../src/PreOrder.sol";
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/extensions/IERC20Permit.sol";
+import "@openzeppelin-upgradeable/contracts/utils/PausableUpgradeable.sol";
+import "@openzeppelin-upgradeable/contracts/access/OwnableUpgradeable.sol";
 
 contract PreOrderTest is Test {
     // Default contract 
@@ -112,7 +114,7 @@ contract PreOrderTest is Test {
 
         // Tuna tier is now maxed out and payment should fail
         uint gnosisBalanceStart2 = gnosis.balance;
-        vm.expectRevert();
+        vm.expectRevert("Tier sold out");
         preorder.mint{value: 1 ether}(1);
         uint gnosisBalanceEnd2 = gnosis.balance;
 
@@ -133,7 +135,9 @@ contract PreOrderTest is Test {
         assertEq(success, false);
 
         // revert on admin/owner functions
-        vm.expectRevert();
+        vm.expectRevert(
+            abi.encodeWithSelector(OwnableUpgradeable.OwnableUnauthorizedAccount.selector, whale)
+        );
         preorder.setAdmin(whale);
         vm.expectRevert("Not the admin");
         preorder.setTierData(0, 100 ether);
@@ -141,11 +145,20 @@ contract PreOrderTest is Test {
 
     function testPause() public {
         // Pause and unpause
-        vm.startPrank(admin);
+        vm.prank(admin);
         preorder.pauseContract();
+        vm.startPrank(whale);
 
-        vm.expectRevert();
+        vm.expectRevert(PausableUpgradeable.EnforcedPause.selector);
         preorder.mint{value: 1000 ether}(0);
+        vm.expectRevert(PausableUpgradeable.EnforcedPause.selector);
+        preorder.MintWithPermit(0, 1 ether, 0, 0x0, 0x0, 0x0);
+
+        vm.expectRevert("Not the admin");
+        preorder.unPauseContract();
+
+        // can still call admin functions while paused
+        vm.startPrank(admin);
         preorder.unPauseContract();
 
         vm.startPrank(whale);
@@ -219,8 +232,9 @@ contract PreOrderTest is Test {
         assertEq(eEthMainnet.balanceOf(alice), 99 ether);
 
         // Note: Due to the share system rounding down to protect the protocol from losses,
-        // the actual transfer amount is 1 Wei less than 1 ether.
-        assertEq(eEthMainnet.balanceOf(gnosis), 999999999999999999);
+        // the actual transfer amount is a few wei less than 1 ether
+        // Verifies |gnosis balance - 1 ether| ≤ 5 wei
+        assertApproxEqRel(eEthMainnet.balanceOf(gnosis), 1 ether, 5);
 
 
         // Testing signature with insufficient funds

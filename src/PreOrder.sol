@@ -96,7 +96,7 @@ contract PreOrder is
     //--------------------------------------------------------------------------------------
 
     // Mints a token with ETH as payment
-    function mint(uint8 _tier) payable external {
+    function mint(uint8 _tier) payable external whenNotPaused {
         require(msg.value == tiers[_tier].costWei, "Incorrect amount sent");
         require(tiers[_tier].mintCount < tiers[_tier].maxSupply, "Tier sold out");
 
@@ -112,7 +112,7 @@ contract PreOrder is
     }
 
     // Mints a token with eETH as payment
-    function MintWithPermit(uint8 _tier, uint256 _amount, uint256 _deadline, uint8 v, bytes32 r, bytes32 s) external {
+    function MintWithPermit(uint8 _tier, uint256 _amount, uint256 _deadline, uint8 v, bytes32 r, bytes32 s) external whenNotPaused {
         require(_amount == tiers[_tier].costWei, "Incorrect amount sent");
         require(tiers[_tier].mintCount < tiers[_tier].maxSupply, "Tier sold out");
 
