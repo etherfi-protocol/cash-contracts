@@ -229,11 +229,11 @@ contract PreOrderTest is Test {
         preorder.MintWithPermit(0, 1 ether, deadline, v, r, s);
 
         assertEq(preorder.balanceOf(alice, 0), 1);
-        assertEq(eEthMainnet.balanceOf(alice), 99 ether);
 
         // Note: Due to the share system rounding down to protect the protocol from losses,
         // the actual transfer amount is a few wei less than 1 ether
-        // Verifies |gnosis balance - 1 ether| ≤ 5 wei
+        // Verifies | balance - expected amount ether| ≤ 5 wei
+        assertApproxEqRel(eEthMainnet.balanceOf(alice), 99 ether, 5);
         assertApproxEqRel(eEthMainnet.balanceOf(gnosis), 1 ether, 5);
 
 
