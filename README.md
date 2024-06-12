@@ -1,18 +1,27 @@
-## Foundry
+## Project Requirements
+ **NFT minting with n functions (for n tiers):**
+  - Number of tiers, price per tier, and total supply per tier can be configured during the construction of the contract.
+  - Every tier has a total supply.
+  - Tiers determine the order for NFT minting IDs:
+    - First tier 1 minted -> NFT ID 1.
+    - Assuming 10 total supply for tier 1, first tier 2 minted -> NFT ID 11.
 
-**Foundry is a blazing fast, portable and modular toolkit for Ethereum application development written in Rust.**
+- **Upgrading and Downgrading:**
+  - Upgrading is not possible. Minting gives you the NFT, you can sell it and mint a different one if you need to.
+  - Downgrading or cancelling the order is not possible.
 
-Foundry consists of:
+- **Payment and Funds:**
+  - Funds are sent to a company Gnosis Safe (the owner) after every mint.
+  - Pulling locked funds (ERC20 tokens and ETH) should be possible for the owner.
+  - Payment can be made in ETH and eETH (preferably with a permit signature instead of approval).
 
--   **Forge**: Ethereum testing framework (like Truffle, Hardhat and DappTools).
--   **Cast**: Swiss army knife for interacting with EVM smart contracts, sending transactions and getting chain data.
--   **Anvil**: Local Ethereum node, akin to Ganache, Hardhat Network.
--   **Chisel**: Fast, utilitarian, and verbose solidity REPL.
+- **Security and Usability:**
+  - Fallback function reverts to prevent people from randomly sending funds.
+  - Ensure that Gnosis Safes can call the mint functions and a Gnosis Safe can be an owner of the smart contract.
 
-## Documentation
-
-https://book.getfoundry.sh/
-
+- **Deployment and Trading:**
+  - Contract will be deployed on Mainnet; ensure gas is realistic for minting.
+  - Trading of the NFT should be possible on Opensea.
 ## Usage
 
 ### Build
@@ -25,42 +34,4 @@ $ forge build
 
 ```shell
 $ forge test
-```
-
-### Format
-
-```shell
-$ forge fmt
-```
-
-### Gas Snapshots
-
-```shell
-$ forge snapshot
-```
-
-### Anvil
-
-```shell
-$ anvil
-```
-
-### Deploy
-
-```shell
-$ forge script script/Counter.s.sol:CounterScript --rpc-url <your_rpc_url> --private-key <your_private_key>
-```
-
-### Cast
-
-```shell
-$ cast <subcommand>
-```
-
-### Help
-
-```shell
-$ forge --help
-$ anvil --help
-$ cast --help
 ```
