@@ -61,6 +61,10 @@ contract PreOrder is
         string memory _baseURI,
         TierConfig[] memory tierConfigArray
     ) public initializer {
+        require(initialOwner != address(0), "Incorrect address for initialOwner");
+        require(_gnosisSafe != address(0), "Incorrect address for gnosisSafe");
+        require(_admin != address(0), "Incorrect address for admin");
+        require(_eEthToken != address(0), "Incorrect address for eEthToken");
 
         __Ownable_init(initialOwner);
         __Pausable_init();
