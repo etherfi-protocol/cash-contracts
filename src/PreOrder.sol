@@ -98,11 +98,11 @@ contract PreOrder is
     // Mints a token with ETH as payment
     function mint(uint8 _tier) payable external whenNotPaused {
         require(msg.value == tiers[_tier].costWei, "Incorrect amount sent");
-        require(tiers[_tier].mintCount < tiers[_tier].maxSupply, "Tier sold out");
 
         (bool success, ) = gnosisSafe.call{value: msg.value}("");
         require(success, "Transfer failed");
 
+        require(tiers[_tier].mintCount < tiers[_tier].maxSupply, "Tier sold out");
         uint256 tokenId = tiers[_tier].nextTokenId + tiers[_tier].mintCount;
         tiers[_tier].mintCount += 1;
 
