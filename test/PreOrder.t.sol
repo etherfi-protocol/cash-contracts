@@ -143,6 +143,45 @@ contract PreOrderTest is Test {
         preorder.setAdmin(whale);
         vm.expectRevert("Not the admin");
         preorder.setTierData(0, 100 ether);
+
+        // revert on null checks in the initialize function
+        preorder = new PreOrder();
+        vm.expectRevert("Incorrect address for initialOwner");
+        preorder.initialize(
+            address(0),
+            gnosis,
+            admin,
+            eEthToken,
+            "https://www.cool-kid-metadata.com",
+            tiers
+        );
+        vm.expectRevert("Incorrect address for gnosisSafe");
+        preorder.initialize(
+            owner,
+            address(0),
+            admin,
+            eEthToken,
+            "https://www.cool-kid-metadata.com",
+            tiers
+        );
+        vm.expectRevert("Incorrect address for admin");
+        preorder.initialize(
+            owner,
+            gnosis,
+            address(0),
+            eEthToken,
+            "https://www.cool-kid-metadata.com",
+            tiers
+        );
+        vm.expectRevert("Incorrect address for eEthToken");
+        preorder.initialize(
+            owner,
+            gnosis,
+            admin,
+            address(0),
+            "https://www.cool-kid-metadata.com",
+            tiers
+        );
     }
 
     function testPause() public {
