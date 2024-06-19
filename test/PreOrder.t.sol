@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import {Test, console} from "forge-std/Test.sol";
+import {Test, console, stdError} from "forge-std/Test.sol";
 import {PreOrder} from "../src/PreOrder.sol";
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
@@ -341,4 +341,23 @@ contract PreOrderTest is Test {
         assertEq(smallPreorder.balanceOf(whale, 0), 0);
     }
 
+    function testTiersLengthCheck() public {
+        for (uint256 i = 0; i < 300; i++) {
+            tiers.push(PreOrder.TierConfig({
+                costWei: 0.1 ether,
+                maxSupply: 1
+            }));
+        }
+
+        preorder = new PreOrder();
+        vm.expectRevert(stdError.arithmeticError);
+        preorder.initialize(
+            owner,
+            gnosis,
+            admin,
+            eEthToken,
+            "https://www.cool-kid-metadata.com",
+            tiers
+        );
+    }
 }

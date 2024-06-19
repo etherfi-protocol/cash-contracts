@@ -25,7 +25,7 @@ contract PreOrder is
     //  * - tiers[1] -> TierData for Tier 1
     //  ....
     //  * - tiers[n] -> TierData for Tier n
-    mapping(uint256 => TierData) public tiers;
+    mapping(uint8 => TierData) public tiers;
 
     // Configurable parameters for each tier
     struct TierConfig { 
@@ -71,7 +71,7 @@ contract PreOrder is
         baseURI = _baseURI;
 
         uint32 totalCards = 0;
-        for (uint256 i = 0; i < tierConfigArray.length; i++) {
+        for (uint8 i = 0; i < tierConfigArray.length; i++) {
 
             tiers[i] = TierData({
                 costWei: tierConfigArray[i].costWei,
