@@ -130,9 +130,11 @@ contract PreOrderTest is Test {
         preorder.mint{value: 999 ether}(0);
 
         // Revert on ETH direct sends to the contract
-        vm.expectRevert("Direct transfers allowed");
-        (bool success, ) = address(preorder).call{value: 1 ether}("");
-        assertEq(success, false);
+        vm.expectRevert("Direct transfers not allowed");
+        address(preorder).call{value: 1 ether}("");
+
+        vm.expectRevert("Direct transfers not allowed");
+        payable(address(preorder)).transfer(1 ether);
 
         // revert on admin/owner functions
         vm.expectRevert(
