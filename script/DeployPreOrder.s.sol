@@ -17,10 +17,11 @@ contract DeployPreOrder is Script {
     // Storages the addresses for the proxy deploy of the PreOrder contract
     Proxy PreOrderAddresses;
 
-    address GnosisSafe = 0x1234567890123456789012345678901234567890;
-    address eEthToken = 0x1234567890123456789012345678901234567890;
+    // TODO: This is the mainnet contract controller gnosis. Be sure to change to the pre-order gnosis  address
+    address GnosisSafe = 0x2aCA71020De61bb532008049e1Bd41E451aE8AdC;
+    address eEthToken = 0x35fA164735182de50811E8e2E824cFb9B6118ac2;
 
-    string baseURI = "https://s3.amazonaws.com/preOrder-NFT-Bucket/";
+    string baseURI = "https://api.pudgypenguins.io/lil/";
 
     function run() public {
         // Pulling deployer info from the environment
@@ -44,12 +45,20 @@ contract DeployPreOrder is Script {
 
         // Configuring the tiers
         PreOrder.TierConfig memory whales = PreOrder.TierConfig({
-            costWei: 1000 ether,
-            maxSupply: 10
+            costWei: 10 ether,
+            maxSupply: 200
         });
-        PreOrder.TierConfig memory eBeggars = PreOrder.TierConfig({
+        PreOrder.TierConfig memory chads = PreOrder.TierConfig({
+            costWei: 1 ether,
+            maxSupply: 2000
+        });
+        PreOrder.TierConfig memory wojak = PreOrder.TierConfig({
+            costWei: 0.1 ether,
+            maxSupply: 20_000
+        });
+        PreOrder.TierConfig memory pepe = PreOrder.TierConfig({
             costWei: 0.01 ether,
-            maxSupply: 10000
+            maxSupply: 200_000
         });
 
         // TODO: Add more tiers when the tiers are offically set
