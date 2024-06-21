@@ -3,7 +3,8 @@ pragma solidity ^0.8.24;
 
 import {Script, console} from "forge-std/Script.sol";
 
-import "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
+import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
+
 
 import "../src/PreOrder.sol";
 
@@ -25,23 +26,12 @@ contract DeployPreOrder is Script {
 
     function run() public {
         // Pulling deployer info from the environment
-        uint256 deployerPrivateKey = vm.envUint("DEPLOYER_PRIVATE_KEY");
+        uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
         address deployerAddress = vm.addr(deployerPrivateKey);
         // Start broadcast with deployer as the signer
         vm.startBroadcast(deployerPrivateKey);
 
         // Deploy the implementation contract
-        PreOrderAddresses.implementation = address(new PreOrder());
-        // Initialize the implementation contract for best practices
-        PreOrder(payable(PreOrderAddresses.implementation)).initialize(
-            address(0),
-            address(0),
-            address(0),
-            address(0),
-            "",
-
-            new PreOrder.TierConfig[](0)
-        );
 
         // Configuring the tiers
         PreOrder.TierConfig memory whales = PreOrder.TierConfig({
@@ -58,30 +48,29 @@ contract DeployPreOrder is Script {
         });
         PreOrder.TierConfig memory pepe = PreOrder.TierConfig({
             costWei: 0.01 ether,
-            maxSupply: 200_000
+            maxSupply: 60_000
         });
 
         // TODO: Add more tiers when the tiers are offically set
-        PreOrder.TierConfig[] memory tiers = new PreOrder.TierConfig[](2);
+        PreOrder.TierConfig[] memory tiers = new PreOrder.TierConfig[](4);
         tiers[0] = whales;
-        tiers[1] = eBeggars;
-        
-        // Deploy the proxy contract
-        PreOrderAddresses.proxy = address(new TransparentUpgradeableProxy(
-            PreOrderAddresses.implementation, 
-            address(0), 
-            abi.encodeWithSelector(
-                PreOrder.initialize.selector,
+        tiers[1] = chads;
+        tiers[2]= wojak;
+        tiers[3] = pepe;
 
-                deployerAddress,
-                GnosisSafe,
-                deployerAddress,
-                eEthToken,
-                baseURI,
+        // Deploy the implementation contract
+        PreOrderAddresses.implementation = address(new PreOrder());
+        PreOrderAddresses.proxy = address(new ERC1967Proxy(PreOrderAddresses.implementation, ""));
 
-                tiers
-            )
-        ));
+        PreOrder preOrder = PreOrder(payable(PreOrderAddresses.admin));
+        preOrder.initialize(
+            deployerAddress,
+            GnosisSafe,
+            deployerAddress,
+            eEthToken,
+            baseURI,
+            tiers
+        );
         vm.stopBroadcast();
 
         console.log("PreOrder implementation deployed at: ", PreOrderAddresses.implementation);
