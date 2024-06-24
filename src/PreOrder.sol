@@ -48,7 +48,7 @@ contract PreOrder is
     address public eEthToken;
 
     // NFT metadata storage location
-    string private baseURI;
+    string public baseURI;
 
     // Event emitted when a PreOrder Token is minted
     event PreOrderMint(address indexed buyer, uint256 indexed tier, uint256 amount);
@@ -149,6 +149,11 @@ contract PreOrder is
     // Sets the mint price for a tier 
     function setTierData(uint8 _tier, uint128 _costWei) external onlyAdmin {
         tiers[_tier].costWei = _costWei;
+    }
+
+    // Sets the uri 
+    function setURI(string memory _uri) external onlyAdmin {
+        baseURI = _uri;
     }
 
     // Pauses the contract

@@ -144,6 +144,10 @@ contract PreOrderTest is Test {
         vm.expectRevert("Not the admin");
         preorder.setTierData(0, 100 ether);
 
+        vm.expectRevert("Not the admin");
+        preorder.setURI("https://www.cool-kid-metadata.com");
+
+        vm.startPrank(whale);
         // revert on null checks in the initialize function
         preorder = new PreOrder();
         vm.expectRevert("Incorrect address for initialOwner");
@@ -398,5 +402,14 @@ contract PreOrderTest is Test {
             "https://www.cool-kid-metadata.com",
             tiers
         );
+    }
+
+    function testURI() public {
+        assertEq(preorder.baseURI(), "https://www.cool-kid-metadata.com");
+        vm.prank(admin);
+        preorder.setURI("https://www.cool-kid-metadata.com/updated/");
+        assertEq(preorder.baseURI(), "https://www.cool-kid-metadata.com/updated/");
+
+        assertEq(preorder.uri(0), "https://www.cool-kid-metadata.com/updated/0.json");
     }
 }
