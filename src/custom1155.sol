@@ -169,7 +169,7 @@ abstract contract CustomERC1155 {
 
         tokens[tokenId] = TokenData(to, tier);
 
-        emit TransferSingle(msg.sender, address(0), to, tokens.length, 1);
+        emit TransferSingle(msg.sender, address(0), to, tokenId, 1);
 
         require(
             to.code.length == 0
