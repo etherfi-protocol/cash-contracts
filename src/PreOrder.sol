@@ -35,10 +35,14 @@ contract PreOrder is
 
     // Store the metaData for each tier
     struct TierData {
+        // cost in wei to mint a token of this tier
         uint128 costWei;
+        // max supply of tokens for this tier
         uint32 maxSupply;
+        // number of tokens minted for this tier
         uint32 mintCount;
-        uint32 nextTokenId;
+        // starting id for this tier
+        uint32 startId;
     }
 
     // Contract owner is the timelock, admin role needed to eeform timely actions on the contract
@@ -82,7 +86,7 @@ contract PreOrder is
                 maxSupply: tierConfigArray[i].maxSupply,
 
                 mintCount: 0,
-                nextTokenId: totalCards
+                startId: totalCards
             });
 
             totalCards += tierConfigArray[i].maxSupply;
@@ -104,7 +108,7 @@ contract PreOrder is
         require(msg.value == tiers[_tier].costWei, "Incorrect amount sent");
         require(tiers[_tier].mintCount < tiers[_tier].maxSupply, "Tier sold out");
 
-        uint256 tokenId = tiers[_tier].nextTokenId + tiers[_tier].mintCount;
+        uint256 tokenId = tiers[_tier].startId + tiers[_tier].mintCount;
         tiers[_tier].mintCount += 1;
 
         (bool success, ) = gnosisSafe.call{value: msg.value}("");
@@ -122,7 +126,7 @@ contract PreOrder is
         IERC20Permit(eEthToken).permit(msg.sender, address(this), _amount, _deadline, v, r, s);
         IERC20(eEthToken).transferFrom(msg.sender, gnosisSafe, _amount);
 
-        uint256 tokenId = tiers[_tier].nextTokenId + tiers[_tier].mintCount;
+        uint256 tokenId = tiers[_tier].startId + tiers[_tier].mintCount;
         tiers[_tier].mintCount += 1;
 
         safeMint(msg.sender, _tier, tokenId);
