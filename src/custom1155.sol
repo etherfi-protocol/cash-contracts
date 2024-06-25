@@ -146,6 +146,26 @@ abstract contract CustomERC1155 {
         }
     }
 
+    // Scan for all tokens in the provided range (exclusive) for target user.
+    // This is intended to be called off-chain
+    function tokensForUser(address user, uint256 startIndex, uint256 endIndex) public view returns (uint256[] memory) {
+        require(startIndex < endIndex, "invalid range");
+        require(endIndex <= tokens.length, "invalid range");
+
+        uint256[] memory ownedTokens = new uint256[](tokens.length);
+
+        uint256 numOwned = 0;
+        for (uint256 idx = startIndex; idx < endIndex; ++idx) {
+            if (tokens[idx].owner == user) {
+                ownedTokens[numOwned++] = idx;
+            }
+        }
+
+        // truncate result
+        assembly { mstore(ownedTokens, numOwned) }
+        return ownedTokens;
+    }
+
     /*//////////////////////////////////////////////////////////////
                               ERC165 LOGIC
     //////////////////////////////////////////////////////////////*/

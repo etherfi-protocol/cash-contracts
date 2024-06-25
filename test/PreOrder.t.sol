@@ -76,6 +76,53 @@ contract PreOrderTest is Test {
         assertEq(preorder.maxSupply(), expectedMaxSupply);
     }
 
+    function testTokensForUser() public {
+
+        vm.prank(whale);
+        uint gnosisBalanceStart = gnosis.balance;
+        preorder.mint{value: 1000 ether}(0);
+        vm.prank(whale2);
+        preorder.mint{value: 1000 ether}(0);
+        uint gnosisBalanceEnd = gnosis.balance;
+
+        // whale should own 1 token with ID 0
+        uint256[] memory ownedTokens = preorder.tokensForUser(whale, 0, preorder.maxSupply());
+        assertEq(ownedTokens.length, 1);
+        assertEq(ownedTokens[0], 0);
+        // whale2 should own 1 token with ID 1
+        ownedTokens = preorder.tokensForUser(whale2, 0, preorder.maxSupply());
+        assertEq(ownedTokens.length, 1);
+        assertEq(ownedTokens[0], 1);
+
+        // whale 1 mints more tokens of different tiers
+        vm.startPrank(whale);
+        preorder.mint{value: 1 ether}(1);
+        preorder.mint{value: 1 ether}(1);
+        preorder.mint{value: 0.01 ether}(2);
+        vm.stopPrank();
+
+        // whale should own 4 tokens across all the tiers
+        ownedTokens = preorder.tokensForUser(whale, 0, preorder.maxSupply());
+        assertEq(ownedTokens.length, 4);
+        assertEq(ownedTokens[0], 0);
+        assertEq(ownedTokens[1], 10);
+        assertEq(ownedTokens[2], 11);
+        assertEq(ownedTokens[3], 110);
+
+        // should revert if invalid range
+        vm.expectRevert("invalid range");
+        ownedTokens = preorder.tokensForUser(whale, 100, 5);
+        vm.expectRevert("invalid range");
+        ownedTokens = preorder.tokensForUser(whale, 0, 99999999);
+
+        // should only find tokens within requested range
+        ownedTokens = preorder.tokensForUser(whale, 11, 120);
+        assertEq(ownedTokens.length, 2);
+        assertEq(ownedTokens[0], 11);
+        assertEq(ownedTokens[1], 110);
+
+    }
+
     function testMint() public {
         // Mint increment test 
         vm.prank(whale);
