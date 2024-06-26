@@ -30,7 +30,7 @@ contract PreOrder is
     // Configurable parameters for each tier
     struct TierConfig { 
         uint128 costWei; 
-        uint16 maxSupply;
+        uint32 maxSupply;
     }
 
     // Store the metaData for each tier

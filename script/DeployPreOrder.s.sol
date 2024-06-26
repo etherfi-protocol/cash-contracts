@@ -48,7 +48,7 @@ contract DeployPreOrder is Script {
         });
         PreOrder.TierConfig memory pepe = PreOrder.TierConfig({
             costWei: 0.01 ether,
-            maxSupply: 60_000
+            maxSupply: 200_000
         });
 
         // TODO: Add more tiers when the tiers are offically set
