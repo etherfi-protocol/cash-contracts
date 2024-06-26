@@ -77,13 +77,10 @@ contract PreOrderTest is Test {
     }
 
     function testTokensForUser() public {
-
         vm.prank(whale);
-        uint gnosisBalanceStart = gnosis.balance;
         preorder.mint{value: 1000 ether}(0);
         vm.prank(whale2);
         preorder.mint{value: 1000 ether}(0);
-        uint gnosisBalanceEnd = gnosis.balance;
 
         // whale should own 1 token with ID 0
         uint256[] memory ownedTokens = preorder.tokensForUser(whale, 0, preorder.maxSupply());

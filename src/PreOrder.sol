@@ -55,7 +55,7 @@ contract PreOrder is
     string public baseURI;
 
     // Event emitted when a PreOrder Token is minted
-    event PreOrderMint(address indexed buyer, uint256 indexed tier, uint256 amount);
+    event PreOrderMint(address indexed buyer, uint256 indexed tier, uint256 amount, uint256 tokenId);
 
     function initialize(
         address initialOwner,
@@ -115,7 +115,7 @@ contract PreOrder is
         require(success, "Transfer failed");
         safeMint(msg.sender, _tier, tokenId);
 
-        emit PreOrderMint(msg.sender, _tier, msg.value);
+        emit PreOrderMint(msg.sender, _tier, msg.value, tokenId);
     }
 
     // Mints a token with eETH as payment
@@ -131,7 +131,7 @@ contract PreOrder is
 
         safeMint(msg.sender, _tier, tokenId);
 
-        emit PreOrderMint(msg.sender, _tier,  _amount);
+        emit PreOrderMint(msg.sender, _tier,  _amount, tokenId);
     }
 
     function maxSupply() external view returns (uint256) {
