@@ -64,6 +64,7 @@ abstract contract CustomERC1155 {
         uint256 amount,
         bytes calldata data
     ) public virtual {
+        revert("TRANSFER_DISABLED");
         require(msg.sender == from || isApprovedForAll[from][msg.sender], "NOT_AUTHORIZED");
         require(tokens[id].owner == from, "NOT_OWNER");
         require(amount == 1, "INVALID_AMOUNT");
@@ -88,6 +89,7 @@ abstract contract CustomERC1155 {
         uint256[] calldata amounts,
         bytes calldata data
     ) public virtual {
+        revert("TRANSFER_DISABLED");
         require(ids.length == amounts.length, "LENGTH_MISMATCH");
         require(msg.sender == from || isApprovedForAll[from][msg.sender], "NOT_AUTHORIZED");
 

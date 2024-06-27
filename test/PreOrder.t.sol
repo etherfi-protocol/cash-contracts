@@ -117,7 +117,6 @@ contract PreOrderTest is Test {
         assertEq(ownedTokens.length, 2);
         assertEq(ownedTokens[0], 11);
         assertEq(ownedTokens[1], 110);
-
     }
 
     function testMint() public {
@@ -418,14 +417,18 @@ contract PreOrderTest is Test {
         uint256[] memory amounts = new uint256[](1);
         amounts[0] = 1;
 
-        vm.expectRevert("NOT_AUTHORIZED");
+        vm.expectRevert("TRANSFER_DISABLED");
         smallPreorder.safeBatchTransferFrom(whale, eBeggar, ids, amounts, hex"");
 
-        vm.prank(whale);
+        vm.startPrank(whale);
+        vm.expectRevert("TRANSFER_DISABLED");
         smallPreorder.safeBatchTransferFrom(whale, eBeggar, ids, amounts, hex"");
 
-        assertEq(smallPreorder.balanceOf(eBeggar, 0), 1);
-        assertEq(smallPreorder.balanceOf(whale, 0), 0);
+        vm.expectRevert("TRANSFER_DISABLED");
+        smallPreorder.safeTransferFrom(whale, eBeggar, 0, 1, hex"");
+
+        assertEq(smallPreorder.balanceOf(eBeggar, 0), 0);
+        assertEq(smallPreorder.balanceOf(whale, 0), 1);
     }
 
     function testTiersLengthCheck() public {
