@@ -21,6 +21,7 @@ contract DeployPreOrder is Script {
     // TODO: This is the mainnet contract controller gnosis. Be sure to change to the pre-order gnosis  address
     address GnosisSafe = 0x2aCA71020De61bb532008049e1Bd41E451aE8AdC;
     address eEthToken = 0x35fA164735182de50811E8e2E824cFb9B6118ac2;
+    address weEthToken = 0xCd5fE23C85820F7B72D0926FC9b05b43E359b7ee;
 
     string baseURI = "https://api.pudgypenguins.io/lil/";
 
@@ -68,6 +69,7 @@ contract DeployPreOrder is Script {
             GnosisSafe,
             deployerAddress,
             eEthToken,
+            weEthToken,
             baseURI,
             tiers
         );

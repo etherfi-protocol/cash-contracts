@@ -7,7 +7,9 @@ import "@openzeppelin/contracts/utils/Strings.sol";
 import "@openzeppelin-upgradeable/contracts/access/OwnableUpgradeable.sol";
 import "@openzeppelin-upgradeable/contracts/proxy/utils/UUPSUpgradeable.sol";
 import "@openzeppelin-upgradeable/contracts/utils/PausableUpgradeable.sol";
+
 import "./custom1155.sol";
+import "../interfaces/IRateProvider.sol";
 
 contract PreOrder is 
     OwnableUpgradeable,
@@ -51,6 +53,9 @@ contract PreOrder is
     // eETH can also be used as a payment
     address public eEthToken;
 
+    // weETH can also be used as a payment
+    address public weEthToken;
+
     // NFT metadata storage location
     string public baseURI;
 
@@ -62,6 +67,7 @@ contract PreOrder is
         address _gnosisSafe,
         address _admin,
         address _eEthToken,
+        address _weEthToken,
         string memory _baseURI,
         TierConfig[] memory tierConfigArray
     ) public initializer {
@@ -69,6 +75,7 @@ contract PreOrder is
         require(_gnosisSafe != address(0), "Incorrect address for gnosisSafe");
         require(_admin != address(0), "Incorrect address for admin");
         require(_eEthToken != address(0), "Incorrect address for eEthToken");
+        require(_weEthToken != address(0), "Incorrect address for weEthToken");
 
         __Ownable_init(initialOwner);
         __Pausable_init();
@@ -76,6 +83,7 @@ contract PreOrder is
         gnosisSafe = payable(_gnosisSafe);
         admin = _admin;
         eEthToken = _eEthToken;
+        weEthToken = _weEthToken;
         baseURI = _baseURI;
 
         uint32 totalCards = 0;
@@ -119,12 +127,31 @@ contract PreOrder is
     }
 
     // Mints a token with eETH as payment
-    function MintWithPermit(uint8 _tier, uint256 _amount, uint256 _deadline, uint8 v, bytes32 r, bytes32 s) external whenNotPaused {
+    function MintWithEeth(uint8 _tier, uint256 _amount, uint256 _deadline, uint8 v, bytes32 r, bytes32 s) external whenNotPaused {
         require(_amount == tiers[_tier].costWei, "Incorrect amount sent");
         require(tiers[_tier].mintCount < tiers[_tier].maxSupply, "Tier sold out");
 
         IERC20Permit(eEthToken).permit(msg.sender, address(this), _amount, _deadline, v, r, s);
         IERC20(eEthToken).transferFrom(msg.sender, gnosisSafe, _amount);
+
+        uint256 tokenId = tiers[_tier].startId + tiers[_tier].mintCount;
+        tiers[_tier].mintCount += 1;
+
+        safeMint(msg.sender, _tier, tokenId);
+
+        emit PreOrderMint(msg.sender, _tier,  _amount, tokenId);
+    }
+
+    // Mints a token with weETH as payment
+    function MintWithWeeth(uint8 _tier, uint256 _amount, uint256 _deadline, uint8 v, bytes32 r, bytes32 s) external whenNotPaused {
+        uint256 rate = IRateProvider(weEthToken).getRate();
+        uint256 costInWeeth = tiers[_tier].costWei / rate;
+
+        require(_amount == costInWeeth, "Incorrect amount sent");
+        require(tiers[_tier].mintCount < tiers[_tier].maxSupply, "Tier sold out");
+
+        IERC20Permit(weEthToken).permit(msg.sender, address(this), _amount, _deadline, v, r, s);
+        IERC20(weEthToken).transferFrom(msg.sender, gnosisSafe, _amount);
 
         uint256 tokenId = tiers[_tier].startId + tiers[_tier].mintCount;
         tiers[_tier].mintCount += 1;

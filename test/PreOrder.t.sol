@@ -3,6 +3,7 @@ pragma solidity ^0.8.24;
 
 import {Test, console, stdError} from "forge-std/Test.sol";
 import {PreOrder} from "../src/PreOrder.sol";
+import {IRateProvider} from "../interfaces/IRateProvider.sol";
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/extensions/IERC20Permit.sol";
@@ -24,6 +25,7 @@ contract PreOrderTest is Test {
     address public admin;
     address public gnosis;
     address public eEthToken;
+    address public weEthToken;
     PreOrder.TierConfig[] public tiers;
 
     function setUp() public {
@@ -37,6 +39,7 @@ contract PreOrderTest is Test {
 
         gnosis = address(0xbeef);
         eEthToken = address(0xdead);
+        weEthToken = address(0xfeed);
 
         // Initialize a PreOrder contract
         tiers.push(PreOrder.TierConfig({
@@ -58,6 +61,7 @@ contract PreOrderTest is Test {
             gnosis,
             admin,
             eEthToken,
+            weEthToken,
             "https://www.cool-kid-metadata.com",
             tiers
         );
@@ -199,6 +203,7 @@ contract PreOrderTest is Test {
             gnosis,
             admin,
             eEthToken,
+            weEthToken,
             "https://www.cool-kid-metadata.com",
             tiers
         );
@@ -208,6 +213,7 @@ contract PreOrderTest is Test {
             address(0),
             admin,
             eEthToken,
+            weEthToken,
             "https://www.cool-kid-metadata.com",
             tiers
         );
@@ -217,6 +223,7 @@ contract PreOrderTest is Test {
             gnosis,
             address(0),
             eEthToken,
+            weEthToken,
             "https://www.cool-kid-metadata.com",
             tiers
         );
@@ -225,6 +232,17 @@ contract PreOrderTest is Test {
             owner,
             gnosis,
             admin,
+            address(0),
+            weEthToken,
+            "https://www.cool-kid-metadata.com",
+            tiers
+        );
+        vm.expectRevert("Incorrect address for weEthToken");
+        preorder.initialize(
+            owner,
+            gnosis,
+            admin,
+            eEthToken,
             address(0),
             "https://www.cool-kid-metadata.com",
             tiers
@@ -240,7 +258,7 @@ contract PreOrderTest is Test {
         vm.expectRevert(PausableUpgradeable.EnforcedPause.selector);
         preorder.mint{value: 1000 ether}(0);
         vm.expectRevert(PausableUpgradeable.EnforcedPause.selector);
-        preorder.MintWithPermit(0, 1 ether, 0, 0x0, 0x0, 0x0);
+        preorder.MintWithEeth(0, 1 ether, 0, 0x0, 0x0, 0x0);
 
         vm.expectRevert("Not the admin");
         preorder.unPauseContract();
@@ -254,7 +272,7 @@ contract PreOrderTest is Test {
         assertEq(preorder.balanceOf(whale, 0), 1);
     }
 
-    function testMintWithPermit() public {
+    function testMintWithEeth() public {
         vm.createSelectFork("https://ethereum-rpc.publicnode.com");
 
         (address alice, uint256 alicePk) = makeAddrAndKey("alice");
@@ -275,6 +293,7 @@ contract PreOrderTest is Test {
             gnosis,
             admin,
             address(eEthMainnet),
+            address(0x1), 
             "https://www.cool-kid-metadata.com",
             singleTier
         );
@@ -284,7 +303,7 @@ contract PreOrderTest is Test {
         eEthMainnet.transfer(alice, 100 ether);
         assertGe(eEthMainnet.balanceOf(alice),  10 ether);
 
-        // Set up permit signature for MintWithPermit
+        // Set up permit signature for MintWithEeth
         uint256 nonce = IERC20Permit(address(eEthMainnet)).nonces(alice);
         uint256 deadline = block.timestamp + 1 hours;
         bytes32 permitHash = keccak256(
@@ -306,15 +325,15 @@ contract PreOrderTest is Test {
 
         vm.startPrank(alice);
         vm.expectRevert("Incorrect amount sent");
-        preorder.MintWithPermit(0, 2 ether, deadline, v, r, s);
+        preorder.MintWithEeth(0, 2 ether, deadline, v, r, s);
 
         vm.expectRevert("Incorrect amount sent");
-        preorder.MintWithPermit(0, 0.9 ether, deadline, v, r, s);
+        preorder.MintWithEeth(0, 0.9 ether, deadline, v, r, s);
 
-        preorder.MintWithPermit(0, 1 ether, deadline, v, r, s);
+        preorder.MintWithEeth(0, 1 ether, deadline, v, r, s);
 
         vm.expectRevert("ERC20Permit: invalid signature");
-        preorder.MintWithPermit(0, 1 ether, deadline, v, r, s);
+        preorder.MintWithEeth(0, 1 ether, deadline, v, r, s);
 
         assertEq(preorder.balanceOf(alice, 0), 1);
 
@@ -345,7 +364,110 @@ contract PreOrderTest is Test {
         (v, r, s) = vm.sign(alicePk, permitHash);
 
         vm.expectRevert("ERC20Permit: invalid signature");
-        preorder.MintWithPermit(0, 1 ether, deadline, v, r, s);
+        preorder.MintWithEeth(0, 1 ether, deadline, v, r, s);
+    }
+
+    function testMintWithWeeth() public {
+        vm.createSelectFork("https://ethereum-rpc.publicnode.com");
+
+        (address alice, uint256 alicePk) = makeAddrAndKey("alice");
+
+        address weEthWhale = 0xe5EBcDE141e98c23c150bc350B72C23fDCb747c1;
+
+        IERC20 weEthMainnet = IERC20(0xCd5fE23C85820F7B72D0926FC9b05b43E359b7ee);
+
+        PreOrder.TierConfig[] memory singleTier = new PreOrder.TierConfig[](1);
+        singleTier[0] = PreOrder.TierConfig({
+            costWei: 1 ether,
+            maxSupply: 10
+        });
+
+        preorder = new PreOrder();
+        preorder.initialize(
+            owner,
+            gnosis,
+            admin,
+            address(0x1),
+            address(weEthMainnet),
+            "https://www.cool-kid-metadata.com",
+            singleTier
+        );
+
+        // Send weEth to alice
+        vm.prank(weEthWhale);
+        weEthMainnet.transfer(alice, 100 ether);
+        assertGe(weEthMainnet.balanceOf(alice), 10 ether);
+
+        // Getting weETH rate:
+        IRateProvider rateProvider = IRateProvider(address(weEthMainnet));
+
+        uint256 rate = rateProvider.getRate();
+
+        // amount of weETH == to 1 ether
+        uint256 costInWeeth = 1 ether / rate;
+
+        console.log("rate: ", costInWeeth);
+
+        // Set up permit signature for MintWithEeth
+        uint256 nonce = IERC20Permit(address(weEthMainnet)).nonces(alice);
+        uint256 deadline = block.timestamp + 1 hours;
+        bytes32 permitHash = keccak256(
+            abi.encodePacked(
+                "\x19\x01",
+                IERC20Permit(address(weEthMainnet)).DOMAIN_SEPARATOR(),
+                keccak256(abi.encode(
+                    keccak256("Permit(address owner,address spender,uint256 value,uint256 nonce,uint256 deadline)"),
+                    alice,
+                    address(preorder),
+                    costInWeeth,
+                    0,
+                    deadline
+                ))
+            )
+        );
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(alicePk, permitHash);
+
+        vm.startPrank(alice);
+        vm.expectRevert("Incorrect amount sent");
+        preorder.MintWithWeeth(0, 2 ether, deadline, v, r, s);
+
+        vm.expectRevert("Incorrect amount sent");
+        preorder.MintWithWeeth(0, 0.9 ether, deadline, v, r, s);
+
+        preorder.MintWithWeeth(0, costInWeeth, deadline, v, r, s);
+
+        vm.expectRevert("ERC20Permit: invalid signature");
+        preorder.MintWithWeeth(0, costInWeeth, deadline, v, r, s);
+
+        assertEq(preorder.balanceOf(alice, 0), 1);
+
+        // Note: Due to the share system rounding down to protect the protocol from losses,
+        // the actual transfer amount is a few wei less than 1 ether
+        // Verifies | balance - expected amount ether| ≤ 5 wei
+        assertApproxEqRel(weEthMainnet.balanceOf(alice), 100 ether - costInWeeth, 5);
+        assertApproxEqRel(weEthMainnet.balanceOf(gnosis), costInWeeth, 5);
+
+        // Testing signature with insufficient funds
+        nonce = IERC20Permit(address(weEthMainnet)).nonces(alice);
+        deadline = block.timestamp + 1 hours;
+        permitHash = keccak256(
+            abi.encodePacked(
+                "\x19\x01",
+                IERC20Permit(address(weEthMainnet)).DOMAIN_SEPARATOR(),
+                keccak256(abi.encode(
+                    keccak256("Permit(address owner,address spender,uint256 value,uint256 nonce,uint256 deadline)"),
+                    alice,
+                    address(preorder),
+                    0.9 ether,
+                    0,
+                    deadline
+                ))
+            )
+        );
+        (v, r, s) = vm.sign(alicePk, permitHash);
+
+        vm.expectRevert("ERC20Permit: invalid signature");
+        preorder.MintWithWeeth(0, costInWeeth, deadline, v, r, s);
     }
 
     function testSellOutTiers() public {
@@ -371,6 +493,7 @@ contract PreOrderTest is Test {
             gnosis,
             admin,
             eEthToken,
+            weEthToken,
             "https://www.cool-kid-metadata.com/small-tiers",
             smallTiers
         );
@@ -398,8 +521,6 @@ contract PreOrderTest is Test {
         smallPreorder.mint{value: 0.2 ether}(1);
         vm.expectRevert("Tier sold out");
         smallPreorder.mint{value: 0.2 ether}(1);
-
-        
 
         uint gnosisBalanceEnd = gnosis.balance;
 
@@ -446,6 +567,7 @@ contract PreOrderTest is Test {
             gnosis,
             admin,
             eEthToken,
+            weEthToken,
             "https://www.cool-kid-metadata.com",
             tiers
         );
