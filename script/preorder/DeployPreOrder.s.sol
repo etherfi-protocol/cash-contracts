@@ -6,7 +6,7 @@ import {Script, console} from "forge-std/Script.sol";
 import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 
 
-import "../src/PreOrder.sol";
+import "../../src/PreOrder.sol";
 
 struct Proxy {
     address admin;
@@ -14,7 +14,7 @@ struct Proxy {
     address proxy;
 }
 
-contract DeployTestPreOrder is Script {
+contract DeployPreOrder is Script {
     // Storages the addresses for the proxy deploy of the PreOrder contract
     Proxy PreOrderAddresses;
 
@@ -22,7 +22,7 @@ contract DeployTestPreOrder is Script {
     address GnosisSafe = 0x2aCA71020De61bb532008049e1Bd41E451aE8AdC;
     address eEthToken = 0x35fA164735182de50811E8e2E824cFb9B6118ac2;
 
-    string baseURI = "https://etherfi-membership-metadata.s3.ap-southeast-1.amazonaws.com/cash-test/";
+    string baseURI = "https://api.pudgypenguins.io/lil/";
 
     function run() public {
         // Pulling deployer info from the environment
@@ -35,18 +35,28 @@ contract DeployTestPreOrder is Script {
 
         // Configuring the tiers
         PreOrder.TierConfig memory whales = PreOrder.TierConfig({
-            costWei: 0.0000001 ether,
+            costWei: 10 ether,
             maxSupply: 200
         });
         PreOrder.TierConfig memory chads = PreOrder.TierConfig({
-            costWei: 0.0000001 ether,
+            costWei: 1 ether,
             maxSupply: 2000
+        });
+        PreOrder.TierConfig memory wojak = PreOrder.TierConfig({
+            costWei: 0.1 ether,
+            maxSupply: 20_000
+        });
+        PreOrder.TierConfig memory pepe = PreOrder.TierConfig({
+            costWei: 0.01 ether,
+            maxSupply: 200_000
         });
 
         // TODO: Add more tiers when the tiers are offically set
         PreOrder.TierConfig[] memory tiers = new PreOrder.TierConfig[](4);
         tiers[0] = whales;
         tiers[1] = chads;
+        tiers[2]= wojak;
+        tiers[3] = pepe;
 
         // Deploy the implementation contract
         PreOrderAddresses.implementation = address(new PreOrder());

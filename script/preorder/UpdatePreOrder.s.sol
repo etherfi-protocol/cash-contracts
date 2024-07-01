@@ -6,7 +6,7 @@ import {Script, console} from "forge-std/Script.sol";
 import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 
 
-import "../src/PreOrder.sol";
+import "../../src/PreOrder.sol";
 
 struct Proxy {
     address admin;
@@ -14,17 +14,20 @@ struct Proxy {
     address proxy;
 }
 
-contract Update is Script {
+contract UpdatePreOrder is Script {
+
+    // includ the address of the proxy contract to be upgraded
+    address constant PROXY_ADDRESS = address(0);
+
     function run() public {
         // Pulling deployer info from the environment
         uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
-        address deployerAddress = vm.addr(deployerPrivateKey);
         // Start broadcast with deployer as the signer
         vm.startBroadcast(deployerPrivateKey);
 
         address impl = address(new PreOrder());
 
-        PreOrder proxy = PreOrder(payable(0x9F3c2Bbe5D94AB9d176394F840c4eA90F2cb6A41));
+        PreOrder proxy = PreOrder(payable(PROXY_ADDRESS));
 
         bytes memory data = "";
 

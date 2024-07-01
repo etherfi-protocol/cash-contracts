@@ -58,69 +58,23 @@ abstract contract CustomERC1155 {
     }
 
     function safeTransferFrom(
-        address from,
-        address to,
-        uint256 id,
-        uint256 amount,
-        bytes calldata data
+        address /*from*/,
+        address /*to*/,
+        uint256 /*id*/,
+        uint256 /*amount*/,
+        bytes calldata /*data*/
     ) public virtual {
         revert("TRANSFER_DISABLED");
-        require(msg.sender == from || isApprovedForAll[from][msg.sender], "NOT_AUTHORIZED");
-        require(tokens[id].owner == from, "NOT_OWNER");
-        require(amount == 1, "INVALID_AMOUNT");
-
-        tokens[id].owner = to;
-
-        emit TransferSingle(msg.sender, from, to, id, amount);
-
-        require(
-            to.code.length == 0
-                ? to != address(0)
-                : ERC1155TokenReceiver(to).onERC1155Received(msg.sender, from, id, amount, data) ==
-                    ERC1155TokenReceiver.onERC1155Received.selector,
-            "UNSAFE_RECIPIENT"
-        );
     }
 
     function safeBatchTransferFrom(
-        address from,
-        address to,
-        uint256[] calldata ids,
-        uint256[] calldata amounts,
-        bytes calldata data
+        address /*from*/,
+        address /*to*/,
+        uint256[] calldata /*ids*/,
+        uint256[] calldata /*data*/,
+        bytes calldata /*data*/
     ) public virtual {
         revert("TRANSFER_DISABLED");
-        require(ids.length == amounts.length, "LENGTH_MISMATCH");
-        require(msg.sender == from || isApprovedForAll[from][msg.sender], "NOT_AUTHORIZED");
-
-        // Storing these outside the loop saves ~15 gas per iteration.
-        uint256 id;
-        uint256 amount;
-
-        for (uint256 i = 0; i < ids.length; ) {
-            id = ids[i];
-            amount = amounts[i];
-            require(amount == 1, "INVALID_AMOUNT");
-            require(tokens[id].owner == from, "NOT_OWNER");
-
-            tokens[id].owner = to;
-
-            // An array can't have a total length
-            // larger than the max uint256 value.
-            unchecked {
-                ++i;
-            }
-        }
-
-        emit TransferBatch(msg.sender, from, to, ids, amounts);
-
-        require(
-            to.code.length == 0
-                ? to != address(0)
-                : ERC1155TokenReceiver(to).onERC1155BatchReceived(msg.sender, from, ids, amounts, data) ==
-                    ERC1155TokenReceiver.onERC1155BatchReceived.selector,
-            "UNSAFE_RECIPIENT"
-        );
     }
 
     function balanceOf(address account, uint256 id) public view virtual returns (uint256) {

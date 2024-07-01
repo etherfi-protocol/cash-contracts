@@ -174,12 +174,14 @@ contract PreOrderTest is Test {
 
         // Revert on ETH direct sends to the contract
         vm.expectRevert("Direct transfers not allowed");
-        address(preorder).call{value: 1 ether}("");
+        (bool success, ) = address(preorder).call{value: 1 ether}("");
+        // The expectRevert state hijacks the returned value of the low-level call
+        assertEq(success, true);
 
         vm.expectRevert("Direct transfers not allowed");
         payable(address(preorder)).transfer(1 ether);
 
-        // revert on admin/owner functions
+        // Revert on admin/owner functions
         vm.expectRevert(
             abi.encodeWithSelector(OwnableUpgradeable.OwnableUnauthorizedAccount.selector, whale)
         );
@@ -191,7 +193,7 @@ contract PreOrderTest is Test {
         preorder.setURI("https://www.cool-kid-metadata.com");
 
         vm.startPrank(whale);
-        // revert on null checks in the initialize function
+        // Revert on null checks in the initialize function
         preorder = new PreOrder();
         vm.expectRevert("Incorrect address for initialOwner");
         preorder.initialize(
@@ -398,8 +400,6 @@ contract PreOrderTest is Test {
         smallPreorder.mint{value: 0.2 ether}(1);
         vm.expectRevert("Tier sold out");
         smallPreorder.mint{value: 0.2 ether}(1);
-
-        
 
         uint gnosisBalanceEnd = gnosis.balance;
 
