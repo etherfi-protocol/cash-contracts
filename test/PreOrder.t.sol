@@ -2,7 +2,7 @@
 pragma solidity ^0.8.24;
 
 import {Test, console, stdError} from "forge-std/Test.sol";
-import {PreOrder} from "../src/PreOrder.sol";
+import {PreOrder} from "../src/preorder/PreOrder.sol";
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/extensions/IERC20Permit.sol";

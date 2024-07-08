@@ -6,7 +6,7 @@ import {Script, console} from "forge-std/Script.sol";
 import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 
 
-import "../../src/PreOrder.sol";
+import "../../src/preorder/PreOrder.sol";
 
 struct Proxy {
     address admin;
