@@ -26,9 +26,9 @@ contract AaveUnitTest is Test {
     address cashProtocol = vm.addr(1);
 
     struct AaveAccountData {
-        uint256 totalCollateralETH;
-        uint256 totalDebtETH;
-        uint256 availableBorrowsETH;
+        uint256 totalCollateralBase;
+        uint256 totalDebtBase;
+        uint256 availableBorrowsBase;
         uint256 currentLiquidationThreshold; // ltv liquidation threshold in basis points
         uint256 ltv; // loan to value ration in basis points
         uint256 healthFactor; 
@@ -42,7 +42,7 @@ contract AaveUnitTest is Test {
         usdc = IERC20(USDC);
 
         deal(WETH, cashProtocol, 1000 ether);
-        deal(USDC, cashProtocol, dollarsToWei(10_000));
+        deal(USDC, cashProtocol, dollarsToUSDC(10_000));
 
         vm.startPrank(cashProtocol);
     }
@@ -53,7 +53,7 @@ contract AaveUnitTest is Test {
         aavePool.supply(WETH, 50 ether, cashProtocol, 0);
         AaveAccountData memory accountBeforeBorrow = getStructuredAccountData(cashProtocol);
 
-        aavePool.borrow(USDC, dollarsToWei(10_000), 2, 0, cashProtocol);
+        aavePool.borrow(USDC, dollarsToUSDC(10_000), 2, 0, cashProtocol);
         AaveAccountData memory accountAfterBorrow = getStructuredAccountData(cashProtocol);
 
         // `ltv` is an upperbound on how much can be borrowed. Evolves based on market conditions
@@ -62,23 +62,62 @@ contract AaveUnitTest is Test {
         // health factor is infinite before borrowing
         assertEq(accountBeforeBorrow.healthFactor, type(uint256).max);
 
-        // totalCollateralETH * averageLiqidationthreshold / totalDebtETH
-        // wad has 18 digits of precision like 
-        uint256 healthFactorAfter = accountAfterBorrow.totalCollateralETH.percentMul(accountAfterBorrow.currentLiquidationThreshold).wadDiv(accountAfterBorrow.totalDebtETH);
+        // totalDebtBase * averageLiqidationthreshold / availableBorrowsBase
+        // wad has 18 digits of precision like wei
+        uint256 healthFactorAfter = accountAfterBorrow.totalCollateralBase.percentMul(accountAfterBorrow.currentLiquidationThreshold).wadDiv(accountAfterBorrow.totalDebtBase);
         assertEq(accountAfterBorrow.healthFactor, healthFactorAfter);
     }
 
+    // simple full flow of supply -> borrow -> supply more -> borrow more -> repay -> withdraw
+    function test_fullFlow() public {
+        AaveAccountData memory accountAfterBorrow = init_position(5 ether, dollarsToUSDC(1_000));
+        assertApproxEqAbs(dollarsToUSDA(1_000), accountAfterBorrow.totalDebtBase, 5e8);
 
+        // over borrow
+        uint256 overBorrowAmount = accountAfterBorrow.availableBorrowsBase + dollarsToUSDA(5);
+        // convert amount from USD on aave to USDC
+        overBorrowAmount = overBorrowAmount / 1e2;
+
+        // see here for errors codes
+        // https://github.com/aave/aave-v3-core/blob/master/contracts/protocol/libraries/helpers/Errors.sol
+        vm.expectRevert(bytes("36"));
+        aavePool.borrow(USDC, overBorrowAmount, 2, 0, cashProtocol);
+
+        // supply 10 USDC to the protocol 
+        usdc.approve(address(aavePool), dollarsToUSDC(10));
+        aavePool.supply(USDC, dollarsToUSDC(10), cashProtocol, 0);
+
+        // borrow more
+        aavePool.borrow(USDC, overBorrowAmount, 2, 0, cashProtocol);
+
+        // repay the full debt
+        uint256 fullDebt = overBorrowAmount + dollarsToUSDC(1_000);
+        usdc.approve(address(aavePool), fullDebt);
+        aavePool.repay(USDC, fullDebt, 2, cashProtocol);
+        assertEq(accountAfterRepay.healthFactor, type(uint256).max);
+
+        // withdraw the ETH collateral
+        aavePool.withdraw(WETH, 5 ether, cashProtocol);
+    }
 
     // ========================== HELPERS ==========================
+
+    // supplys and borrows in aave and returns the positon state after
+    function init_position(uint256 supplyAmount, uint256 borrowAmount) public  returns (AaveAccountData memory) {
+        weth.approve(address(aavePool), supplyAmount);
+        aavePool.supply(WETH, supplyAmount, cashProtocol, 0);
+        aavePool.borrow(USDC, borrowAmount, 2, 0, cashProtocol);
+
+        return getStructuredAccountData(cashProtocol);
+    }
     
     function getStructuredAccountData(address user) public view returns (AaveAccountData memory) {
-        (uint256 totalCollateralETH, uint256 totalDebtETH, uint256 availableBorrowsETH, uint256 currentLiquidationThreshold, uint256 ltv, uint256 healthFactor) = aavePool.getUserAccountData(user);
+        (uint256 totalCollateralBase, uint256 totalDebtBase, uint256 availableBorrowsBase, uint256 currentLiquidationThreshold, uint256 ltv, uint256 healthFactor) = aavePool.getUserAccountData(user);
         
         return AaveAccountData({
-            totalCollateralETH: totalCollateralETH,
-            totalDebtETH: totalDebtETH,
-            availableBorrowsETH: availableBorrowsETH,
+            totalCollateralBase: totalCollateralBase,
+            totalDebtBase: totalDebtBase,
+            availableBorrowsBase: availableBorrowsBase,
             currentLiquidationThreshold: currentLiquidationThreshold,
             ltv: ltv,
             healthFactor: healthFactor
@@ -86,17 +125,22 @@ contract AaveUnitTest is Test {
     }
 
     function logStructuredAccountData(AaveAccountData memory data) public view {
-        console.log("totalCollateralETH: ", data.totalCollateralETH);
-        console.log("totalDebtETH: ", data.totalDebtETH);
-        console.log("availableBorrowsETH: ", data.availableBorrowsETH);
+        console.log("totalCollateralBase: ", data.totalCollateralBase);
+        console.log("totalDebtBase: ", data.totalDebtBase);
+        console.log("availableBorrowsBase: ", data.availableBorrowsBase);
         console.log("currentLiquidationThreshold: ", data.currentLiquidationThreshold);
         console.log("ltv: ", data.ltv);
         console.log("healthFactor: ", data.healthFactor);
     }
 
-    function dollarsToWei(uint256 amount) public pure returns (uint256) {
-        // 1 USDC = 1e6
+    function dollarsToUSDC(uint256 amount) public pure returns (uint256) {
+        // 1 USDC == 1e6
         return amount * 1e6;
+    }
+
+    function dollarsToUSDA(uint256 amount) public pure returns (uint256) {
+        // 1 USD in Aave == 1e8
+        return amount * 1e8;
     }
 
 }
