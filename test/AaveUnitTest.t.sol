@@ -20,6 +20,7 @@ contract AaveUnitTest is Test {
     IERC20 usdc;
 
     address constant AAVE_POOL = 0x87870Bca3F3fD6335C3F4ce8392D69350B4fA4E2;
+    address constant AAVE_POOL_CONFIGURATOR = 0x64b761D848206f447Fe2dd461b0c635Ec39EbB27;
     address constant WETH = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
     address constant USDC = 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48;
 
@@ -94,7 +95,8 @@ contract AaveUnitTest is Test {
         uint256 fullDebt = overBorrowAmount + dollarsToUSDC(1_000);
         usdc.approve(address(aavePool), fullDebt);
         aavePool.repay(USDC, fullDebt, 2, cashProtocol);
-        assertEq(accountAfterRepay.healthFactor, type(uint256).max);
+
+        assertEq(getStructuredAccountData(cashProtocol).healthFactor, type(uint256).max);
 
         // withdraw the ETH collateral
         aavePool.withdraw(WETH, 5 ether, cashProtocol);
@@ -133,14 +135,24 @@ contract AaveUnitTest is Test {
         console.log("healthFactor: ", data.healthFactor);
     }
 
+    // 1 USDC == 1e6
     function dollarsToUSDC(uint256 amount) public pure returns (uint256) {
-        // 1 USDC == 1e6
         return amount * 1e6;
     }
 
+    // 1 USD in Aave == 1e8
     function dollarsToUSDA(uint256 amount) public pure returns (uint256) {
-        // 1 USD in Aave == 1e8
         return amount * 1e8;
     }
 
+    // gets the `ltv` and `liquidationThreshold` of the pool
+    function getPoolLiquidationData(address pool) public view returns (DataTypes.ReserveConfigurationMap memory) {
+        aavePool.getConfiguration(USDC);
+
+    }
+
+    // gets the `borrowCap` and `supplyCap` of the pool
+    function getPoolCaps(address pool) public view returns (DataTypes.ReserveConfigurationMap memory) {
+        aavePool.getConfiguration(USDC);
+    }
 }
