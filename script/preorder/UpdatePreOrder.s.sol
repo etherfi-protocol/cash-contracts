@@ -5,7 +5,6 @@ import {Script, console} from "forge-std/Script.sol";
 
 import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 
-
 import "../../src/preorder/PreOrder.sol";
 
 struct Proxy {
@@ -15,7 +14,6 @@ struct Proxy {
 }
 
 contract UpdatePreOrder is Script {
-
     // includ the address of the proxy contract to be upgraded
     address constant PROXY_ADDRESS = address(0);
 

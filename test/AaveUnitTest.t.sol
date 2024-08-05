@@ -13,7 +13,7 @@ contract AaveUnitTest is Test {
     using WadRayMath for uint256;
     using PercentageMath for uint256;
 
-    // The aave pool contract is the main entry point for the Aave. Most user interactions with the aave 
+    // The aave pool contract is the main entry point for the Aave. Most user interactions with the aave
     // protocol occur via the pool contract.
     Pool aavePool;
     IERC20 weth;
@@ -32,7 +32,7 @@ contract AaveUnitTest is Test {
         uint256 availableBorrowsBase;
         uint256 currentLiquidationThreshold; // ltv liquidation threshold in basis points
         uint256 ltv; // loan to value ration in basis points
-        uint256 healthFactor; 
+        uint256 healthFactor;
     }
 
     function setUp() public {
@@ -65,7 +65,9 @@ contract AaveUnitTest is Test {
 
         // totalDebtBase * averageLiqidationthreshold / availableBorrowsBase
         // wad has 18 digits of precision like wei
-        uint256 healthFactorAfter = accountAfterBorrow.totalCollateralBase.percentMul(accountAfterBorrow.currentLiquidationThreshold).wadDiv(accountAfterBorrow.totalDebtBase);
+        uint256 healthFactorAfter = accountAfterBorrow.totalCollateralBase.percentMul(
+            accountAfterBorrow.currentLiquidationThreshold
+        ).wadDiv(accountAfterBorrow.totalDebtBase);
         assertEq(accountAfterBorrow.healthFactor, healthFactorAfter);
     }
 
@@ -84,7 +86,7 @@ contract AaveUnitTest is Test {
         vm.expectRevert(bytes("36"));
         aavePool.borrow(USDC, overBorrowAmount, 2, 0, cashProtocol);
 
-        // supply 10 USDC to the protocol 
+        // supply 10 USDC to the protocol
         usdc.approve(address(aavePool), dollarsToUSDC(10));
         aavePool.supply(USDC, dollarsToUSDC(10), cashProtocol, 0);
 
@@ -105,17 +107,24 @@ contract AaveUnitTest is Test {
     // ========================== HELPERS ==========================
 
     // supplys and borrows in aave and returns the positon state after
-    function init_position(uint256 supplyAmount, uint256 borrowAmount) public  returns (AaveAccountData memory) {
+    function init_position(uint256 supplyAmount, uint256 borrowAmount) public returns (AaveAccountData memory) {
         weth.approve(address(aavePool), supplyAmount);
         aavePool.supply(WETH, supplyAmount, cashProtocol, 0);
         aavePool.borrow(USDC, borrowAmount, 2, 0, cashProtocol);
 
         return getStructuredAccountData(cashProtocol);
     }
-    
+
     function getStructuredAccountData(address user) public view returns (AaveAccountData memory) {
-        (uint256 totalCollateralBase, uint256 totalDebtBase, uint256 availableBorrowsBase, uint256 currentLiquidationThreshold, uint256 ltv, uint256 healthFactor) = aavePool.getUserAccountData(user);
-        
+        (
+            uint256 totalCollateralBase,
+            uint256 totalDebtBase,
+            uint256 availableBorrowsBase,
+            uint256 currentLiquidationThreshold,
+            uint256 ltv,
+            uint256 healthFactor
+        ) = aavePool.getUserAccountData(user);
+
         return AaveAccountData({
             totalCollateralBase: totalCollateralBase,
             totalDebtBase: totalDebtBase,
@@ -148,7 +157,6 @@ contract AaveUnitTest is Test {
     // gets the `ltv` and `liquidationThreshold` of the pool
     function getPoolLiquidationData(address pool) public view returns (DataTypes.ReserveConfigurationMap memory) {
         aavePool.getConfiguration(USDC);
-
     }
 
     // gets the `borrowCap` and `supplyCap` of the pool

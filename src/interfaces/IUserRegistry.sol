@@ -5,13 +5,10 @@ pragma solidity ^0.8.24;
 // Account
 //
 interface IUserRegistry {
-
     struct User {
         address account;
-        // any other fields can be added
     }
+    // any other fields can be added
 
     function AccountOf(address user) external view returns (User memory);
-
-
 }

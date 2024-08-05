@@ -6,10 +6,8 @@ import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 import "./interfaces/IL2DebtManager.sol";
 
-
 // Consider directly inheriting AAVA pool or routing relevant calls to AAVA pool
 contract L2DebtManager is IL2DebtManager {
-
     mapping(address => uint256) private _collaterals;
     mapping(address => uint256) private _borrowings;
 
@@ -25,13 +23,14 @@ contract L2DebtManager is IL2DebtManager {
 
     uint256 private eEthPriceInUSDC; // todo: replace it with Oracle
 
-
     event SuppliedUSDC(uint256 amount);
     event DepositedCollateral(address indexed user, uint256 amount);
     event Borrowed(address indexed user, uint256 borrowUsdcAmount);
     event RepaidWithUSDC(address indexed user, uint256 repaidUsdcDebtAmount);
     event RepaidWithEETH(address indexed user, uint256 repaidUsdcDebtAmount, uint256 repaidCollateralEEthAmount);
-    event Liquidated(address indexed user, uint256 beforeCollateralAmount, uint256 afterCollateralAmount, uint256 beforeDebtAmount);
+    event Liquidated(
+        address indexed user, uint256 beforeCollateralAmount, uint256 afterCollateralAmount, uint256 beforeDebtAmount
+    );
 
     constructor(address _eETH, address _USDC, address _etherFiCashSafe) {
         eETH = IERC20(_eETH);
@@ -159,7 +158,10 @@ contract L2DebtManager is IL2DebtManager {
     // Internal functions
 
     // Use the deposited collateral to pay the debt
-    function _repayWithEEthCollateral(address user, uint256 repayDebtAmount) internal returns (uint256 collateralAmount) {
+    function _repayWithEEthCollateral(address user, uint256 repayDebtAmount)
+        internal
+        returns (uint256 collateralAmount)
+    {
         collateralAmount = getCollateralAmountForDebt(repayDebtAmount);
 
         _borrowings[user] -= repayDebtAmount;
@@ -167,7 +169,7 @@ contract L2DebtManager is IL2DebtManager {
 
         totalBorrowingAmount -= repayDebtAmount;
         totalCollateralAmount -= collateralAmount;
-        
+
         emit RepaidWithEETH(user, repayDebtAmount, collateralAmount);
     }
 
