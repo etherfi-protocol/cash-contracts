@@ -1,0 +1,270 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.24;
+
+interface IUserSafe {
+    enum SpendingLimitTypes {
+        None,
+        Daily,
+        Weekly,
+        Monthly,
+        Yearly
+    }
+
+    struct WithdrawalRequest {
+        address[] tokens;
+        address recipient;
+        uint96 finalizeTime;
+    }
+
+    struct WithdrawalData {
+        address[] tokens;
+        uint256[] amounts;
+        address recipient;
+        uint96 finalizeTime;
+    }
+
+    struct SpendingLimitData {
+        SpendingLimitTypes spendingLimitType;
+        uint64 renewalTimestamp;
+        uint256 spendingLimit; // in USD with 6 decimals
+        uint256 usedUpAmount; // in USD with 6 decimals
+    }
+
+    event DepositFunds(address token, uint256 amount);
+    event ApprovalFunds(address token, address spender, uint256 amount);
+    event WithdrawalRequested(
+        address[] tokens,
+        uint256[] amounts,
+        address recipient,
+        uint256 finalizeTimestamp
+    );
+    event WithdrawalCancelled(
+        address[] tokens,
+        uint256[] amounts,
+        address recipient
+    );
+    event WithdrawalProcessed(
+        address[] tokens,
+        uint256[] amounts,
+        address recipient
+    );
+    event TransferUSDCForSpending(uint256 amount);
+    event SwapTransferForSpending(uint256 weETHAmount, uint256 usdcAmount);
+    event TransferWeETHAsCollateral(uint256 amount);
+    event ResetSpendingLimit(uint8 spendingLimitType, uint256 limitInUsd);
+    event UpdateSpendingLimit(uint256 oldLimitInUsd, uint256 newLimitInUsd);
+
+    error InsufficientBalance();
+    error ArrayLengthMismatch();
+    error CannotWithdrawYet();
+    error UnauthorizedCall();
+    error InvalidNonce();
+    error AmountGreaterThanUsdcReceived();
+    error ExceededSpendingLimit();
+    error InvalidSpendingLimitType();
+
+    /**
+     * @notice Function to fetch the pending withdrawal request.
+     * @return WithdrawalData struct.
+     */
+    function pendingWithdrawalRequest()
+        external
+        view
+        returns (WithdrawalData memory);
+
+    /**
+     * @notice Function to fetch the current nonce.
+     * @return Nonce
+     */
+    function nonce() external view returns (uint256);
+
+    /**
+     * @notice Function to get the spending limit for the user.
+     * @return SpendingLimitData struct.
+     */
+    function spendingLimit() external view returns (SpendingLimitData memory);
+
+    /**
+     * @notice Function to get the current applicable spending limit.
+     * @notice This function gives renewed limit as well based on if the renewal timestamp is in the past.
+     * @return Current applicable spending limit
+     */
+    function applicableSpendingLimit()
+        external
+        view
+        returns (SpendingLimitData memory);
+
+    /**
+     * @notice Function to set the spending limit.
+     * @param spendingLimitType Type of spending limit.
+     * @param limitInUsd Spending limit in USD with 6 decimals.
+     */
+    function resetSpendingLimit(
+        uint8 spendingLimitType,
+        uint256 limitInUsd
+    ) external;
+
+    /**
+     * @notice Function to set the spending limit with permit.
+     * @param spendingLimitType Type of spending limit.
+     * @param limitInUsd Spending limit in USD with 6 decimals.
+     * @param userNonce Nonce for this call. Must be equal to current nonce.
+     * @param r Must be a valid r for the `secp256k1` signature from the user.
+     * @param s Must be a valid s for the `secp256k1` signature from the user.
+     * @param v Must be a valid v for the `secp256k1` signature from the user.
+     */
+    function resetSpendingLimitWithPermit(
+        uint8 spendingLimitType,
+        uint256 limitInUsd,
+        uint256 userNonce,
+        bytes32 r,
+        bytes32 s,
+        uint8 v
+    ) external;
+
+    /**
+     * @notice Function to update the spending limit.
+     * @param limitInUsd Spending limit in USD with 6 decimals.
+     */
+    function updateSpendingLimit(uint256 limitInUsd) external;
+
+    /**
+     * @notice Function to set the spending limit with permit.
+     * @param limitInUsd Spending limit in USD with 6 decimals.
+     * @param userNonce Nonce for this call. Must be equal to current nonce.
+     * @param r Must be a valid r for the `secp256k1` signature from the user.
+     * @param s Must be a valid s for the `secp256k1` signature from the user.
+     * @param v Must be a valid v for the `secp256k1` signature from the user.
+     */
+    function updateSpendingLimitWithPermit(
+        uint256 limitInUsd,
+        uint256 userNonce,
+        bytes32 r,
+        bytes32 s,
+        uint8 v
+    ) external;
+
+    /**
+     * @notice Function to receive funds from the user.
+     * @param token Address of the token to receive.
+     * @param amount Amount of the token to receive.
+     */
+    function receiveFunds(address token, uint256 amount) external;
+
+    /**
+     * @notice Function to receive funds with permit from the user.
+     * @param owner Address of the owner of the token.
+     * @param token Address of the token to receive.
+     * @param amount Amount of the token to receive.
+     * @param deadline Must be a timestamp in the future.
+     * @param r Must be a valid r for the `secp256k1` signature from the user.
+     * @param s Must be a valid s for the `secp256k1` signature from the user.
+     * @param v Must be a valid v for the `secp256k1` signature from the user.
+     *
+     */
+    function receiveFundsWithPermit(
+        address owner,
+        address token,
+        uint256 amount,
+        uint256 deadline,
+        bytes32 r,
+        bytes32 s,
+        uint8 v
+    ) external;
+
+    /**
+     * @notice Function to approve spendings of funds from this contract.
+     * @param token Address of the token.
+     * @param spender Address of the spender.
+     * @param amount Amount of tokens to grant approval for.
+     */
+    function approve(address token, address spender, uint256 amount) external;
+    /**
+     * @notice Function to approve spendings of funds with permit from this contract.
+     * @param token Address of the token.
+     * @param spender Address of the spender.
+     * @param amount Amount of tokens to grant approval for.
+     * @param userNonce Nonce for this call. Must be equal to current nonce.
+     * @param r Must be a valid r for the `secp256k1` signature from the user.
+     * @param s Must be a valid s for the `secp256k1` signature from the user.
+     * @param v Must be a valid v for the `secp256k1` signature from the user.
+     */
+    function approveWithPermit(
+        address token,
+        address spender,
+        uint256 amount,
+        uint256 userNonce,
+        bytes32 r,
+        bytes32 s,
+        uint8 v
+    ) external;
+
+    /**
+     * @notice Function to request withdrawal of funds from this safe.
+     * @notice Can be withdrawn with a configurable delay.
+     * @param tokens Address of the tokens to withdraw.
+     * @param amounts Amount of the tokens to withdraw.
+     * @param recipient Address of the recipient of funds.
+     */
+    function requestWithdrawal(
+        address[] memory tokens,
+        uint256[] memory amounts,
+        address recipient
+    ) external;
+
+    /**
+     * @notice Function to request withdrawal of funds with permit from this safe.
+     * @notice Can be withdrawn with a configurable delay.
+     * @param tokens Address of the tokens to withdraw.
+     * @param amounts Amount of the tokens to withdraw.
+     * @param recipient Address of the recipient of funds.
+     * @param userNonce Nonce for this call. Must be equal to current nonce.
+     * @param r Must be a valid r for the `secp256k1` signature from the user.
+     * @param s Must be a valid s for the `secp256k1` signature from the user.
+     * @param v Must be a valid v for the `secp256k1` signature from the user.
+     */
+    function requestWithdrawalWithPermit(
+        address[] memory tokens,
+        uint256[] memory amounts,
+        address recipient,
+        uint256 userNonce,
+        bytes32 r,
+        bytes32 s,
+        uint8 v
+    ) external;
+
+    /**
+     * @notice Function to process pending withdrawal post the delay.
+     * @dev Can be called by any wallet.
+     */
+    function processWithdrawal() external;
+
+    /**
+     * @notice Function to transfer USDC from the User Safe to EtherFiCash Safe.
+     * @dev Can only be called by the EtherFiCash Safe.
+     * @param amount Amount of USDC to transfer.
+     */
+    function transfer(uint256 amount) external;
+
+    /**
+     * @notice Function to transfer WeETH from the User Safe to EtherFiCash Debt Manager.
+     * @dev Can only be called by the EtherFiCash Debt Manager.
+     * @param amount Amount of WeETH to transfer.
+     */
+    function transferWeETHToDebtManager(uint256 amount) external;
+
+    /**
+     * @notice Function to swap WeETH to USDC and transfer it to EtherFiCash Safe.
+     * @dev Can only be called by the EtherFiCash Safe.
+     * @param inputAmountWeETHToSwap Amount of WeETH to swap.
+     * @param outputMinUsdcAmount Min amount of USDC to receive from the swap.
+     * @param amountUsdcToSend Amount of USDC to send to the EtherFiCash Safe.
+     * @param swapData Swap data received from the swapper API.
+     */
+    function swapAndTransfer(
+        uint256 inputAmountWeETHToSwap,
+        uint256 outputMinUsdcAmount,
+        uint256 amountUsdcToSend,
+        bytes calldata swapData
+    ) external;
+}

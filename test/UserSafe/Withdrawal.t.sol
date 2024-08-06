@@ -1,24 +1,11 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import {UserSafe} from "../../src/UserSafe.sol";
+import {IUserSafe, UserSafe} from "../../src/user-safe/UserSafe.sol";
 import {MessageHashUtils} from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
 import {UserSafeSetup} from "./UserSafeSetup.sol";
 
 error OwnableUnauthorizedAccount(address account);
-error CannotWithdrawYet();
-
-event WithdrawalRequested(
-    address[] tokens,
-    uint256[] amounts,
-    address recipient,
-    uint256 finalizeTimestamp
-);
-event WithdrawalProcessed(
-    address[] tokens,
-    uint256[] amounts,
-    address recipient
-);
 
 contract UserSafeWithdrawalTest is UserSafeSetup {
     using MessageHashUtils for bytes32;
@@ -42,7 +29,12 @@ contract UserSafeWithdrawalTest is UserSafeSetup {
             cashDataProvider.withdrawalDelay();
 
         vm.expectEmit(true, true, true, true);
-        emit WithdrawalRequested(tokens, amounts, recipient, finalizeTime);
+        emit IUserSafe.WithdrawalRequested(
+            tokens,
+            amounts,
+            recipient,
+            finalizeTime
+        );
         aliceSafe.requestWithdrawal(tokens, amounts, recipient);
 
         UserSafe.WithdrawalData memory pendingWithdrawalRequest = aliceSafe
@@ -124,7 +116,12 @@ contract UserSafeWithdrawalTest is UserSafeSetup {
 
         vm.prank(notOwner);
         vm.expectEmit(true, true, true, true);
-        emit WithdrawalRequested(tokens, amounts, recipient, finalizeTime);
+        emit IUserSafe.WithdrawalRequested(
+            tokens,
+            amounts,
+            recipient,
+            finalizeTime
+        );
         aliceSafe.requestWithdrawalWithPermit(
             tokens,
             amounts,
@@ -174,7 +171,7 @@ contract UserSafeWithdrawalTest is UserSafeSetup {
 
         vm.warp(finalizeTime);
         vm.expectEmit(true, true, true, true);
-        emit WithdrawalProcessed(tokens, amounts, recipient);
+        emit IUserSafe.WithdrawalProcessed(tokens, amounts, recipient);
         aliceSafe.processWithdrawal();
 
         uint256 recipientUsdcBalAfter = usdc.balanceOf(recipient);
@@ -206,9 +203,120 @@ contract UserSafeWithdrawalTest is UserSafeSetup {
         aliceSafe.requestWithdrawal(tokens, amounts, recipient);
 
         vm.warp(finalizeTime - 1);
-        vm.expectRevert(CannotWithdrawYet.selector);
+        vm.expectRevert(IUserSafe.CannotWithdrawYet.selector);
         aliceSafe.processWithdrawal();
 
         vm.stopPrank();
+    }
+
+    function test_CanResetWithdrawalWithNewRequest() public {
+        address[] memory tokens = new address[](2);
+        tokens[0] = address(usdc);
+        tokens[1] = address(weETH);
+
+        uint256[] memory amounts = new uint256[](2);
+        amounts[0] = 100e6;
+        amounts[1] = 1 ether;
+
+        address recipient = notOwner;
+
+        vm.startPrank(alice);
+        usdc.transfer(address(aliceSafe), amounts[0]);
+        weETH.transfer(address(aliceSafe), amounts[1]);
+
+        uint256 finalizeTime = block.timestamp +
+            cashDataProvider.withdrawalDelay();
+
+        vm.expectEmit(true, true, true, true);
+        emit IUserSafe.WithdrawalRequested(
+            tokens,
+            amounts,
+            recipient,
+            finalizeTime
+        );
+        aliceSafe.requestWithdrawal(tokens, amounts, recipient);
+
+        IUserSafe.WithdrawalData memory pendingWithdrawalRequest = aliceSafe
+            .pendingWithdrawalRequest();
+        assertEq(pendingWithdrawalRequest.tokens.length, 2);
+        assertEq(pendingWithdrawalRequest.tokens[0], tokens[0]);
+        assertEq(pendingWithdrawalRequest.tokens[1], tokens[1]);
+
+        assertEq(pendingWithdrawalRequest.amounts.length, 2);
+        assertEq(pendingWithdrawalRequest.amounts[0], amounts[0]);
+        assertEq(pendingWithdrawalRequest.amounts[1], amounts[1]);
+
+        assertEq(pendingWithdrawalRequest.recipient, recipient);
+        assertEq(pendingWithdrawalRequest.finalizeTime, finalizeTime);
+
+        address[] memory newTokens = new address[](1);
+        newTokens[0] = address(usdc);
+
+        uint256[] memory newAmounts = new uint256[](1);
+        newAmounts[0] = 10e6;
+
+        address newRecipient = owner;
+
+        vm.expectEmit(true, true, true, true);
+        emit IUserSafe.WithdrawalCancelled(tokens, amounts, recipient);
+        vm.expectEmit(true, true, true, true);
+        emit IUserSafe.WithdrawalRequested(
+            newTokens,
+            newAmounts,
+            newRecipient,
+            finalizeTime
+        );
+        aliceSafe.requestWithdrawal(newTokens, newAmounts, newRecipient);
+
+        UserSafe.WithdrawalData memory newWithdrawalRequest = aliceSafe
+            .pendingWithdrawalRequest();
+        assertEq(newWithdrawalRequest.tokens.length, 1);
+        assertEq(newWithdrawalRequest.tokens[0], newTokens[0]);
+
+        assertEq(newWithdrawalRequest.amounts.length, 1);
+        assertEq(newWithdrawalRequest.amounts[0], newAmounts[0]);
+
+        assertEq(newWithdrawalRequest.recipient, newRecipient);
+        assertEq(newWithdrawalRequest.finalizeTime, finalizeTime);
+
+        vm.stopPrank();
+    }
+
+    function test_CannotRequestWithdrawalWhenFundsAreInsufficient() public {
+        address[] memory tokens = new address[](2);
+        tokens[0] = address(usdc);
+        tokens[1] = address(weETH);
+
+        uint256[] memory amounts = new uint256[](2);
+        amounts[0] = 100e6;
+        amounts[1] = 1 ether;
+
+        address recipient = notOwner;
+
+        vm.startPrank(alice);
+        usdc.transfer(address(aliceSafe), amounts[0]);
+
+        vm.expectRevert(IUserSafe.InsufficientBalance.selector);
+        aliceSafe.requestWithdrawal(tokens, amounts, recipient);
+        vm.stopPrank();
+    }
+
+    function test_CannotTransferIfAmountIsBlockedByWithdrawal() public {
+        address[] memory tokens = new address[](1);
+        tokens[0] = address(usdc);
+
+        uint256[] memory amounts = new uint256[](1);
+        amounts[0] = 100e6;
+
+        address recipient = notOwner;
+
+        vm.startPrank(alice);
+        usdc.transfer(address(aliceSafe), amounts[0]);
+        aliceSafe.requestWithdrawal(tokens, amounts, recipient);
+        vm.stopPrank();
+
+        vm.prank(etherFiCashMultisig);
+        vm.expectRevert(IUserSafe.InsufficientBalance.selector);
+        aliceSafe.transfer(1);
     }
 }

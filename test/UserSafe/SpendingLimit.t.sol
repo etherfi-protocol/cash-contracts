@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import {UserSafe} from "../../src/UserSafe.sol";
+import {IUserSafe, UserSafe} from "../../src/user-safe/UserSafe.sol";
 import {MessageHashUtils} from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
 import {UserSafeSetup} from "./UserSafeSetup.sol";
 
@@ -17,8 +17,8 @@ contract UserSafeSpendingLimitTest is UserSafeSetup {
         uint256 yearlySpendingLimit = 100000000;
 
         vm.prank(alice);
-        aliceSafe.setSpendingLimit(
-            uint8(UserSafe.SpendingLimitTypes.Daily),
+        aliceSafe.resetSpendingLimit(
+            uint8(IUserSafe.SpendingLimitTypes.Daily),
             dailySpendingLimit
         );
 
@@ -32,13 +32,13 @@ contract UserSafeSpendingLimitTest is UserSafeSetup {
         assertEq(spendingLimitData.spendingLimit, dailySpendingLimit);
         assertEq(
             uint8(spendingLimitData.spendingLimitType),
-            uint8(UserSafe.SpendingLimitTypes.Daily)
+            uint8(IUserSafe.SpendingLimitTypes.Daily)
         );
         assertEq(spendingLimitData.usedUpAmount, 0);
 
         vm.prank(alice);
-        aliceSafe.setSpendingLimit(
-            uint8(UserSafe.SpendingLimitTypes.Weekly),
+        aliceSafe.resetSpendingLimit(
+            uint8(IUserSafe.SpendingLimitTypes.Weekly),
             weeklySpendingLimit
         );
         spendingLimitData = aliceSafe.spendingLimit();
@@ -49,13 +49,13 @@ contract UserSafeSpendingLimitTest is UserSafeSetup {
         assertEq(spendingLimitData.spendingLimit, weeklySpendingLimit);
         assertEq(
             uint8(spendingLimitData.spendingLimitType),
-            uint8(UserSafe.SpendingLimitTypes.Weekly)
+            uint8(IUserSafe.SpendingLimitTypes.Weekly)
         );
         assertEq(spendingLimitData.usedUpAmount, 0);
 
         vm.prank(alice);
-        aliceSafe.setSpendingLimit(
-            uint8(UserSafe.SpendingLimitTypes.Monthly),
+        aliceSafe.resetSpendingLimit(
+            uint8(IUserSafe.SpendingLimitTypes.Monthly),
             monthlySpendingLimit
         );
         spendingLimitData = aliceSafe.spendingLimit();
@@ -66,13 +66,13 @@ contract UserSafeSpendingLimitTest is UserSafeSetup {
         assertEq(spendingLimitData.spendingLimit, monthlySpendingLimit);
         assertEq(
             uint8(spendingLimitData.spendingLimitType),
-            uint8(UserSafe.SpendingLimitTypes.Monthly)
+            uint8(IUserSafe.SpendingLimitTypes.Monthly)
         );
         assertEq(spendingLimitData.usedUpAmount, 0);
 
         vm.prank(alice);
-        aliceSafe.setSpendingLimit(
-            uint8(UserSafe.SpendingLimitTypes.Yearly),
+        aliceSafe.resetSpendingLimit(
+            uint8(IUserSafe.SpendingLimitTypes.Yearly),
             yearlySpendingLimit
         );
         spendingLimitData = aliceSafe.spendingLimit();
@@ -83,76 +83,35 @@ contract UserSafeSpendingLimitTest is UserSafeSetup {
         assertEq(spendingLimitData.spendingLimit, yearlySpendingLimit);
         assertEq(
             uint8(spendingLimitData.spendingLimitType),
-            uint8(UserSafe.SpendingLimitTypes.Yearly)
+            uint8(IUserSafe.SpendingLimitTypes.Yearly)
         );
         assertEq(spendingLimitData.usedUpAmount, 0);
-    }
-
-    function test_SetIncomingSpendingLimit() public {
-        uint256 spendingLimit = 1000000;
-
-        vm.startPrank(alice);
-        aliceSafe.setSpendingLimit(
-            uint8(UserSafe.SpendingLimitTypes.Daily),
-            spendingLimit
-        );
-
-        uint64 renewalTimestamp = aliceSafe.spendingLimit().renewalTimestamp;
-
-        aliceSafe.setIncomingSpendingLimit(
-            uint8(UserSafe.SpendingLimitTypes.Weekly),
-            spendingLimit
-        );
-
-        assertEq(
-            aliceSafe.incomingSpendingLimit().renewalTimestamp,
-            renewalTimestamp + 7 * 24 * 60 * 60
-        );
-
-        vm.warp(renewalTimestamp + 1);
-        assertEq(
-            aliceSafe.applicableSpendingLimit().renewalTimestamp,
-            renewalTimestamp + 7 * 24 * 60 * 60
-        );
-        vm.stopPrank();
     }
 
     function test_OnlyOwnerCanSetSpendingLimits() public {
         uint256 spendingLimit = 1000000;
 
-        vm.startPrank(notOwner);
+        vm.prank(notOwner);
         vm.expectRevert(
             abi.encodeWithSelector(
                 OwnableUnauthorizedAccount.selector,
                 notOwner
             )
         );
-        aliceSafe.setSpendingLimit(
-            uint8(UserSafe.SpendingLimitTypes.Daily),
+        aliceSafe.resetSpendingLimit(
+            uint8(IUserSafe.SpendingLimitTypes.Daily),
             spendingLimit
         );
-
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                OwnableUnauthorizedAccount.selector,
-                notOwner
-            )
-        );
-        aliceSafe.setIncomingSpendingLimit(
-            uint8(UserSafe.SpendingLimitTypes.Weekly),
-            spendingLimit
-        );
-        vm.stopPrank();
     }
 
     function test_SetSpendingLimitWithPermit() public {
-        uint8 spendingLimitType = uint8(UserSafe.SpendingLimitTypes.Monthly);
+        uint8 spendingLimitType = uint8(IUserSafe.SpendingLimitTypes.Monthly);
         uint256 spendingLimitInUsd = 1000000000;
         uint256 nonce = aliceSafe.nonce() + 1;
 
         bytes32 msgHash = keccak256(
             abi.encode(
-                aliceSafe.SET_SPENDING_LIMIT_METHOD(),
+                aliceSafe.RESET_SPENDING_LIMIT_METHOD(),
                 spendingLimitType,
                 spendingLimitInUsd,
                 nonce
@@ -166,10 +125,10 @@ contract UserSafeSpendingLimitTest is UserSafeSetup {
 
         UserSafe.SpendingLimitData memory spendingLimitBefore = aliceSafe
             .spendingLimit();
-        assertEq(spendingLimitBefore.spendingLimit, 0);
+        assertEq(spendingLimitBefore.spendingLimit, defaultSpendingLimit);
 
         vm.prank(notOwner);
-        aliceSafe.setSpendingLimitWithPermit(
+        aliceSafe.resetSpendingLimitWithPermit(
             spendingLimitType,
             spendingLimitInUsd,
             nonce,
@@ -183,15 +142,73 @@ contract UserSafeSpendingLimitTest is UserSafeSetup {
         assertEq(spendingLimitAfter.spendingLimit, spendingLimitInUsd);
     }
 
-    function test_SetIncomingSpendingLimitWithPermit() public {
-        uint8 spendingLimitType = uint8(UserSafe.SpendingLimitTypes.Monthly);
+    function test_UpdateSpendingLimit() public {
+        vm.prank(alice);
+        usdc.transfer(address(aliceSafe), 1000e6);
+
         uint256 spendingLimitInUsd = 1000000000;
+        uint256 transferAmount = 1e6;
+
+        UserSafe.SpendingLimitData memory spendingLimitBefore = aliceSafe
+            .spendingLimit();
+        assertEq(spendingLimitBefore.spendingLimit, defaultSpendingLimit);
+        assertEq(spendingLimitBefore.usedUpAmount, 0);
+
+        assertEq(usdc.balanceOf(etherFiCashMultisig), 0);
+        vm.prank(etherFiCashMultisig);
+        aliceSafe.transfer(transferAmount);
+        assertEq(usdc.balanceOf(etherFiCashMultisig), transferAmount);
+
+        spendingLimitBefore = aliceSafe.spendingLimit();
+        assertEq(spendingLimitBefore.usedUpAmount, transferAmount);
+
+        vm.prank(alice);
+        aliceSafe.updateSpendingLimit(spendingLimitInUsd);
+
+        UserSafe.SpendingLimitData memory spendingLimitAfter = aliceSafe
+            .spendingLimit();
+        assertEq(spendingLimitAfter.spendingLimit, spendingLimitInUsd);
+        assertEq(spendingLimitAfter.usedUpAmount, transferAmount);
+    }
+
+    function test_OnlyOwnerUpdateSpendingLimit() public {
+        uint256 spendingLimitInUsd = 1000000000;
+
+        vm.prank(notOwner);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                OwnableUnauthorizedAccount.selector,
+                notOwner
+            )
+        );
+        aliceSafe.updateSpendingLimit(spendingLimitInUsd);
+    }
+
+    function test_UpdateSpendingLimitWithPermit() public {
+        vm.prank(alice);
+        usdc.transfer(address(aliceSafe), 1000e6);
+
+        uint256 spendingLimitInUsd = 1000000000;
+        uint256 transferAmount = 1e6;
+
+        UserSafe.SpendingLimitData memory spendingLimitBefore = aliceSafe
+            .spendingLimit();
+        assertEq(spendingLimitBefore.spendingLimit, defaultSpendingLimit);
+        assertEq(spendingLimitBefore.usedUpAmount, 0);
+
+        assertEq(usdc.balanceOf(etherFiCashMultisig), 0);
+        vm.prank(etherFiCashMultisig);
+        aliceSafe.transfer(transferAmount);
+        assertEq(usdc.balanceOf(etherFiCashMultisig), transferAmount);
+
+        spendingLimitBefore = aliceSafe.spendingLimit();
+        assertEq(spendingLimitBefore.usedUpAmount, transferAmount);
+
         uint256 nonce = aliceSafe.nonce() + 1;
 
         bytes32 msgHash = keccak256(
             abi.encode(
-                aliceSafe.SET_INCOMING_SPENDING_LIMIT_METHOD(),
-                spendingLimitType,
+                aliceSafe.UPDATE_SPENDING_LIMIT_METHOD(),
                 spendingLimitInUsd,
                 nonce
             )
@@ -202,14 +219,8 @@ contract UserSafeSpendingLimitTest is UserSafeSetup {
             msgHash.toEthSignedMessageHash()
         );
 
-        UserSafe.SpendingLimitData
-            memory incomingSpendingLimitBefore = aliceSafe
-                .incomingSpendingLimit();
-        assertEq(incomingSpendingLimitBefore.spendingLimit, 0);
-
         vm.prank(notOwner);
-        aliceSafe.setIncomingSpendingLimitWithPermit(
-            spendingLimitType,
+        aliceSafe.updateSpendingLimitWithPermit(
             spendingLimitInUsd,
             nonce,
             r,
@@ -217,8 +228,53 @@ contract UserSafeSpendingLimitTest is UserSafeSetup {
             v
         );
 
-        UserSafe.SpendingLimitData memory incomingSpendingLimitAfter = aliceSafe
-            .incomingSpendingLimit();
-        assertEq(incomingSpendingLimitAfter.spendingLimit, spendingLimitInUsd);
+        UserSafe.SpendingLimitData memory spendingLimitAfter = aliceSafe
+            .spendingLimit();
+        assertEq(spendingLimitAfter.spendingLimit, spendingLimitInUsd);
+        assertEq(spendingLimitAfter.usedUpAmount, transferAmount);
+    }
+
+    function test_CannotSpendMoreThanSpendingLimit() public {
+        uint256 spendingLimit = aliceSafe.spendingLimit().spendingLimit;
+        uint256 amount = spendingLimit + 1;
+        vm.prank(alice);
+        usdc.transfer(address(aliceSafe), amount);
+
+        vm.prank(etherFiCashMultisig);
+        vm.expectRevert(IUserSafe.ExceededSpendingLimit.selector);
+        aliceSafe.transfer(amount);
+    }
+
+    function test_SpendingLimitGetsRenewedAutomatically() public {
+        uint256 spendingLimit = aliceSafe.spendingLimit().spendingLimit;
+        uint256 amount = spendingLimit / 2;
+
+        deal(address(usdc), address(aliceSafe), 1 ether);
+
+        vm.prank(etherFiCashMultisig);
+        aliceSafe.transfer(amount);
+
+        uint256 usedUpAmount = aliceSafe.spendingLimit().usedUpAmount;
+        assertEq(usedUpAmount, amount);
+
+        vm.prank(etherFiCashMultisig);
+        vm.expectRevert(IUserSafe.ExceededSpendingLimit.selector);
+        aliceSafe.transfer(spendingLimit - amount + 1);
+
+        vm.warp(aliceSafe.spendingLimit().renewalTimestamp);
+        vm.prank(etherFiCashMultisig);
+        vm.expectRevert(IUserSafe.ExceededSpendingLimit.selector);
+        aliceSafe.transfer(spendingLimit - amount + 1);
+
+        vm.warp(aliceSafe.spendingLimit().renewalTimestamp + 1);
+
+        // Since the time for renewal is in the past, usedUpAmount should be 0
+        assertEq(aliceSafe.applicableSpendingLimit().usedUpAmount, 0);
+
+        // Since the time for renewal is in the past, we should be able to spend the whole spending limit again
+        vm.prank(etherFiCashMultisig);
+        vm.expectEmit(true, true, true, true);
+        emit IUserSafe.TransferUSDCForSpending(spendingLimit);
+        aliceSafe.transfer(spendingLimit);
     }
 }

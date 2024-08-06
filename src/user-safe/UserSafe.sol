@@ -10,50 +10,24 @@ import {ISwapper} from "../interfaces/ISwapper.sol";
 import {IPriceProvider} from "../interfaces/IPriceProvider.sol";
 import {OwnableUpgradeable} from "openzeppelin-contracts-upgradeable/contracts/access/OwnableUpgradeable.sol";
 import {Initializable} from "openzeppelin-contracts-upgradeable/contracts/proxy/utils/Initializable.sol";
+import {IUserSafe} from "../interfaces/IUserSafe.sol";
 
 /**
  * @title UserSafe
  * @author ether.fi [shivam@ether.fi]
  * @notice User safe account for interactions with the EtherFi Cash contracts
  */
-contract UserSafe is Initializable, OwnableUpgradeable {
+contract UserSafe is IUserSafe, Initializable, OwnableUpgradeable {
     using SafeERC20 for IERC20;
     using SignatureUtils for bytes32;
-
-    enum SpendingLimitTypes {
-        Daily,
-        Weekly,
-        Monthly,
-        Yearly
-    }
-
-    struct WithdrawalRequest {
-        address[] tokens;
-        address recipient;
-        uint96 finalizeTime;
-    }
-
-    struct WithdrawalData {
-        address[] tokens;
-        uint256[] amounts;
-        address recipient;
-        uint96 finalizeTime;
-    }
-
-    struct SpendingLimitData {
-        SpendingLimitTypes spendingLimitType;
-        uint64 renewalTimestamp;
-        uint256 spendingLimit; // in USD with 6 decimals
-        uint256 usedUpAmount; // in USD with 6 decimals
-    }
 
     bytes32 public constant REQUEST_WITHDRAWAL_METHOD =
         keccak256("requestWithdrawal");
     bytes32 public constant APPROVE_METHOD = keccak256("approve");
-    bytes32 public constant SET_SPENDING_LIMIT_METHOD =
-        keccak256("setSpendingLimit");
-    bytes32 public constant SET_INCOMING_SPENDING_LIMIT_METHOD =
-        keccak256("setIncomingSpendingLimit");
+    bytes32 public constant RESET_SPENDING_LIMIT_METHOD =
+        keccak256("resetSpendingLimit");
+    bytes32 public constant UPDATE_SPENDING_LIMIT_METHOD =
+        keccak256("updateSpendingLimit");
 
     // Address of the USDC token
     address public immutable usdc;
@@ -64,7 +38,7 @@ contract UserSafe is Initializable, OwnableUpgradeable {
     // Address of the price provider
     IPriceProvider public immutable priceProvider;
     // Address of the swapper
-    ISwapper public immutable _swapper;
+    ISwapper public immutable swapper;
     // Withdrawal requests pending with the contract
     WithdrawalRequest private _pendingWithdrawalRequest;
     // Funds blocked for withdrawal
@@ -73,64 +47,40 @@ contract UserSafe is Initializable, OwnableUpgradeable {
     uint256 private _nonce;
     // Current spending limit
     SpendingLimitData private _spendingLimit;
-    // This spending limit gets activated once the _spendingLimit time is over
-    SpendingLimitData private _incomingSpendingLimit;
 
-    event DepositFunds(address token, uint256 amount);
-    event ApprovalFunds(address token, address spender, uint256 amount);
-    event WithdrawalRequested(
-        address[] tokens,
-        uint256[] amounts,
-        address recipient,
-        uint256 finalizeTimestamp
-    );
-    event WithdrawalProcessed(
-        address[] tokens,
-        uint256[] amounts,
-        address recipient
-    );
-    event TransferUSDCForSpending(uint256 amount);
-    event SwapTransferForSpending(uint256 weETHAmount, uint256 usdcAmount);
-    event TransferWeETHAsCollateral(uint256 amount);
-    event SetSpendingLimit(uint8 spendingLimitType, uint256 limitInUsd);
-    event SetIncomingSpendingLimit(uint8 spendingLimitType, uint256 limitInUsd);
-
-    error InsufficientBalance();
-    error ArrayLengthMismatch();
-    error CannotWithdrawYet();
-    error UnauthorizedCall();
-    error InvalidNonce();
-    error AmountGreaterThanUsdcReceived();
-    error ExceededSpendingLimit();
-
-    constructor(
-        address _usdc,
-        address _weETH,
-        address _priceProvider,
-        address _cashDataProvider,
-        address __swapper
-    ) {
-        usdc = _usdc;
-        weETH = _weETH;
-        priceProvider = IPriceProvider(_priceProvider);
+    constructor(address _cashDataProvider) {
         cashDataProvider = ICashDataProvider(_cashDataProvider);
-        _swapper = ISwapper(__swapper);
+        usdc = cashDataProvider.usdc();
+        weETH = cashDataProvider.weETH();
+        priceProvider = IPriceProvider(cashDataProvider.priceProvider());
+        swapper = ISwapper(cashDataProvider.swapper());
     }
 
-    function initialize(address _owner) external initializer {
+    function initialize(
+        address _owner,
+        uint256 _defaultSpendingLimit
+    ) external initializer {
         __Ownable_init(_owner);
+        _resetSpendingLimit(
+            uint8(SpendingLimitTypes.Monthly),
+            _defaultSpendingLimit
+        );
     }
 
     /**
-     * @notice Function to fetch the pending withdrawal request.
-     * @return WithdrawalData struct.
+     * @inheritdoc IUserSafe
      */
     function pendingWithdrawalRequest()
-        external
+        public
         view
         returns (WithdrawalData memory)
     {
         address[] memory tokens = _pendingWithdrawalRequest.tokens;
+        if (tokens.length == 0) {
+            WithdrawalData memory withdrawalData;
+            return withdrawalData;
+        }
+
         uint256[] memory amounts = new uint256[](tokens.length);
         address recipient = _pendingWithdrawalRequest.recipient;
         uint256 len = tokens.length;
@@ -152,90 +102,56 @@ contract UserSafe is Initializable, OwnableUpgradeable {
     }
 
     /**
-     * @notice Function to fetch the address of the Swapper contract.
-     * @return Address of the Swapper contract.
+     * @inheritdoc IUserSafe
      */
-    function swapper() external view returns (address) {
-        return address(_swapper);
-    }
-
     function nonce() external view returns (uint256) {
         return _nonce;
     }
 
     /**
-     * @notice Function to get the spending limit for the user.
-     * @return SpendingLimitData struct.
-     */
-    function applicableSpendingLimit()
-        external
-        view
-        returns (SpendingLimitData memory)
-    {
-        if (block.timestamp < _spendingLimit.renewalTimestamp)
-            return _spendingLimit;
-        else {
-            if (_incomingSpendingLimit.renewalTimestamp > block.timestamp) {
-                return _incomingSpendingLimit;
-            } else {
-                SpendingLimitData memory spendingLimitData;
-                spendingLimitData.usedUpAmount = 0;
-                spendingLimitData
-                    .renewalTimestamp = _getSpendingLimitRenewalTimestamp(
-                    _spendingLimit.renewalTimestamp,
-                    _spendingLimit.spendingLimitType
-                );
-                spendingLimitData.spendingLimit = _spendingLimit.spendingLimit;
-                spendingLimitData.spendingLimitType = _spendingLimit
-                    .spendingLimitType;
-
-                return spendingLimitData;
-            }
-        }
-    }
-
-    /**
-     * @notice Function to get the spending limit for the user.
-     * @return SpendingLimitData struct.
+     * @inheritdoc IUserSafe
      */
     function spendingLimit() external view returns (SpendingLimitData memory) {
         return _spendingLimit;
     }
 
     /**
-     * @notice Function to get the incoming spending limit for the user.
-     * @return SpendingLimitData struct.
+     * @inheritdoc IUserSafe
      */
-    function incomingSpendingLimit()
+    function applicableSpendingLimit()
         external
         view
         returns (SpendingLimitData memory)
     {
-        return _incomingSpendingLimit;
+        SpendingLimitData memory _applicableSpendingLimit = _spendingLimit;
+
+        // If spending limit needs to be renewed, then renew it
+        if (block.timestamp > _applicableSpendingLimit.renewalTimestamp) {
+            _applicableSpendingLimit.usedUpAmount = 0;
+            _applicableSpendingLimit
+                .renewalTimestamp = _getSpendingLimitRenewalTimestamp(
+                _applicableSpendingLimit.renewalTimestamp,
+                _applicableSpendingLimit.spendingLimitType
+            );
+        }
+
+        return _applicableSpendingLimit;
     }
 
     /**
-     * @notice Function to set the spending limit.
-     * @param spendingLimitType Type of spending limit.
-     * @param limitInUsd Spending limit in USD with 6 decimals.
+     * @inheritdoc IUserSafe
      */
-    function setSpendingLimit(
+    function resetSpendingLimit(
         uint8 spendingLimitType,
         uint256 limitInUsd
     ) external onlyOwner {
-        _setSpendingLimit(spendingLimitType, limitInUsd);
+        _resetSpendingLimit(spendingLimitType, limitInUsd);
     }
 
     /**
-     * @notice Function to set the spending limit with permit.
-     * @param spendingLimitType Type of spending limit.
-     * @param limitInUsd Spending limit in USD with 6 decimals.
-     * @param userNonce Nonce for this call. Must be equal to current nonce.
-     * @param r Must be a valid r for the `secp256k1` signature from the user.
-     * @param s Must be a valid s for the `secp256k1` signature from the user.
-     * @param v Must be a valid v for the `secp256k1` signature from the user.
+     * @inheritdoc IUserSafe
      */
-    function setSpendingLimitWithPermit(
+    function resetSpendingLimitWithPermit(
         uint8 spendingLimitType,
         uint256 limitInUsd,
         uint256 userNonce,
@@ -248,7 +164,7 @@ contract UserSafe is Initializable, OwnableUpgradeable {
 
         bytes32 msgHash = keccak256(
             abi.encode(
-                SET_SPENDING_LIMIT_METHOD,
+                RESET_SPENDING_LIMIT_METHOD,
                 spendingLimitType,
                 limitInUsd,
                 userNonce
@@ -256,32 +172,20 @@ contract UserSafe is Initializable, OwnableUpgradeable {
         );
 
         msgHash.verifySig(owner(), r, s, v);
-        _setSpendingLimit(spendingLimitType, limitInUsd);
+        _resetSpendingLimit(spendingLimitType, limitInUsd);
     }
 
     /**
-     * @notice Function to set the incoming spending limit.
-     * @param spendingLimitType Type of spending limit.
-     * @param limitInUsd Spending limit in USD with 6 decimals.
+     * @inheritdoc IUserSafe
      */
-    function setIncomingSpendingLimit(
-        uint8 spendingLimitType,
-        uint256 limitInUsd
-    ) external onlyOwner {
-        _setIncomingSpendingLimit(spendingLimitType, limitInUsd);
+    function updateSpendingLimit(uint256 limitInUsd) external onlyOwner {
+        _updateSpendingLimit(limitInUsd);
     }
 
     /**
-     * @notice Function to set the incoming spending limit with permit.
-     * @param spendingLimitType Type of spending limit.
-     * @param limitInUsd Spending limit in USD with 6 decimals.
-     * @param userNonce Nonce for this call. Must be equal to current nonce.
-     * @param r Must be a valid r for the `secp256k1` signature from the user.
-     * @param s Must be a valid s for the `secp256k1` signature from the user.
-     * @param v Must be a valid v for the `secp256k1` signature from the user.
+     * @inheritdoc IUserSafe
      */
-    function setIncomingSpendingLimitWithPermit(
-        uint8 spendingLimitType,
+    function updateSpendingLimitWithPermit(
         uint256 limitInUsd,
         uint256 userNonce,
         bytes32 r,
@@ -292,22 +196,15 @@ contract UserSafe is Initializable, OwnableUpgradeable {
         if (userNonce != _nonce) revert InvalidNonce();
 
         bytes32 msgHash = keccak256(
-            abi.encode(
-                SET_INCOMING_SPENDING_LIMIT_METHOD,
-                spendingLimitType,
-                limitInUsd,
-                userNonce
-            )
+            abi.encode(UPDATE_SPENDING_LIMIT_METHOD, limitInUsd, userNonce)
         );
 
         msgHash.verifySig(owner(), r, s, v);
-        _setIncomingSpendingLimit(spendingLimitType, limitInUsd);
+        _updateSpendingLimit(limitInUsd);
     }
 
     /**
-     * @notice Function to receive funds from the user.
-     * @param token Address of the token to receive.
-     * @param amount Amount of the token to receive.
+     * @inheritdoc IUserSafe
      */
     function receiveFunds(address token, uint256 amount) external {
         IERC20(token).safeTransferFrom(msg.sender, address(this), amount);
@@ -315,15 +212,7 @@ contract UserSafe is Initializable, OwnableUpgradeable {
     }
 
     /**
-     * @notice Function to receive funds with permit from the user.
-     * @param owner Address of the owner of the token.
-     * @param token Address of the token to receive.
-     * @param amount Amount of the token to receive.
-     * @param deadline Must be a timestamp in the future.
-     * @param r Must be a valid r for the `secp256k1` signature from the user.
-     * @param s Must be a valid s for the `secp256k1` signature from the user.
-     * @param v Must be a valid v for the `secp256k1` signature from the user.
-     *
+     * @inheritdoc IUserSafe
      */
     function receiveFundsWithPermit(
         address owner,
@@ -351,10 +240,7 @@ contract UserSafe is Initializable, OwnableUpgradeable {
     }
 
     /**
-     * @notice Function to approve spendings of funds from this contract.
-     * @param token Address of the token.
-     * @param spender Address of the spender.
-     * @param amount Amount of tokens to grant approval for.
+     * @inheritdoc IUserSafe
      */
     function approve(
         address token,
@@ -365,14 +251,7 @@ contract UserSafe is Initializable, OwnableUpgradeable {
     }
 
     /**
-     * @notice Function to approve spendings of funds with permit from this contract.
-     * @param token Address of the token.
-     * @param spender Address of the spender.
-     * @param amount Amount of tokens to grant approval for.
-     * @param userNonce Nonce for this call. Must be equal to current nonce.
-     * @param r Must be a valid r for the `secp256k1` signature from the user.
-     * @param s Must be a valid s for the `secp256k1` signature from the user.
-     * @param v Must be a valid v for the `secp256k1` signature from the user.
+     * @inheritdoc IUserSafe
      */
     function approveWithPermit(
         address token,
@@ -395,11 +274,7 @@ contract UserSafe is Initializable, OwnableUpgradeable {
     }
 
     /**
-     * @notice Function to request withdrawal of funds from this safe.
-     * @notice Can be withdrawn with a configurable delay.
-     * @param tokens Address of the tokens to withdraw.
-     * @param amounts Amount of the tokens to withdraw.
-     * @param recipient Address of the recipient of funds.
+     * @inheritdoc IUserSafe
      */
     function requestWithdrawal(
         address[] memory tokens,
@@ -410,15 +285,7 @@ contract UserSafe is Initializable, OwnableUpgradeable {
     }
 
     /**
-     * @notice Function to request withdrawal of funds with permit from this safe.
-     * @notice Can be withdrawn with a configurable delay.
-     * @param tokens Address of the tokens to withdraw.
-     * @param amounts Amount of the tokens to withdraw.
-     * @param recipient Address of the recipient of funds.
-     * @param userNonce Nonce for this call. Must be equal to current nonce.
-     * @param r Must be a valid r for the `secp256k1` signature from the user.
-     * @param s Must be a valid s for the `secp256k1` signature from the user.
-     * @param v Must be a valid v for the `secp256k1` signature from the user.
+     * @inheritdoc IUserSafe
      */
     function requestWithdrawalWithPermit(
         address[] memory tokens,
@@ -447,8 +314,7 @@ contract UserSafe is Initializable, OwnableUpgradeable {
     }
 
     /**
-     * @notice Function to process pending withdrawal post the delay.
-     * @dev Can be called by any wallet.
+     * @inheritdoc IUserSafe
      */
     function processWithdrawal() external {
         if (_pendingWithdrawalRequest.finalizeTime > block.timestamp)
@@ -471,9 +337,7 @@ contract UserSafe is Initializable, OwnableUpgradeable {
     }
 
     /**
-     * @notice Function to transfer USDC from the User Safe to EtherFiCash Safe.
-     * @dev Can only be called by the EtherFiCash Safe.
-     * @param amount Amount of USDC to transfer.
+     * @inheritdoc IUserSafe
      */
     function transfer(uint256 amount) external onlyEtherFiCashSafe {
         _checkSpendingLimit(usdc, amount);
@@ -488,9 +352,7 @@ contract UserSafe is Initializable, OwnableUpgradeable {
     }
 
     /**
-     * @notice Function to transfer WeETH from the User Safe to EtherFiCash Debt Manager.
-     * @dev Can only be called by the EtherFiCash Debt Manager.
-     * @param amount Amount of WeETH to transfer.
+     * @inheritdoc IUserSafe
      */
     function transferWeETHToDebtManager(
         uint256 amount
@@ -507,36 +369,32 @@ contract UserSafe is Initializable, OwnableUpgradeable {
     }
 
     /**
-     * @notice Function to swap WeETH to USDC and transfer it to EtherFiCash Safe.
-     * @dev Can only be called by the EtherFiCash Safe.
-     * @param amountWeETHToSwap Amount of WeETH to swap.
-     * @param minUsdcAmount Min amount of USDC to receive from the swap.
-     * @param amountUsdcToSend Amount of USDC to send to the EtherFiCash Safe.
-     * @param swapData Swap data received from the swapper API.
+     * @inheritdoc IUserSafe
      */
     function swapAndTransfer(
-        uint256 amountWeETHToSwap,
-        uint256 minUsdcAmount,
+        uint256 inputAmountWeETHToSwap,
+        uint256 outputMinUsdcAmount,
         uint256 amountUsdcToSend,
         bytes calldata swapData
     ) external onlyEtherFiCashSafe {
+        _checkSpendingLimit(usdc, amountUsdcToSend);
+
         if (
-            amountWeETHToSwap + blockedFundsForWithdrawal[weETH] >
+            inputAmountWeETHToSwap + blockedFundsForWithdrawal[weETH] >
             IERC20(weETH).balanceOf(address(this))
         ) revert InsufficientBalance();
 
         uint256 returnAmount = _swapWeETHToUsdc(
-            amountWeETHToSwap,
-            minUsdcAmount,
+            inputAmountWeETHToSwap,
+            outputMinUsdcAmount,
             swapData
         );
         if (amountUsdcToSend > returnAmount)
             revert AmountGreaterThanUsdcReceived();
 
-        _checkSpendingLimit(usdc, amountUsdcToSend);
         IERC20(usdc).safeTransfer(msg.sender, amountUsdcToSend);
 
-        emit SwapTransferForSpending(amountWeETHToSwap, amountUsdcToSend);
+        emit SwapTransferForSpending(inputAmountWeETHToSwap, amountUsdcToSend);
     }
 
     function _getSpendingLimitRenewalTimestamp(
@@ -549,7 +407,9 @@ contract UserSafe is Initializable, OwnableUpgradeable {
             return startTimestamp + 7 * 24 * 60 * 60;
         else if (spendingLimitType == SpendingLimitTypes.Monthly)
             return startTimestamp + 30 * 24 * 60 * 60;
-        else return startTimestamp + 365 * 24 * 60 * 60;
+        else if (spendingLimitType == SpendingLimitTypes.Yearly)
+            return startTimestamp + 365 * 24 * 60 * 60;
+        else revert InvalidSpendingLimitType();
     }
 
     function _swapWeETHToUsdc(
@@ -557,11 +417,11 @@ contract UserSafe is Initializable, OwnableUpgradeable {
         uint256 minUsdcAmount,
         bytes calldata swapData
     ) internal returns (uint256) {
-        IERC20(weETH).safeTransfer(address(_swapper), amount);
-        return _swapper.swap(weETH, usdc, amount, minUsdcAmount, swapData);
+        IERC20(weETH).safeTransfer(address(swapper), amount);
+        return swapper.swap(weETH, usdc, amount, minUsdcAmount, swapData);
     }
 
-    function _setSpendingLimit(
+    function _resetSpendingLimit(
         uint8 spendingLimitType,
         uint256 limitInUsd
     ) internal {
@@ -575,24 +435,12 @@ contract UserSafe is Initializable, OwnableUpgradeable {
             usedUpAmount: 0
         });
 
-        emit SetSpendingLimit(spendingLimitType, limitInUsd);
+        emit ResetSpendingLimit(spendingLimitType, limitInUsd);
     }
 
-    function _setIncomingSpendingLimit(
-        uint8 spendingLimitType,
-        uint256 limitInUsd
-    ) internal {
-        _incomingSpendingLimit = SpendingLimitData({
-            spendingLimitType: SpendingLimitTypes(spendingLimitType),
-            renewalTimestamp: _getSpendingLimitRenewalTimestamp(
-                _spendingLimit.renewalTimestamp,
-                SpendingLimitTypes(spendingLimitType)
-            ),
-            spendingLimit: limitInUsd,
-            usedUpAmount: 0
-        });
-
-        emit SetIncomingSpendingLimit(spendingLimitType, limitInUsd);
+    function _updateSpendingLimit(uint256 limitInUsd) internal {
+        emit UpdateSpendingLimit(_spendingLimit.spendingLimit, limitInUsd);
+        _spendingLimit.spendingLimit = limitInUsd;
     }
 
     function _requestWithdrawal(
@@ -600,6 +448,8 @@ contract UserSafe is Initializable, OwnableUpgradeable {
         uint256[] memory amounts,
         address recipient
     ) internal {
+        _cancelOldWithdrawal();
+
         uint256 len = tokens.length;
         if (len != amounts.length) revert ArrayLengthMismatch();
 
@@ -622,12 +472,31 @@ contract UserSafe is Initializable, OwnableUpgradeable {
             finalizeTime: finalTime
         });
 
-        emit WithdrawalRequested(
-            tokens,
-            amounts,
-            recipient,
-            block.timestamp + cashDataProvider.withdrawalDelay()
-        );
+        emit WithdrawalRequested(tokens, amounts, recipient, finalTime);
+    }
+
+    function _cancelOldWithdrawal() internal {
+        uint256 oldDataLen = _pendingWithdrawalRequest.tokens.length;
+        if (oldDataLen != 0) {
+            address[] memory oldTokens = _pendingWithdrawalRequest.tokens;
+            uint256[] memory oldAmounts = new uint256[](oldTokens.length);
+
+            for (uint256 i = 0; i < oldDataLen; ) {
+                oldAmounts[i] = blockedFundsForWithdrawal[oldTokens[i]];
+                delete blockedFundsForWithdrawal[oldTokens[i]];
+                unchecked {
+                    ++i;
+                }
+            }
+
+            emit WithdrawalCancelled(
+                oldTokens,
+                oldAmounts,
+                _pendingWithdrawalRequest.recipient
+            );
+
+            delete _pendingWithdrawalRequest;
+        }
     }
 
     function _approve(address token, address spender, uint256 amount) internal {
@@ -638,17 +507,11 @@ contract UserSafe is Initializable, OwnableUpgradeable {
     function _checkSpendingLimit(address token, uint256 amount) internal {
         // If spending limit needs to be renewed, then renew it
         if (block.timestamp > _spendingLimit.renewalTimestamp) {
-            if (_incomingSpendingLimit.renewalTimestamp > block.timestamp) {
-                _spendingLimit = _incomingSpendingLimit;
-                delete _incomingSpendingLimit;
-            } else {
-                _spendingLimit.usedUpAmount = 0;
-                _spendingLimit
-                    .renewalTimestamp = _getSpendingLimitRenewalTimestamp(
-                    _spendingLimit.renewalTimestamp,
-                    _spendingLimit.spendingLimitType
-                );
-            }
+            _spendingLimit.usedUpAmount = 0;
+            _spendingLimit.renewalTimestamp = _getSpendingLimitRenewalTimestamp(
+                _spendingLimit.renewalTimestamp,
+                _spendingLimit.spendingLimitType
+            );
         }
 
         // in current case, token can be either weETH or USDC only
@@ -664,15 +527,22 @@ contract UserSafe is Initializable, OwnableUpgradeable {
         _spendingLimit.usedUpAmount += amount;
     }
 
-    modifier onlyEtherFiCashSafe() {
+    function _onlyEtherFiCashSafe() private view {
         if (msg.sender != cashDataProvider.etherFiCashMultiSig())
             revert UnauthorizedCall();
+    }
+    function _onlyEtherFiCashDebtManager() private view {
+        if (msg.sender != cashDataProvider.etherFiCashDebtManager())
+            revert UnauthorizedCall();
+    }
+
+    modifier onlyEtherFiCashSafe() {
+        _onlyEtherFiCashSafe();
         _;
     }
 
     modifier onlyEtherFiCashDebtManager() {
-        if (msg.sender != cashDataProvider.etherFiCashDebtManager())
-            revert UnauthorizedCall();
+        _onlyEtherFiCashDebtManager();
         _;
     }
 }

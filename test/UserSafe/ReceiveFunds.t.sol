@@ -2,11 +2,10 @@
 pragma solidity ^0.8.24;
 
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import {UserSafe} from "../../src/UserSafe.sol";
+import {IUserSafe, UserSafe} from "../../src/user-safe/UserSafe.sol";
 import {MessageHashUtils} from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
 import {UserSafeSetup} from "./UserSafeSetup.sol";
 
-event DepositFunds(address token, uint256 amount);
 // keccak256("Permit(address owner,address spender,uint256 value,uint256 nonce,uint256 deadline)");
 bytes32 constant PERMIT_TYPEHASH = 0x6e71edae12b1b97f4d1f60370fef10105fa2faae0126114a169c64845d6126c9;
 
@@ -26,7 +25,7 @@ contract UserSafeReceiveFundsTest is UserSafeSetup {
         vm.startPrank(alice);
         usdc.approve(address(aliceSafe), amount);
         vm.expectEmit(true, true, true, true);
-        emit DepositFunds(address(usdc), amount);
+        emit IUserSafe.DepositFunds(address(usdc), amount);
         aliceSafe.receiveFunds(address(usdc), amount);
         vm.stopPrank();
     }
@@ -49,7 +48,7 @@ contract UserSafeReceiveFundsTest is UserSafeSetup {
 
         vm.prank(notOwner);
         vm.expectEmit(true, true, true, true);
-        emit DepositFunds(address(weETH), amount);
+        emit IUserSafe.DepositFunds(address(weETH), amount);
         aliceSafe.receiveFundsWithPermit(
             alice,
             address(weETH),

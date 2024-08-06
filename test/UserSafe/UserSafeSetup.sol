@@ -3,12 +3,12 @@ pragma solidity ^0.8.24;
 
 import {Test, console, stdError} from "forge-std/Test.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import {UserSafeFactory} from "../../src/UserSafeFactory.sol";
-import {UserSafe} from "../../src/UserSafe.sol";
+import {UserSafeFactory} from "../../src/user-safe/UserSafeFactory.sol";
+import {UserSafe} from "../../src//user-safe/UserSafe.sol";
 import {UserSafeV2Mock} from "../../src/mocks/UserSafeV2Mock.sol";
-import {Swapper1InchV6} from "../../src/Swapper1InchV6.sol";
-import {PriceProvider} from "../../src/PriceProvider.sol";
-import {CashDataProvider} from "../../src/CashDataProvider.sol";
+import {Swapper1InchV6} from "../../src/utils/Swapper1InchV6.sol";
+import {PriceProvider} from "../../src/oracle/PriceProvider.sol";
+import {CashDataProvider} from "../../src/utils/CashDataProvider.sol";
 import {Upgrades} from "openzeppelin-foundry-upgrades/Upgrades.sol";
 
 contract UserSafeSetup is Test {
@@ -23,6 +23,7 @@ contract UserSafeSetup is Test {
     PriceProvider priceProvider;
     CashDataProvider cashDataProvider;
 
+    uint256 defaultSpendingLimit = 10000e6;
     uint64 withdrawalDelay = 10;
     address etherFiCashMultisig = makeAddr("multisig");
     address etherFiCashDebtManager = makeAddr("debtManager");
@@ -35,8 +36,8 @@ contract UserSafeSetup is Test {
     uint256 alicePk;
     UserSafe aliceSafe;
 
-    function setUp() public {
-        vm.createSelectFork("https://rpc.ankr.com/arbitrum");
+    function setUp() public virtual {
+        vm.createSelectFork("https://arbitrum-one.public.blastapi.io");
         address[] memory assets = new address[](1);
         assets[0] = address(weETH);
 
@@ -47,23 +48,21 @@ contract UserSafeSetup is Test {
         address proxy = Upgrades.deployUUPSProxy(
             "CashDataProvider.sol:CashDataProvider",
             abi.encodeWithSelector(
-                // intiailize(address,uint64,address,address)
-                0x13353717,
+                // intiailize(address,uint64,address,address,address,address,address,address)
+                0x38ed45b8,
                 owner,
                 withdrawalDelay,
                 etherFiCashMultisig,
-                etherFiCashDebtManager
+                etherFiCashDebtManager,
+                address(usdc),
+                address(weETH),
+                address(priceProvider),
+                address(swapper)
             )
         );
         cashDataProvider = CashDataProvider(proxy);
 
-        impl = new UserSafe(
-            address(usdc),
-            address(weETH),
-            address(priceProvider),
-            address(cashDataProvider),
-            address(swapper)
-        );
+        impl = new UserSafe(address(cashDataProvider));
 
         factory = new UserSafeFactory(address(impl), owner);
 
@@ -72,9 +71,10 @@ contract UserSafeSetup is Test {
         aliceSafe = UserSafe(
             factory.createUserSafe(
                 abi.encodeWithSelector(
-                    // initialize(address)
-                    0xc4d66de8,
-                    alice
+                    // initialize(address,uint256)
+                    0xcd6dc687,
+                    alice,
+                    defaultSpendingLimit
                 )
             )
         );
@@ -87,5 +87,9 @@ contract UserSafeSetup is Test {
 
     function test_Deploy() public view {
         assertEq(aliceSafe.owner(), alice);
+
+        UserSafe.SpendingLimitData memory spendingLimit = aliceSafe
+            .spendingLimit();
+        assertEq(spendingLimit.spendingLimit, defaultSpendingLimit);
     }
 }

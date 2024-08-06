@@ -3,7 +3,7 @@ pragma solidity ^0.8.24;
 
 import {Test, console, stdError} from "forge-std/Test.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import {Swapper1InchV6} from "../../src/Swapper1InchV6.sol";
+import {Swapper1InchV6} from "../../src/utils/Swapper1InchV6.sol";
 
 contract SwapperTest is Test {
     ERC20 usdc = ERC20(0xaf88d065e77c8cC2239327C5EDb3A432268e5831);
