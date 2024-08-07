@@ -30,15 +30,15 @@ contract UserSafe is IUserSafe, Initializable, OwnableUpgradeable {
         keccak256("updateSpendingLimit");
 
     // Address of the USDC token
-    address public immutable usdc;
+    address private immutable _usdc;
     // Address of the weETH token
-    address public immutable weETH;
+    address private immutable _weETH;
     // Address of the Cash Data Provider
-    ICashDataProvider public immutable cashDataProvider;
+    ICashDataProvider private immutable _cashDataProvider;
     // Address of the price provider
-    IPriceProvider public immutable priceProvider;
+    IPriceProvider private immutable _priceProvider;
     // Address of the swapper
-    ISwapper public immutable swapper;
+    ISwapper private immutable _swapper;
     // Withdrawal requests pending with the contract
     WithdrawalRequest private _pendingWithdrawalRequest;
     // Funds blocked for withdrawal
@@ -48,12 +48,12 @@ contract UserSafe is IUserSafe, Initializable, OwnableUpgradeable {
     // Current spending limit
     SpendingLimitData private _spendingLimit;
 
-    constructor(address _cashDataProvider) {
-        cashDataProvider = ICashDataProvider(_cashDataProvider);
-        usdc = cashDataProvider.usdc();
-        weETH = cashDataProvider.weETH();
-        priceProvider = IPriceProvider(cashDataProvider.priceProvider());
-        swapper = ISwapper(cashDataProvider.swapper());
+    constructor(address __cashDataProvider) {
+        _cashDataProvider = ICashDataProvider(__cashDataProvider);
+        _usdc = _cashDataProvider.usdc();
+        _weETH = _cashDataProvider.weETH();
+        _priceProvider = IPriceProvider(_cashDataProvider.priceProvider());
+        _swapper = ISwapper(_cashDataProvider.swapper());
     }
 
     function initialize(
@@ -65,6 +65,43 @@ contract UserSafe is IUserSafe, Initializable, OwnableUpgradeable {
             uint8(SpendingLimitTypes.Monthly),
             _defaultSpendingLimit
         );
+    }
+
+    /**
+     * @inheritdoc IUserSafe
+     */
+    function usdc() external view returns (address) {
+        return _usdc;
+    }
+
+    /**
+     * @inheritdoc IUserSafe
+     */
+
+    function weETH() external view returns (address) {
+        return _weETH;
+    }
+
+    /**
+     * @inheritdoc IUserSafe
+     */
+    function cashDataProvider() external view returns (address) {
+        return address(_cashDataProvider);
+    }
+
+    /**
+     * @inheritdoc IUserSafe
+     */
+    function priceProvider() external view returns (address) {
+        return address(_priceProvider);
+    }
+
+    /**
+     * @inheritdoc IUserSafe
+     */
+
+    function swapper() external view returns (address) {
+        return address(_swapper);
     }
 
     /**
@@ -339,62 +376,81 @@ contract UserSafe is IUserSafe, Initializable, OwnableUpgradeable {
     /**
      * @inheritdoc IUserSafe
      */
-    function transfer(uint256 amount) external onlyEtherFiCashSafe {
-        _checkSpendingLimit(usdc, amount);
+    function transfer(
+        address token,
+        uint256 amount
+    ) external onlyEtherFiCashSafe {
+        if (token != _usdc) revert UnsupportedToken();
+        _checkSpendingLimit(token, amount);
 
         if (
-            amount + blockedFundsForWithdrawal[usdc] >
-            IERC20(usdc).balanceOf(address(this))
+            amount + blockedFundsForWithdrawal[token] >
+            IERC20(token).balanceOf(address(this))
         ) revert InsufficientBalance();
 
-        IERC20(usdc).safeTransfer(msg.sender, amount);
-        emit TransferUSDCForSpending(amount);
+        IERC20(token).safeTransfer(msg.sender, amount);
+        emit TransferForSpending(token, amount);
     }
 
     /**
      * @inheritdoc IUserSafe
      */
-    function transferWeETHToDebtManager(
+    function transferFundsToDebtManager(
+        address token,
         uint256 amount
     ) external onlyEtherFiCashDebtManager {
-        _checkSpendingLimit(weETH, amount);
+        if (token != _weETH) revert UnsupportedToken();
+        _checkSpendingLimit(token, amount);
 
         if (
-            amount + blockedFundsForWithdrawal[weETH] >
-            IERC20(weETH).balanceOf(address(this))
+            amount + blockedFundsForWithdrawal[token] >
+            IERC20(token).balanceOf(address(this))
         ) revert InsufficientBalance();
 
-        IERC20(weETH).safeTransfer(msg.sender, amount);
-        emit TransferWeETHAsCollateral(amount);
+        IERC20(token).safeTransfer(msg.sender, amount);
+        emit TransferCollateral(token, amount);
     }
 
     /**
      * @inheritdoc IUserSafe
      */
     function swapAndTransfer(
-        uint256 inputAmountWeETHToSwap,
-        uint256 outputMinUsdcAmount,
-        uint256 amountUsdcToSend,
+        address inputTokenToSwap,
+        address outputToken,
+        uint256 inputAmountToSwap,
+        uint256 outputMinAmount,
+        uint256 outputAmountToTransfer,
         bytes calldata swapData
     ) external onlyEtherFiCashSafe {
-        _checkSpendingLimit(usdc, amountUsdcToSend);
+        if (inputTokenToSwap != _weETH || outputToken != _usdc)
+            revert UnsupportedToken();
+
+        _checkSpendingLimit(outputToken, outputAmountToTransfer);
 
         if (
-            inputAmountWeETHToSwap + blockedFundsForWithdrawal[weETH] >
-            IERC20(weETH).balanceOf(address(this))
+            inputAmountToSwap + blockedFundsForWithdrawal[_weETH] >
+            IERC20(_weETH).balanceOf(address(this))
         ) revert InsufficientBalance();
 
-        uint256 returnAmount = _swapWeETHToUsdc(
-            inputAmountWeETHToSwap,
-            outputMinUsdcAmount,
+        uint256 returnAmount = _swapFunds(
+            inputTokenToSwap,
+            outputToken,
+            inputAmountToSwap,
+            outputMinAmount,
             swapData
         );
-        if (amountUsdcToSend > returnAmount)
-            revert AmountGreaterThanUsdcReceived();
 
-        IERC20(usdc).safeTransfer(msg.sender, amountUsdcToSend);
+        if (outputAmountToTransfer > returnAmount)
+            revert TransferAmountGreaterThanReceived();
 
-        emit SwapTransferForSpending(inputAmountWeETHToSwap, amountUsdcToSend);
+        IERC20(outputToken).safeTransfer(msg.sender, outputAmountToTransfer);
+
+        emit SwapTransferForSpending(
+            inputTokenToSwap,
+            inputAmountToSwap,
+            outputToken,
+            outputAmountToTransfer
+        );
     }
 
     function _getSpendingLimitRenewalTimestamp(
@@ -412,13 +468,25 @@ contract UserSafe is IUserSafe, Initializable, OwnableUpgradeable {
         else revert InvalidSpendingLimitType();
     }
 
-    function _swapWeETHToUsdc(
-        uint256 amount,
-        uint256 minUsdcAmount,
+    function _swapFunds(
+        address inputTokenToSwap,
+        address outputToken,
+        uint256 inputAmountToSwap,
+        uint256 outputMinAmount,
         bytes calldata swapData
     ) internal returns (uint256) {
-        IERC20(weETH).safeTransfer(address(swapper), amount);
-        return swapper.swap(weETH, usdc, amount, minUsdcAmount, swapData);
+        IERC20(inputTokenToSwap).safeTransfer(
+            address(_swapper),
+            inputAmountToSwap
+        );
+        return
+            _swapper.swap(
+                inputTokenToSwap,
+                outputToken,
+                inputAmountToSwap,
+                outputMinAmount,
+                swapData
+            );
     }
 
     function _resetSpendingLimit(
@@ -464,7 +532,7 @@ contract UserSafe is IUserSafe, Initializable, OwnableUpgradeable {
         }
 
         uint96 finalTime = uint96(block.timestamp) +
-            cashDataProvider.withdrawalDelay();
+            _cashDataProvider.withdrawalDelay();
 
         _pendingWithdrawalRequest = WithdrawalRequest({
             tokens: tokens,
@@ -515,8 +583,8 @@ contract UserSafe is IUserSafe, Initializable, OwnableUpgradeable {
         }
 
         // in current case, token can be either weETH or USDC only
-        if (token == weETH) {
-            uint256 price = priceProvider.getWeEthUsdPrice();
+        if (token == _weETH) {
+            uint256 price = _priceProvider.getWeEthUsdPrice();
             // amount * price with 6 decimals / 1 ether will convert the weETH amount to USD amount with 6 decimals
             amount = (amount * price) / 1 ether;
         }
@@ -528,11 +596,12 @@ contract UserSafe is IUserSafe, Initializable, OwnableUpgradeable {
     }
 
     function _onlyEtherFiCashSafe() private view {
-        if (msg.sender != cashDataProvider.etherFiCashMultiSig())
+        if (msg.sender != _cashDataProvider.etherFiCashMultiSig())
             revert UnauthorizedCall();
     }
+
     function _onlyEtherFiCashDebtManager() private view {
-        if (msg.sender != cashDataProvider.etherFiCashDebtManager())
+        if (msg.sender != _cashDataProvider.etherFiCashDebtManager())
             revert UnauthorizedCall();
     }
 

@@ -3,7 +3,7 @@ pragma solidity ^0.8.24;
 
 import {IUserSafe, UserSafe} from "../../src/user-safe/UserSafe.sol";
 import {MessageHashUtils} from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
-import {UserSafeSetup} from "./UserSafeSetup.sol";
+import {ERC20, UserSafeSetup} from "./UserSafeSetup.sol";
 
 error OwnableUnauthorizedAccount(address account);
 
@@ -20,15 +20,15 @@ contract UserSafeTransfersTest is UserSafeSetup {
         deal(address(weETH), address(aliceSafe), aliceSafeWeETHBalanceBefore);
     }
 
-    function test_UsdcTransferToCashMultiSig() public {
+    function test_TransferForSpendingToCashMultiSig() public {
         uint256 amount = 1000e6;
 
         uint256 multiSigUsdcBalBefore = usdc.balanceOf(etherFiCashMultisig);
 
         vm.prank(etherFiCashMultisig);
         vm.expectEmit(true, true, true, true);
-        emit IUserSafe.TransferUSDCForSpending(amount);
-        aliceSafe.transfer(amount);
+        emit IUserSafe.TransferForSpending(address(usdc), amount);
+        aliceSafe.transfer(address(usdc), amount);
 
         uint256 multiSigUsdcBalAfter = usdc.balanceOf(etherFiCashMultisig);
 
@@ -39,31 +39,31 @@ contract UserSafeTransfersTest is UserSafeSetup {
         assertEq(multiSigUsdcBalAfter - multiSigUsdcBalBefore, amount);
     }
 
-    function test_CannotTransferUsdcWhenBalanceIsInsufficient() public {
+    function test_CannotTransferForSpendingWhenBalanceIsInsufficient() public {
         uint256 amount = aliceSafeUsdcBalanceBefore + 1;
         vm.prank(alice);
         aliceSafe.updateSpendingLimit(amount);
 
         vm.prank(etherFiCashMultisig);
         vm.expectRevert(IUserSafe.InsufficientBalance.selector);
-        aliceSafe.transfer(amount);
+        aliceSafe.transfer(address(usdc), amount);
     }
 
-    function test_OnlyCashMultiSigCanTransferUsdc() public {
+    function test_OnlyCashMultiSigCanTransferForSpending() public {
         uint256 amount = 1000e6;
         vm.prank(notOwner);
         vm.expectRevert(IUserSafe.UnauthorizedCall.selector);
-        aliceSafe.transfer(amount);
+        aliceSafe.transfer(address(usdc), amount);
     }
 
-    function test_CannotTransferMoreUsdcThanSpendingLimit() public {
+    function test_CannotTransferMoreThanSpendingLimit() public {
         uint256 amount = defaultSpendingLimit + 1;
         vm.prank(etherFiCashMultisig);
         vm.expectRevert(IUserSafe.ExceededSpendingLimit.selector);
-        aliceSafe.transfer(amount);
+        aliceSafe.transfer(address(usdc), amount);
     }
 
-    function test_SwapWeEthToUsdcAndTransfer() public {
+    function test_SwapAndTransferForSpending() public {
         uint256 inputAmountWeETHToSwap = 1 ether;
         uint256 outputMinUsdcAmount = 1000e6;
         uint256 amountUsdcToSend = 100e6;
@@ -80,10 +80,14 @@ contract UserSafeTransfersTest is UserSafeSetup {
         vm.prank(etherFiCashMultisig);
         vm.expectEmit(true, true, true, true);
         emit IUserSafe.SwapTransferForSpending(
+            address(weETH),
             inputAmountWeETHToSwap,
+            address(usdc),
             amountUsdcToSend
         );
         aliceSafe.swapAndTransfer(
+            address(weETH),
+            address(usdc),
             inputAmountWeETHToSwap,
             outputMinUsdcAmount,
             amountUsdcToSend,
@@ -110,8 +114,10 @@ contract UserSafeTransfersTest is UserSafeSetup {
 
         uint256 newAmountUsdcToSend = 10000e6;
         vm.prank(etherFiCashMultisig);
-        vm.expectRevert(IUserSafe.AmountGreaterThanUsdcReceived.selector);
+        vm.expectRevert(IUserSafe.TransferAmountGreaterThanReceived.selector);
         aliceSafe.swapAndTransfer(
+            address(weETH),
+            address(usdc),
             inputAmountWeETHToSwap,
             outputMinUsdcAmount,
             newAmountUsdcToSend,
@@ -130,6 +136,8 @@ contract UserSafeTransfersTest is UserSafeSetup {
         vm.prank(etherFiCashMultisig);
         vm.expectRevert(IUserSafe.ExceededSpendingLimit.selector);
         aliceSafe.swapAndTransfer(
+            address(weETH),
+            address(usdc),
             newInputAmt,
             outputMinUsdcAmount,
             newAmountUsdcToSend,
@@ -137,16 +145,21 @@ contract UserSafeTransfersTest is UserSafeSetup {
         );
     }
 
-    function test_CannotSwapWeEthToUsdcAndTransferIfBalanceIsInsufficient()
-        public
-    {
+    function test_CannotSwapAndTransferIfBalanceIsInsufficient() public {
         uint256 inputAmountWeETHToSwap = aliceSafeWeETHBalanceBefore + 1 ether;
         vm.prank(etherFiCashMultisig);
         vm.expectRevert(IUserSafe.InsufficientBalance.selector);
-        aliceSafe.swapAndTransfer(inputAmountWeETHToSwap, 0, 0, hex"");
+        aliceSafe.swapAndTransfer(
+            address(weETH),
+            address(usdc),
+            inputAmountWeETHToSwap,
+            0,
+            0,
+            hex""
+        );
     }
 
-    function test_TransferWeETHToDebtManager() public {
+    function test_TransferFundsToDebtManager() public {
         uint256 amount = 1 ether;
 
         uint256 debtManagerWeEthBalanceBefore = weETH.balanceOf(
@@ -155,8 +168,8 @@ contract UserSafeTransfersTest is UserSafeSetup {
 
         vm.prank(etherFiCashDebtManager);
         vm.expectEmit(true, true, true, true);
-        emit IUserSafe.TransferWeETHAsCollateral(amount);
-        aliceSafe.transferWeETHToDebtManager(amount);
+        emit IUserSafe.TransferCollateral(address(weETH), amount);
+        aliceSafe.transferFundsToDebtManager(address(weETH), amount);
 
         uint256 debtManagerWeEthBalanceAfter = weETH.balanceOf(
             etherFiCashDebtManager
@@ -172,25 +185,25 @@ contract UserSafeTransfersTest is UserSafeSetup {
         );
     }
 
-    function test_CannotTransferWeETHToDebtManagerIfSpendingLimitIsBreached()
+    function test_CannotTransferFundsToDebtManagerIfSpendingLimitIsBreached()
         public
     {
         uint256 amount = 10 ether;
 
         vm.prank(etherFiCashDebtManager);
         vm.expectRevert(IUserSafe.ExceededSpendingLimit.selector);
-        aliceSafe.transferWeETHToDebtManager(amount);
+        aliceSafe.transferFundsToDebtManager(address(weETH), amount);
     }
 
-    function test_OnlyDebtManagerCanTransferWeETHToDebtManager() public {
+    function test_OnlyDebtManagerCanTransferFundsForCollateral() public {
         uint256 amount = 1 ether;
 
         vm.prank(notOwner);
         vm.expectRevert(IUserSafe.UnauthorizedCall.selector);
-        aliceSafe.transferWeETHToDebtManager(amount);
+        aliceSafe.transferFundsToDebtManager(address(weETH), amount);
     }
 
-    function test_CannotTransferWeETHToDebtManagerIfBalanceIsInsufficient()
+    function test_CannotTransferFundsToDebtManagerIfBalanceIsInsufficient()
         public
     {
         uint256 amount = aliceSafeWeETHBalanceBefore + 1;
@@ -199,7 +212,42 @@ contract UserSafeTransfersTest is UserSafeSetup {
 
         vm.prank(etherFiCashDebtManager);
         vm.expectRevert(IUserSafe.InsufficientBalance.selector);
-        aliceSafe.transferWeETHToDebtManager(amount);
+        aliceSafe.transferFundsToDebtManager(address(weETH), amount);
+    }
+
+    function test_CannotTransferUnsupportedTokensForSpending() public {
+        address unsupportedToken = makeAddr("unsupportedToken");
+
+        uint256 amount = 1 ether;
+        vm.prank(etherFiCashMultisig);
+        vm.expectRevert(IUserSafe.UnsupportedToken.selector);
+        aliceSafe.transfer(unsupportedToken, amount);
+    }
+
+    function test_CannotSwapAndTransferUnsupportedTokensForSpending() public {
+        address unsupportedToken = makeAddr("unsupportedToken");
+
+        uint256 amount = 1 ether;
+
+        vm.prank(etherFiCashMultisig);
+        vm.expectRevert(IUserSafe.UnsupportedToken.selector);
+        aliceSafe.swapAndTransfer(
+            unsupportedToken,
+            address(usdc),
+            amount,
+            0,
+            0,
+            hex""
+        );
+    }
+
+    function test_CannotTransferUnsupportedTokensForCollateral() public {
+        address unsupportedToken = makeAddr("unsupportedToken");
+
+        uint256 amount = 1 ether;
+        vm.prank(etherFiCashDebtManager);
+        vm.expectRevert(IUserSafe.UnsupportedToken.selector);
+        aliceSafe.transferFundsToDebtManager(unsupportedToken, amount);
     }
 
     function getQuoteOneInch(

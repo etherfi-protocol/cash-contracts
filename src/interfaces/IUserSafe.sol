@@ -48,9 +48,14 @@ interface IUserSafe {
         uint256[] amounts,
         address recipient
     );
-    event TransferUSDCForSpending(uint256 amount);
-    event SwapTransferForSpending(uint256 weETHAmount, uint256 usdcAmount);
-    event TransferWeETHAsCollateral(uint256 amount);
+    event TransferForSpending(address token, uint256 amount);
+    event SwapTransferForSpending(
+        address inputToken,
+        uint256 inputAmount,
+        address outputToken,
+        uint256 outputTokenSent
+    );
+    event TransferCollateral(address token, uint256 amount);
     event ResetSpendingLimit(uint8 spendingLimitType, uint256 limitInUsd);
     event UpdateSpendingLimit(uint256 oldLimitInUsd, uint256 newLimitInUsd);
 
@@ -59,9 +64,40 @@ interface IUserSafe {
     error CannotWithdrawYet();
     error UnauthorizedCall();
     error InvalidNonce();
-    error AmountGreaterThanUsdcReceived();
+    error TransferAmountGreaterThanReceived();
     error ExceededSpendingLimit();
     error InvalidSpendingLimitType();
+    error UnsupportedToken();
+
+    /**
+     * @notice Function to fetch the contract address of the USDC token.
+     * @return  contract address of the USDC token.
+     */
+    function usdc() external view returns (address);
+
+    /**
+     * @notice Function to fetch the contract address of the weETH token.
+     * @return  contract address of the weETH token.
+     */
+    function weETH() external view returns (address);
+
+    /**
+     * @notice Function to fetch the contract address of the Cash Data Provider.
+     * @return  contract address of the Cash Data Provider.
+     */
+    function cashDataProvider() external view returns (address);
+
+    /**
+     * @notice Function to fetch the contract address of the Price Provider.
+     * @return  contract address of the Price Provider.
+     */
+    function priceProvider() external view returns (address);
+
+    /**
+     * @notice Function to fetch the contract address of the Swapper.
+     * @return  contract address of the Swapper.
+     */
+    function swapper() external view returns (address);
 
     /**
      * @notice Function to fetch the pending withdrawal request.
@@ -240,31 +276,40 @@ interface IUserSafe {
     function processWithdrawal() external;
 
     /**
-     * @notice Function to transfer USDC from the User Safe to EtherFiCash Safe.
+     * @notice Function to transfer tokens from the User Safe to EtherFiCash Safe.
      * @dev Can only be called by the EtherFiCash Safe.
-     * @param amount Amount of USDC to transfer.
+     * @dev Can only transfer supported tokens.
+     * @param token Address of the token to transfer.
+     * @param amount Amount of tokens to transfer.
      */
-    function transfer(uint256 amount) external;
+    function transfer(address token, uint256 amount) external;
 
     /**
-     * @notice Function to transfer WeETH from the User Safe to EtherFiCash Debt Manager.
+     * @notice Function to transfer funds from the User Safe to EtherFiCash Debt Manager.
      * @dev Can only be called by the EtherFiCash Debt Manager.
-     * @param amount Amount of WeETH to transfer.
+     * @dev Can only transfer supported tokens.
+     * @param token Address of token to transfer.
+     * @param amount Amount of tokens to transfer.
      */
-    function transferWeETHToDebtManager(uint256 amount) external;
+    function transferFundsToDebtManager(address token, uint256 amount) external;
 
     /**
-     * @notice Function to swap WeETH to USDC and transfer it to EtherFiCash Safe.
+     * @notice Function to swap funds to output token and transfer it to EtherFiCash Safe.
      * @dev Can only be called by the EtherFiCash Safe.
-     * @param inputAmountWeETHToSwap Amount of WeETH to swap.
-     * @param outputMinUsdcAmount Min amount of USDC to receive from the swap.
-     * @param amountUsdcToSend Amount of USDC to send to the EtherFiCash Safe.
+     * @dev Can only swap to a supported token.
+     * @param inputTokenToSwap Address of input token to swap.
+     * @param outputToken Address of the output token of the swap.
+     * @param inputAmountToSwap Amount of input token to swap.
+     * @param outputMinAmount Min output amount of the output token to receive from the swap.
+     * @param outputAmountToTransfer Amount of output token to send to the EtherFiCash Safe.
      * @param swapData Swap data received from the swapper API.
      */
     function swapAndTransfer(
-        uint256 inputAmountWeETHToSwap,
-        uint256 outputMinUsdcAmount,
-        uint256 amountUsdcToSend,
+        address inputTokenToSwap,
+        address outputToken,
+        uint256 inputAmountToSwap,
+        uint256 outputMinAmount,
+        uint256 outputAmountToTransfer,
         bytes calldata swapData
     ) external;
 }

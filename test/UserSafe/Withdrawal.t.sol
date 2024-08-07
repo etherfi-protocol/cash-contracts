@@ -317,6 +317,6 @@ contract UserSafeWithdrawalTest is UserSafeSetup {
 
         vm.prank(etherFiCashMultisig);
         vm.expectRevert(IUserSafe.InsufficientBalance.selector);
-        aliceSafe.transfer(1);
+        aliceSafe.transfer(address(usdc), 1);
     }
 }
