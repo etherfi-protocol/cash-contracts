@@ -112,6 +112,7 @@ contract UserSafeSpendingLimitTest is UserSafeSetup {
         bytes32 msgHash = keccak256(
             abi.encode(
                 aliceSafe.RESET_SPENDING_LIMIT_METHOD(),
+                address(aliceSafe),
                 spendingLimitType,
                 spendingLimitInUsd,
                 nonce
@@ -209,6 +210,7 @@ contract UserSafeSpendingLimitTest is UserSafeSetup {
         bytes32 msgHash = keccak256(
             abi.encode(
                 aliceSafe.UPDATE_SPENDING_LIMIT_METHOD(),
+                address(aliceSafe),
                 spendingLimitInUsd,
                 nonce
             )

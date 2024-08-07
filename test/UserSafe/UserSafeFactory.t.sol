@@ -14,6 +14,11 @@ import {Upgrades} from "openzeppelin-foundry-upgrades/Upgrades.sol";
 
 contract UserSafeFactoryTest is Test {
     address owner = makeAddr("owner");
+
+    address etherFiRecoverySigner = makeAddr("etherFiRecoverySigner");
+    address thirdPartyRecoverySigner = makeAddr("thirdPartyRecoverySigner");
+    address etherFiRecoverySafe = makeAddr("etherFiRecoverySafe");
+
     UserSafeFactory factory;
     UserSafe impl;
     UserSafeV2Mock implV2;
@@ -50,8 +55,8 @@ contract UserSafeFactoryTest is Test {
         address proxy = Upgrades.deployUUPSProxy(
             "CashDataProvider.sol:CashDataProvider",
             abi.encodeWithSelector(
-                // intiailize(address,uint64,address,address,address,address,address,address)
-                0x38ed45b8,
+                // intiailize(address,uint64,address,address,address,address,address,address,address)
+                0x04dfc293,
                 owner,
                 withdrawalDelay,
                 etherFiCashMultisig,
@@ -59,14 +64,23 @@ contract UserSafeFactoryTest is Test {
                 address(usdc),
                 address(weETH),
                 address(priceProvider),
-                address(swapper)
+                address(swapper),
+                etherFiRecoverySafe
             )
         );
         cashDataProvider = CashDataProvider(proxy);
 
-        impl = new UserSafe(address(cashDataProvider));
+        impl = new UserSafe(
+            address(cashDataProvider),
+            etherFiRecoverySigner,
+            thirdPartyRecoverySigner
+        );
 
-        implV2 = new UserSafeV2Mock(address(cashDataProvider));
+        implV2 = new UserSafeV2Mock(
+            address(cashDataProvider),
+            etherFiRecoverySigner,
+            thirdPartyRecoverySigner
+        );
 
         factory = new UserSafeFactory(address(impl), owner);
 

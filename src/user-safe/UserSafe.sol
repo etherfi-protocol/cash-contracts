@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {SafeERC20, IERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IERC20Permit} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Permit.sol";
 import {ICashDataProvider} from "../interfaces/ICashDataProvider.sol";
@@ -11,13 +10,19 @@ import {IPriceProvider} from "../interfaces/IPriceProvider.sol";
 import {OwnableUpgradeable} from "openzeppelin-contracts-upgradeable/contracts/access/OwnableUpgradeable.sol";
 import {Initializable} from "openzeppelin-contracts-upgradeable/contracts/proxy/utils/Initializable.sol";
 import {IUserSafe} from "../interfaces/IUserSafe.sol";
+import {UserSafeRecovery} from "./UserSafeRecovery.sol";
 
 /**
  * @title UserSafe
  * @author ether.fi [shivam@ether.fi]
  * @notice User safe account for interactions with the EtherFi Cash contracts
  */
-contract UserSafe is IUserSafe, Initializable, OwnableUpgradeable {
+contract UserSafe is
+    IUserSafe,
+    Initializable,
+    OwnableUpgradeable,
+    UserSafeRecovery
+{
     using SafeERC20 for IERC20;
     using SignatureUtils for bytes32;
 
@@ -39,6 +44,7 @@ contract UserSafe is IUserSafe, Initializable, OwnableUpgradeable {
     IPriceProvider private immutable _priceProvider;
     // Address of the swapper
     ISwapper private immutable _swapper;
+
     // Withdrawal requests pending with the contract
     WithdrawalRequest private _pendingWithdrawalRequest;
     // Funds blocked for withdrawal
@@ -48,7 +54,17 @@ contract UserSafe is IUserSafe, Initializable, OwnableUpgradeable {
     // Current spending limit
     SpendingLimitData private _spendingLimit;
 
-    constructor(address __cashDataProvider) {
+    constructor(
+        address __cashDataProvider,
+        address __etherFiRecoverySigner,
+        address __thirdPartyRecoverySigner
+    )
+        UserSafeRecovery(
+            __cashDataProvider,
+            __etherFiRecoverySigner,
+            __thirdPartyRecoverySigner
+        )
+    {
         _cashDataProvider = ICashDataProvider(__cashDataProvider);
         _usdc = _cashDataProvider.usdc();
         _weETH = _cashDataProvider.weETH();
@@ -65,6 +81,19 @@ contract UserSafe is IUserSafe, Initializable, OwnableUpgradeable {
             uint8(SpendingLimitTypes.Monthly),
             _defaultSpendingLimit
         );
+        __UserSafeRecovery_init();
+    }
+
+    /**
+     * @inheritdoc IUserSafe
+     */
+    function owner()
+        public
+        view
+        override(IUserSafe, OwnableUpgradeable)
+        returns (address)
+    {
+        return super.owner();
     }
 
     /**
@@ -202,6 +231,7 @@ contract UserSafe is IUserSafe, Initializable, OwnableUpgradeable {
         bytes32 msgHash = keccak256(
             abi.encode(
                 RESET_SPENDING_LIMIT_METHOD,
+                address(this),
                 spendingLimitType,
                 limitInUsd,
                 userNonce
@@ -233,7 +263,12 @@ contract UserSafe is IUserSafe, Initializable, OwnableUpgradeable {
         if (userNonce != _nonce) revert InvalidNonce();
 
         bytes32 msgHash = keccak256(
-            abi.encode(UPDATE_SPENDING_LIMIT_METHOD, limitInUsd, userNonce)
+            abi.encode(
+                UPDATE_SPENDING_LIMIT_METHOD,
+                address(this),
+                limitInUsd,
+                userNonce
+            )
         );
 
         msgHash.verifySig(owner(), r, s, v);
@@ -252,7 +287,7 @@ contract UserSafe is IUserSafe, Initializable, OwnableUpgradeable {
      * @inheritdoc IUserSafe
      */
     function receiveFundsWithPermit(
-        address owner,
+        address fundsOwner,
         address token,
         uint256 amount,
         uint256 deadline,
@@ -262,7 +297,7 @@ contract UserSafe is IUserSafe, Initializable, OwnableUpgradeable {
     ) external {
         try
             IERC20Permit(token).permit(
-                owner,
+                fundsOwner,
                 address(this),
                 amount,
                 deadline,
@@ -272,7 +307,7 @@ contract UserSafe is IUserSafe, Initializable, OwnableUpgradeable {
             )
         {} catch {}
 
-        IERC20(token).safeTransferFrom(owner, address(this), amount);
+        IERC20(token).safeTransferFrom(fundsOwner, address(this), amount);
         emit DepositFunds(token, amount);
     }
 
@@ -303,7 +338,14 @@ contract UserSafe is IUserSafe, Initializable, OwnableUpgradeable {
         if (userNonce != _nonce) revert InvalidNonce();
 
         bytes32 msgHash = keccak256(
-            abi.encode(APPROVE_METHOD, token, spender, amount, userNonce)
+            abi.encode(
+                APPROVE_METHOD,
+                address(this),
+                token,
+                spender,
+                amount,
+                userNonce
+            )
         );
 
         msgHash.verifySig(owner(), r, s, v);
@@ -338,6 +380,7 @@ contract UserSafe is IUserSafe, Initializable, OwnableUpgradeable {
         bytes32 msgHash = keccak256(
             abi.encode(
                 REQUEST_WITHDRAWAL_METHOD,
+                address(this),
                 tokens,
                 amounts,
                 recipient,
@@ -371,6 +414,41 @@ contract UserSafe is IUserSafe, Initializable, OwnableUpgradeable {
         }
 
         emit WithdrawalProcessed(tokens, amounts, recipient);
+    }
+
+    /**
+     * @inheritdoc IUserSafe
+     */
+    function toggleRecovery() external onlyOwner {
+        _toggleRecovery();
+    }
+
+    /**
+     * @inheritdoc IUserSafe
+     */
+    function toggleRecoveryWithPermit(
+        uint256 userNonce,
+        bytes32 r,
+        bytes32 s,
+        uint8 v
+    ) external {
+        _nonce++;
+        if (userNonce != _nonce) revert InvalidNonce();
+
+        _toggleRecoveryWithPermit(userNonce, r, s, v);
+    }
+
+    /**
+     * @inheritdoc IUserSafe
+     */
+    function recoverUserSafe(
+        uint256 userNonce,
+        Signature[2] memory signatures,
+        FundsDetails[] memory fundsDetails
+    ) external onlyWhenRecoveryActive {
+        _nonce++;
+        if (userNonce != _nonce) revert InvalidNonce();
+        _recoverUserSafe(userNonce, signatures, fundsDetails);
     }
 
     /**

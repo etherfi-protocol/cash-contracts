@@ -10,6 +10,18 @@ interface IUserSafe {
         Yearly
     }
 
+    struct Signature {
+        uint8 index;
+        bytes32 r;
+        bytes32 s;
+        uint8 v;
+    }
+
+    struct FundsDetails {
+        address token;
+        uint256 amount;
+    }
+
     struct WithdrawalRequest {
         address[] tokens;
         address recipient;
@@ -58,6 +70,8 @@ interface IUserSafe {
     event TransferCollateral(address token, uint256 amount);
     event ResetSpendingLimit(uint8 spendingLimitType, uint256 limitInUsd);
     event UpdateSpendingLimit(uint256 oldLimitInUsd, uint256 newLimitInUsd);
+    event ToggleRecovery(bool isActive);
+    event UserSafeRecovered(address owner, FundsDetails[] fundsDetails);
 
     error InsufficientBalance();
     error ArrayLengthMismatch();
@@ -68,34 +82,43 @@ interface IUserSafe {
     error ExceededSpendingLimit();
     error InvalidSpendingLimitType();
     error UnsupportedToken();
+    error RecoveryNotActive();
+    error InvalidSignatureIndex();
+    error SignatureIndicesCannotBeSame();
+
+    /**
+     * @notice Function to fetch the address of the owner of the User Safe.
+     * @return address of the owner of the User Safe.
+     */
+    function owner() external view returns (address);
 
     /**
      * @notice Function to fetch the contract address of the USDC token.
-     * @return  contract address of the USDC token.
+     * @return contract address of the USDC token.
      */
     function usdc() external view returns (address);
 
     /**
      * @notice Function to fetch the contract address of the weETH token.
-     * @return  contract address of the weETH token.
+     * @return contract address of the weETH token.
      */
     function weETH() external view returns (address);
 
     /**
      * @notice Function to fetch the contract address of the Cash Data Provider.
-     * @return  contract address of the Cash Data Provider.
+     * @return contract address of the Cash Data Provider.
      */
     function cashDataProvider() external view returns (address);
 
     /**
      * @notice Function to fetch the contract address of the Price Provider.
-     * @return  contract address of the Price Provider.
+     * @return contract address of the Price Provider.
      */
     function priceProvider() external view returns (address);
 
     /**
      * @notice Function to fetch the contract address of the Swapper.
-     * @return  contract address of the Swapper.
+     * @return contract address of the Swapper.
      */
     function swapper() external view returns (address);
 
@@ -113,6 +136,23 @@ interface IUserSafe {
      * @return Nonce
      */
     function nonce() external view returns (uint256);
+
+    /**
+     * @notice Function to fetch whether the recovery is active.
+     */
+    function isRecoveryActive() external view returns (bool);
+
+    /**
+     * @notice Function to fetch the contract address of the EtherFi Recovery safe.
+     * @return contract address of the EtherFi Recovery safe.
+     */
+    function etherFiRecoverySafe() external view returns (address);
+
+    /**
+     * @notice Function to fetch the recovery signers.
+     * @return Array of recovery signers.
+     */
+    function recoverySigners() external view returns (address[3] memory);
 
     /**
      * @notice Function to get the spending limit for the user.
@@ -274,6 +314,41 @@ interface IUserSafe {
      * @dev Can be called by any wallet.
      */
     function processWithdrawal() external;
+
+    /**
+     * @notice Function to recover a user safe.
+     * @notice Can only be recovered when the isRecoveryActive boolean is set to true.
+     * @notice Can only be recovered if atleast 2 of the three recovery signers sign the transaction.
+     * @notice The three recovery signers are: owner of the safe, ether fi signer, third party signer.
+     * @notice On recovery, funds are sent to the etherFiRecoverySafe contract which can be distributed to the user.
+     * @param userNonce Nonce for this call. Must be equal to current nonce.
+     * @param signatures Array of the signature struct containing any 2 out of 3 signers' signatures.
+     * @param fundsDetails Array of the funds details to be recovered.
+     */
+    function recoverUserSafe(
+        uint256 userNonce,
+        Signature[2] memory signatures,
+        FundsDetails[] memory fundsDetails
+    ) external;
+
+    /**
+     * @notice Function to toggle _isRecoveryActive boolean.
+     */
+    function toggleRecovery() external;
+
+    /**
+     * @notice Function to toggle _isRecoveryActive boolean with permit.
+     * @param userNonce Nonce for this call. Must be equal to current nonce.
+     * @param r Must be a valid r for the `secp256k1` signature from the user.
+     * @param s Must be a valid s for the `secp256k1` signature from the user.
+     * @param v Must be a valid v for the `secp256k1` signature from the user.
+     */
+    function toggleRecoveryWithPermit(
+        uint256 userNonce,
+        bytes32 r,
+        bytes32 s,
+        uint8 v
+    ) external;
 
     /**
      * @notice Function to transfer tokens from the User Safe to EtherFiCash Safe.

@@ -14,6 +14,14 @@ import {Upgrades} from "openzeppelin-foundry-upgrades/Upgrades.sol";
 contract UserSafeSetup is Test {
     address owner = makeAddr("owner");
     address notOwner = makeAddr("notOwner");
+
+    uint256 etherFiRecoverySignerPk;
+    address etherFiRecoverySigner;
+    uint256 thirdPartyRecoverySignerPk;
+    address thirdPartyRecoverySigner;
+
+    address etherFiRecoverySafe = makeAddr("etherFiRecoverySafe");
+
     UserSafeFactory factory;
     UserSafe impl;
 
@@ -48,8 +56,8 @@ contract UserSafeSetup is Test {
         address proxy = Upgrades.deployUUPSProxy(
             "CashDataProvider.sol:CashDataProvider",
             abi.encodeWithSelector(
-                // intiailize(address,uint64,address,address,address,address,address,address)
-                0x38ed45b8,
+                // intiailize(address,uint64,address,address,address,address,address,address,address)
+                0x04dfc293,
                 owner,
                 withdrawalDelay,
                 etherFiCashMultisig,
@@ -57,12 +65,25 @@ contract UserSafeSetup is Test {
                 address(usdc),
                 address(weETH),
                 address(priceProvider),
-                address(swapper)
+                address(swapper),
+                etherFiRecoverySafe
             )
         );
         cashDataProvider = CashDataProvider(proxy);
 
-        impl = new UserSafe(address(cashDataProvider));
+        (etherFiRecoverySigner, etherFiRecoverySignerPk) = makeAddrAndKey(
+            "etherFiRecoverySigner"
+        );
+
+        (thirdPartyRecoverySigner, thirdPartyRecoverySignerPk) = makeAddrAndKey(
+            "thirdPartyRecoverySigner"
+        );
+
+        impl = new UserSafe(
+            address(cashDataProvider),
+            etherFiRecoverySigner,
+            thirdPartyRecoverySigner
+        );
 
         factory = new UserSafeFactory(address(impl), owner);
 
@@ -87,6 +108,10 @@ contract UserSafeSetup is Test {
 
     function test_Deploy() public view {
         assertEq(aliceSafe.owner(), alice);
+        assertEq(aliceSafe.etherFiRecoverySafe(), etherFiRecoverySafe);
+        assertEq(aliceSafe.recoverySigners()[0], alice);
+        assertEq(aliceSafe.recoverySigners()[1], etherFiRecoverySigner);
+        assertEq(aliceSafe.recoverySigners()[2], thirdPartyRecoverySigner);
 
         UserSafe.SpendingLimitData memory spendingLimit = aliceSafe
             .spendingLimit();

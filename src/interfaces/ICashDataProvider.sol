@@ -15,6 +15,7 @@ interface ICashDataProvider {
         address newPriceProvider
     );
     event SwapperUpdated(address oldSwapper, address newSwapper);
+    event EtherFiRecoverySafeUpdated(address oldSafe, address newSafe);
 
     error InvalidValue();
 
@@ -60,6 +61,12 @@ interface ICashDataProvider {
     function swapper() external view returns (address);
 
     /**
+     * @notice Function to fetch the address of the EtherFi Recovery Safe contract
+     * @return EtherFi Recovery Safe contract
+     */
+    function etherFiRecoverySafe() external view returns (address);
+
+    /**
      * @notice Function to set the withdrawal delay for tokens from User Safe
      * @dev Can only be called by the owner of the contract
      * @param delay Delay in seconds
@@ -96,14 +103,22 @@ interface ICashDataProvider {
 
     /**
      * @notice Function to set the address of PriceProvider contract
-     * @dev Can only be called by the owner of the PriceProvider contract
+     * @dev Can only be called by the owner of the contract
      * @param priceProvider PriceProvider contract address
      */
     function setPriceProvider(address priceProvider) external;
 
     /**
      * @notice Function to set the address of Swapper contract
-     * @dev Can only be called by the owner of the Swapper contract
+     * @dev Can only be called by the owner of the contract
      * @param swapper Swapper contract address
-     */ function setSwapper(address swapper) external;
+     */
+    function setSwapper(address swapper) external;
+
+    /**
+     * @notice Function to set the address of the EtherFi Recovery Safe
+     * @dev Can only be called by the owner of the Safe
+     * @param recoverySafe EtherFi Recovery Safe contract address
+     */
+    function setEtherFiRecoverySafe(address recoverySafe) external;
 }

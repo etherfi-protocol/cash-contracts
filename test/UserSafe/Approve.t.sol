@@ -40,6 +40,7 @@ contract UserSafeApproveTest is UserSafeSetup {
         bytes32 msgHash = keccak256(
             abi.encode(
                 aliceSafe.APPROVE_METHOD(),
+                address(aliceSafe),
                 token,
                 spender,
                 amount,

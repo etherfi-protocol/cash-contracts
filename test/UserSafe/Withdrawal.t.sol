@@ -97,6 +97,7 @@ contract UserSafeWithdrawalTest is UserSafeSetup {
         bytes32 msgHash = keccak256(
             abi.encode(
                 aliceSafe.REQUEST_WITHDRAWAL_METHOD(),
+                address(aliceSafe),
                 tokens,
                 amounts,
                 recipient,

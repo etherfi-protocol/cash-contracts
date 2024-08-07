@@ -16,16 +16,27 @@ library SignatureUtils {
 
     error InvalidSigner();
 
+    function isValidSig(
+        bytes32 _messageHash,
+        address _signer,
+        bytes32 _r,
+        bytes32 _s,
+        uint8 _v
+    ) internal pure returns (bool) {
+        bytes32 signedHash = _messageHash.toEthSignedMessageHash();
+        if (_signer != ECDSA.recover(signedHash, _v, _r, _s)) return false;
+
+        return true;
+    }
+
     function verifySig(
         bytes32 _messageHash,
         address _signer,
         bytes32 _r,
         bytes32 _s,
         uint8 _v
-    ) public pure {
-        bytes32 signedHash = _messageHash.toEthSignedMessageHash();
-
-        if (_signer != ECDSA.recover(signedHash, _v, _r, _s))
+    ) internal pure {
+        if (!isValidSig(_messageHash, _signer, _r, _s, _v))
             revert InvalidSigner();
     }
 }
