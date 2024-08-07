@@ -4,7 +4,7 @@ pragma solidity ^0.8.24;
 import {SafeERC20, IERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IERC20Permit} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Permit.sol";
 import {ICashDataProvider} from "../interfaces/ICashDataProvider.sol";
-import {SignatureUtils} from "../libraries/SignatureUtils.sol";
+import {EIP1271SignatureUtils} from "../libraries/EIP1271SignatureUtils.sol";
 import {ISwapper} from "../interfaces/ISwapper.sol";
 import {IPriceProvider} from "../interfaces/IPriceProvider.sol";
 import {OwnableUpgradeable} from "openzeppelin-contracts-upgradeable/contracts/access/OwnableUpgradeable.sol";
@@ -24,7 +24,7 @@ contract UserSafe is
     UserSafeRecovery
 {
     using SafeERC20 for IERC20;
-    using SignatureUtils for bytes32;
+    using EIP1271SignatureUtils for bytes32;
 
     bytes32 public constant REQUEST_WITHDRAWAL_METHOD =
         keccak256("requestWithdrawal");
@@ -221,9 +221,7 @@ contract UserSafe is
         uint8 spendingLimitType,
         uint256 limitInUsd,
         uint256 userNonce,
-        bytes32 r,
-        bytes32 s,
-        uint8 v
+        bytes calldata signature
     ) external {
         _nonce++;
         if (userNonce != _nonce) revert InvalidNonce();
@@ -238,7 +236,7 @@ contract UserSafe is
             )
         );
 
-        msgHash.verifySig(owner(), r, s, v);
+        msgHash.checkSignature_EIP1271(owner(), signature);
         _resetSpendingLimit(spendingLimitType, limitInUsd);
     }
 
@@ -255,9 +253,7 @@ contract UserSafe is
     function updateSpendingLimitWithPermit(
         uint256 limitInUsd,
         uint256 userNonce,
-        bytes32 r,
-        bytes32 s,
-        uint8 v
+        bytes calldata signature
     ) external {
         _nonce++;
         if (userNonce != _nonce) revert InvalidNonce();
@@ -271,7 +267,7 @@ contract UserSafe is
             )
         );
 
-        msgHash.verifySig(owner(), r, s, v);
+        msgHash.checkSignature_EIP1271(owner(), signature);
         _updateSpendingLimit(limitInUsd);
     }
 
@@ -330,9 +326,7 @@ contract UserSafe is
         address spender,
         uint256 amount,
         uint256 userNonce,
-        bytes32 r,
-        bytes32 s,
-        uint8 v
+        bytes calldata signature
     ) external {
         _nonce++;
         if (userNonce != _nonce) revert InvalidNonce();
@@ -348,7 +342,7 @@ contract UserSafe is
             )
         );
 
-        msgHash.verifySig(owner(), r, s, v);
+        msgHash.checkSignature_EIP1271(owner(), signature);
         _approve(token, spender, amount);
     }
 
@@ -371,9 +365,7 @@ contract UserSafe is
         uint256[] memory amounts,
         address recipient,
         uint256 userNonce,
-        bytes32 r,
-        bytes32 s,
-        uint8 v
+        bytes calldata signature
     ) external {
         _nonce++;
         if (userNonce != _nonce) revert InvalidNonce();
@@ -388,7 +380,7 @@ contract UserSafe is
             )
         );
 
-        msgHash.verifySig(owner(), r, s, v);
+        msgHash.checkSignature_EIP1271(owner(), signature);
 
         _requestWithdrawal(tokens, amounts, recipient);
     }
@@ -419,23 +411,22 @@ contract UserSafe is
     /**
      * @inheritdoc IUserSafe
      */
-    function toggleRecovery() external onlyOwner {
-        _toggleRecovery();
+    function setIsRecoveryActive(bool isActive) external onlyOwner {
+        _setIsRecoveryActive(isActive);
     }
 
     /**
      * @inheritdoc IUserSafe
      */
-    function toggleRecoveryWithPermit(
+    function setIsRecoveryActiveWithPermit(
+        bool isActive,
         uint256 userNonce,
-        bytes32 r,
-        bytes32 s,
-        uint8 v
+        bytes calldata signature
     ) external {
         _nonce++;
         if (userNonce != _nonce) revert InvalidNonce();
 
-        _toggleRecoveryWithPermit(userNonce, r, s, v);
+        _setIsRecoveryActiveWithPermit(isActive, userNonce, signature);
     }
 
     /**

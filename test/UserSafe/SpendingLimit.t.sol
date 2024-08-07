@@ -128,14 +128,14 @@ contract UserSafeSpendingLimitTest is UserSafeSetup {
             .spendingLimit();
         assertEq(spendingLimitBefore.spendingLimit, defaultSpendingLimit);
 
+        bytes memory signature = abi.encodePacked(r, s, v);
+
         vm.prank(notOwner);
         aliceSafe.resetSpendingLimitWithPermit(
             spendingLimitType,
             spendingLimitInUsd,
             nonce,
-            r,
-            s,
-            v
+            signature
         );
 
         UserSafe.SpendingLimitData memory spendingLimitAfter = aliceSafe
@@ -220,14 +220,13 @@ contract UserSafeSpendingLimitTest is UserSafeSetup {
             alicePk,
             msgHash.toEthSignedMessageHash()
         );
+        bytes memory signature = abi.encodePacked(r, s, v);
 
         vm.prank(notOwner);
         aliceSafe.updateSpendingLimitWithPermit(
             spendingLimitInUsd,
             nonce,
-            r,
-            s,
-            v
+            signature
         );
 
         UserSafe.SpendingLimitData memory spendingLimitAfter = aliceSafe

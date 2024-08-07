@@ -3,16 +3,16 @@ pragma solidity ^0.8.24;
 
 import {SafeERC20, IERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {ICashDataProvider} from "../interfaces/ICashDataProvider.sol";
-import {SignatureUtils} from "../libraries/SignatureUtils.sol";
+import {EIP1271SignatureUtils} from "../libraries/EIP1271SignatureUtils.sol";
 import {IUserSafe} from "../interfaces/IUserSafe.sol";
 
 abstract contract UserSafeRecovery is IUserSafe {
     using SafeERC20 for IERC20;
-    using SignatureUtils for bytes32;
+    using EIP1271SignatureUtils for bytes32;
 
     bytes32 public constant RECOVERY_METHOD = keccak256("recoverUserSafe");
     bytes32 public constant TOGGLE_RECOVERY_METHOD =
-        keccak256("toggleRecovery");
+        keccak256("setIsRecoveryActive");
 
     // Address of the EtherFi Recovery safe
     address private immutable _etherFiRecoverySafe;
@@ -66,23 +66,27 @@ abstract contract UserSafeRecovery is IUserSafe {
         return _isRecoveryActive;
     }
 
-    function _toggleRecovery() internal {
-        _isRecoveryActive = !_isRecoveryActive;
-        emit ToggleRecovery(_isRecoveryActive);
+    function _setIsRecoveryActive(bool isActive) internal {
+        _isRecoveryActive = isActive;
+        emit IsRecoveryActiveSet(_isRecoveryActive);
     }
 
-    function _toggleRecoveryWithPermit(
+    function _setIsRecoveryActiveWithPermit(
+        bool isActive,
         uint256 userNonce,
-        bytes32 r,
-        bytes32 s,
-        uint8 v
+        bytes calldata signature
     ) internal {
         bytes32 msgHash = keccak256(
-            abi.encode(TOGGLE_RECOVERY_METHOD, address(this), userNonce)
+            abi.encode(
+                TOGGLE_RECOVERY_METHOD,
+                address(this),
+                isActive,
+                userNonce
+            )
         );
 
-        msgHash.verifySig(this.owner(), r, s, v);
-        _toggleRecovery();
+        msgHash.checkSignature_EIP1271(this.owner(), signature);
+        _setIsRecoveryActive(isActive);
     }
 
     function _recoverUserSafe(
@@ -97,18 +101,14 @@ abstract contract UserSafeRecovery is IUserSafe {
         if (signatures[0].index == signatures[1].index)
             revert SignatureIndicesCannotBeSame();
 
-        msgHash.verifySig(
+        msgHash.checkSignature_EIP1271(
             _getRecoveryOwner(signatures[0].index),
-            signatures[0].r,
-            signatures[0].s,
-            signatures[0].v
+            signatures[0].signature
         );
 
-        msgHash.verifySig(
+        msgHash.checkSignature_EIP1271(
             _getRecoveryOwner(signatures[1].index),
-            signatures[1].r,
-            signatures[1].s,
-            signatures[1].v
+            signatures[1].signature
         );
 
         uint256 len = fundsDetails.length;

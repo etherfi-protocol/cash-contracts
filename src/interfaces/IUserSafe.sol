@@ -12,9 +12,7 @@ interface IUserSafe {
 
     struct Signature {
         uint8 index;
-        bytes32 r;
-        bytes32 s;
-        uint8 v;
+        bytes signature;
     }
 
     struct FundsDetails {
@@ -70,7 +68,7 @@ interface IUserSafe {
     event TransferCollateral(address token, uint256 amount);
     event ResetSpendingLimit(uint8 spendingLimitType, uint256 limitInUsd);
     event UpdateSpendingLimit(uint256 oldLimitInUsd, uint256 newLimitInUsd);
-    event ToggleRecovery(bool isActive);
+    event IsRecoveryActiveSet(bool isActive);
     event UserSafeRecovered(address owner, FundsDetails[] fundsDetails);
 
     error InsufficientBalance();
@@ -185,17 +183,13 @@ interface IUserSafe {
      * @param spendingLimitType Type of spending limit.
      * @param limitInUsd Spending limit in USD with 6 decimals.
      * @param userNonce Nonce for this call. Must be equal to current nonce.
-     * @param r Must be a valid r for the `secp256k1` signature from the user.
-     * @param s Must be a valid s for the `secp256k1` signature from the user.
-     * @param v Must be a valid v for the `secp256k1` signature from the user.
+     * @param signature Must be a valid signature from the user.
      */
     function resetSpendingLimitWithPermit(
         uint8 spendingLimitType,
         uint256 limitInUsd,
         uint256 userNonce,
-        bytes32 r,
-        bytes32 s,
-        uint8 v
+        bytes calldata signature
     ) external;
 
     /**
@@ -208,16 +202,12 @@ interface IUserSafe {
      * @notice Function to set the spending limit with permit.
      * @param limitInUsd Spending limit in USD with 6 decimals.
      * @param userNonce Nonce for this call. Must be equal to current nonce.
-     * @param r Must be a valid r for the `secp256k1` signature from the user.
-     * @param s Must be a valid s for the `secp256k1` signature from the user.
-     * @param v Must be a valid v for the `secp256k1` signature from the user.
+     * @param signature Must be a valid signature from the user.
      */
     function updateSpendingLimitWithPermit(
         uint256 limitInUsd,
         uint256 userNonce,
-        bytes32 r,
-        bytes32 s,
-        uint8 v
+        bytes calldata signature
     ) external;
 
     /**
@@ -236,7 +226,6 @@ interface IUserSafe {
      * @param r Must be a valid r for the `secp256k1` signature from the user.
      * @param s Must be a valid s for the `secp256k1` signature from the user.
      * @param v Must be a valid v for the `secp256k1` signature from the user.
-     *
      */
     function receiveFundsWithPermit(
         address owner,
@@ -261,18 +250,14 @@ interface IUserSafe {
      * @param spender Address of the spender.
      * @param amount Amount of tokens to grant approval for.
      * @param userNonce Nonce for this call. Must be equal to current nonce.
-     * @param r Must be a valid r for the `secp256k1` signature from the user.
-     * @param s Must be a valid s for the `secp256k1` signature from the user.
-     * @param v Must be a valid v for the `secp256k1` signature from the user.
+     * @param signature Must be a valid signature from the user.
      */
     function approveWithPermit(
         address token,
         address spender,
         uint256 amount,
         uint256 userNonce,
-        bytes32 r,
-        bytes32 s,
-        uint8 v
+        bytes calldata signature
     ) external;
 
     /**
@@ -295,18 +280,14 @@ interface IUserSafe {
      * @param amounts Amount of the tokens to withdraw.
      * @param recipient Address of the recipient of funds.
      * @param userNonce Nonce for this call. Must be equal to current nonce.
-     * @param r Must be a valid r for the `secp256k1` signature from the user.
-     * @param s Must be a valid s for the `secp256k1` signature from the user.
-     * @param v Must be a valid v for the `secp256k1` signature from the user.
+     * @param signature Must be a valid signature from the user.
      */
     function requestWithdrawalWithPermit(
         address[] memory tokens,
         uint256[] memory amounts,
         address recipient,
         uint256 userNonce,
-        bytes32 r,
-        bytes32 s,
-        uint8 v
+        bytes calldata signature
     ) external;
 
     /**
@@ -332,22 +313,19 @@ interface IUserSafe {
     ) external;
 
     /**
-     * @notice Function to toggle _isRecoveryActive boolean.
+     * @notice Function to set _isRecoveryActive boolean.
      */
-    function toggleRecovery() external;
+    function setIsRecoveryActive(bool isRecoveryActive) external;
 
     /**
-     * @notice Function to toggle _isRecoveryActive boolean with permit.
+     * @notice Function to set _isRecoveryActive boolean with permit.
      * @param userNonce Nonce for this call. Must be equal to current nonce.
-     * @param r Must be a valid r for the `secp256k1` signature from the user.
-     * @param s Must be a valid s for the `secp256k1` signature from the user.
-     * @param v Must be a valid v for the `secp256k1` signature from the user.
+     * @param signature Must be a valid signature from the user.
      */
-    function toggleRecoveryWithPermit(
+    function setIsRecoveryActiveWithPermit(
+        bool isRecoveryActive,
         uint256 userNonce,
-        bytes32 r,
-        bytes32 s,
-        uint8 v
+        bytes calldata signature
     ) external;
 
     /**

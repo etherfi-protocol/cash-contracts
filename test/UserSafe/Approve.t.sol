@@ -53,11 +53,13 @@ contract UserSafeApproveTest is UserSafeSetup {
             msgHash.toEthSignedMessageHash()
         );
 
+        bytes memory signature = abi.encodePacked(r, s, v);
+
         uint256 approvalBefore = usdc.allowance(address(aliceSafe), notOwner);
         assertEq(approvalBefore, 0);
 
         vm.prank(notOwner);
-        aliceSafe.approveWithPermit(token, spender, amount, nonce, r, s, v);
+        aliceSafe.approveWithPermit(token, spender, amount, nonce, signature);
 
         uint256 approvalAfter = usdc.allowance(address(aliceSafe), notOwner);
         assertEq(approvalAfter, amount);

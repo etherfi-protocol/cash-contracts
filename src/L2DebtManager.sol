@@ -27,9 +27,16 @@ contract L2DebtManager is IL2DebtManager {
     event DepositedCollateral(address indexed user, uint256 amount);
     event Borrowed(address indexed user, uint256 borrowUsdcAmount);
     event RepaidWithUSDC(address indexed user, uint256 repaidUsdcDebtAmount);
-    event RepaidWithEETH(address indexed user, uint256 repaidUsdcDebtAmount, uint256 repaidCollateralEEthAmount);
+    event RepaidWithEETH(
+        address indexed user,
+        uint256 repaidUsdcDebtAmount,
+        uint256 repaidCollateralEEthAmount
+    );
     event Liquidated(
-        address indexed user, uint256 beforeCollateralAmount, uint256 afterCollateralAmount, uint256 beforeDebtAmount
+        address indexed user,
+        uint256 beforeCollateralAmount,
+        uint256 afterCollateralAmount,
+        uint256 beforeDebtAmount
     );
 
     constructor(address _eETH, address _USDC, address _etherFiCashSafe) {
@@ -61,8 +68,14 @@ contract L2DebtManager is IL2DebtManager {
         _borrowings[msg.sender] += borrowUsdcAmount;
         totalBorrowingAmount += borrowUsdcAmount;
 
-        require(debtRatioOf(msg.sender) <= liquidationThreshold, "NOT_ENOUGH_COLLATERAL");
-        require(USDC.balanceOf(address(this)) >= borrowUsdcAmount, "INSUFFICIENT_LIQUIDITY");
+        require(
+            debtRatioOf(msg.sender) <= liquidationThreshold,
+            "NOT_ENOUGH_COLLATERAL"
+        );
+        require(
+            USDC.balanceOf(address(this)) >= borrowUsdcAmount,
+            "INSUFFICIENT_LIQUIDITY"
+        );
 
         SafeERC20.safeTransfer(USDC, etherFiCashSafe, borrowUsdcAmount);
 
@@ -74,7 +87,12 @@ contract L2DebtManager is IL2DebtManager {
         _borrowings[msg.sender] -= repayUsdcAmount;
         totalBorrowingAmount -= repayUsdcAmount;
 
-        SafeERC20.safeTransferFrom(USDC, msg.sender, address(this), repayUsdcAmount);
+        SafeERC20.safeTransferFrom(
+            USDC,
+            msg.sender,
+            address(this),
+            repayUsdcAmount
+        );
 
         emit RepaidWithUSDC(msg.sender, repayUsdcAmount);
     }
@@ -95,7 +113,12 @@ contract L2DebtManager is IL2DebtManager {
         uint256 beforeCollateralAmount = _collaterals[user];
         _repayWithEEthCollateral(user, beforeDebtAmount); // force to repay the entire debt using the collateral
 
-        emit Liquidated(user, beforeCollateralAmount, _collaterals[user], beforeDebtAmount);
+        emit Liquidated(
+            user,
+            beforeCollateralAmount,
+            _collaterals[user],
+            beforeDebtAmount
+        );
     }
 
     // View functions
@@ -124,11 +147,17 @@ contract L2DebtManager is IL2DebtManager {
         return (debtValue * 1e4) / collateralValue; // result in basis points
     }
 
-    function remainingBorrowingCapacityInUSDC(address user) public view returns (uint256) {
+    function remainingBorrowingCapacityInUSDC(
+        address user
+    ) public view returns (uint256) {
         uint256 eEthPriceInUSDC = getEEthPriceInUsdc();
         uint256 collateralValue = (_collaterals[user] * eEthPriceInUSDC) / 1e18;
-        uint256 maxBorrowingAmount = collateralValue * liquidationThreshold / 1e4;
-        return maxBorrowingAmount > _borrowings[user] ? maxBorrowingAmount - _borrowings[user] : 0;
+        uint256 maxBorrowingAmount = (collateralValue * liquidationThreshold) /
+            1e4;
+        return
+            maxBorrowingAmount > _borrowings[user]
+                ? maxBorrowingAmount - _borrowings[user]
+                : 0;
     }
 
     function liquidEEthAmount() public view returns (uint256) {
@@ -145,23 +174,27 @@ contract L2DebtManager is IL2DebtManager {
         return eEthPriceInUSDC;
     }
 
-    function convertEETHtoUSDC(uint256 eethAmount) private view returns (uint256) {
+    function convertEETHtoUSDC(
+        uint256 eethAmount
+    ) private view returns (uint256) {
         uint256 eEthPriceInUSDC = getEEthPriceInUsdc();
-        return eethAmount * eEthPriceInUSDC / 1e18;
+        return (eethAmount * eEthPriceInUSDC) / 1e18;
     }
 
-    function getCollateralAmountForDebt(uint256 debtUsdcAmount) public view returns (uint256) {
+    function getCollateralAmountForDebt(
+        uint256 debtUsdcAmount
+    ) public view returns (uint256) {
         uint256 eEthPriceInUSDC = getEEthPriceInUsdc();
-        return debtUsdcAmount * 1e18 / eEthPriceInUSDC;
+        return (debtUsdcAmount * 1e18) / eEthPriceInUSDC;
     }
 
     // Internal functions
 
     // Use the deposited collateral to pay the debt
-    function _repayWithEEthCollateral(address user, uint256 repayDebtAmount)
-        internal
-        returns (uint256 collateralAmount)
-    {
+    function _repayWithEEthCollateral(
+        address user,
+        uint256 repayDebtAmount
+    ) internal returns (uint256 collateralAmount) {
         collateralAmount = getCollateralAmountForDebt(repayDebtAmount);
 
         _borrowings[user] -= repayDebtAmount;

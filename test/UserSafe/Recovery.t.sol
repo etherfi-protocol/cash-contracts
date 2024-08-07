@@ -3,7 +3,7 @@ pragma solidity ^0.8.24;
 
 import {IUserSafe, UserSafe} from "../../src/user-safe/UserSafe.sol";
 import {MessageHashUtils} from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
-import {SignatureUtils} from "../../src/libraries/SignatureUtils.sol";
+import {EIP1271SignatureUtils} from "../../src/libraries/EIP1271SignatureUtils.sol";
 import {ERC20, UserSafeSetup} from "./UserSafeSetup.sol";
 
 error OwnableUnauthorizedAccount(address account);
@@ -15,21 +15,21 @@ contract UserSafeRecoveryTest is UserSafeSetup {
         assertEq(aliceSafe.isRecoveryActive(), true);
     }
 
-    function test_CanToggleRecovery() public {
+    function test_CanSetIsRecoveryActive() public {
         assertEq(aliceSafe.isRecoveryActive(), true);
 
         vm.prank(alice);
-        aliceSafe.toggleRecovery();
+        aliceSafe.setIsRecoveryActive(false);
 
         assertEq(aliceSafe.isRecoveryActive(), false);
 
         vm.prank(alice);
-        aliceSafe.toggleRecovery();
+        aliceSafe.setIsRecoveryActive(true);
 
         assertEq(aliceSafe.isRecoveryActive(), true);
     }
 
-    function test_OnlyOwnerCanToggleRecovery() public {
+    function test_OnlyOwnerCanSetIsRecoveryActive() public {
         vm.prank(notOwner);
         vm.expectRevert(
             abi.encodeWithSelector(
@@ -37,16 +37,18 @@ contract UserSafeRecoveryTest is UserSafeSetup {
                 notOwner
             )
         );
-        aliceSafe.toggleRecovery();
+        aliceSafe.setIsRecoveryActive(false);
     }
 
-    function test_CanToggleRecoveryWithPermit() public {
+    function test_CanSetIsRecoveryActiveWithPermit() public {
         assertEq(aliceSafe.isRecoveryActive(), true);
         uint256 nonce = aliceSafe.nonce() + 1;
+        bool setValue = false;
         bytes32 msgHash = keccak256(
             abi.encode(
                 aliceSafe.TOGGLE_RECOVERY_METHOD(),
                 address(aliceSafe),
+                setValue,
                 nonce
             )
         );
@@ -55,11 +57,12 @@ contract UserSafeRecoveryTest is UserSafeSetup {
             alicePk,
             msgHash.toEthSignedMessageHash()
         );
+        bytes memory signature = abi.encodePacked(r, s, v);
 
         vm.prank(alice);
-        aliceSafe.toggleRecoveryWithPermit(nonce, r, s, v);
+        aliceSafe.setIsRecoveryActiveWithPermit(setValue, nonce, signature);
 
-        assertEq(aliceSafe.isRecoveryActive(), false);
+        assertEq(aliceSafe.isRecoveryActive(), setValue);
     }
 
     function test_CanRecoverWithTwoAuthorizedSignatures() public {
@@ -138,7 +141,7 @@ contract UserSafeRecoveryTest is UserSafeSetup {
 
     function test_CannotRecoverIfRecoveryIsInactive() public {
         vm.prank(alice);
-        aliceSafe.toggleRecovery();
+        aliceSafe.setIsRecoveryActive(false);
 
         uint256 usdcAmount = 1 ether;
         uint256 weETHAmount = 1000 ether;
@@ -240,9 +243,9 @@ contract UserSafeRecoveryTest is UserSafeSetup {
 
         IUserSafe.Signature[2] memory signatures = _signRecovery(msgHash, 0, 1);
         // This makes signature 0 invalid
-        signatures[0].r = signatures[1].r;
+        signatures[0].signature = signatures[1].signature;
 
-        vm.expectRevert(SignatureUtils.InvalidSigner.selector);
+        vm.expectRevert(EIP1271SignatureUtils.InvalidSigner.selector);
         aliceSafe.recoverUserSafe(nonce, signatures, fundsDetails);
     }
 
@@ -285,22 +288,21 @@ contract UserSafeRecoveryTest is UserSafeSetup {
             msgHash.toEthSignedMessageHash()
         );
 
+        bytes memory signature1 = abi.encodePacked(r1, s1, v1);
+
         (uint8 v2, bytes32 r2, bytes32 s2) = vm.sign(
             _getRecoveryOwnerPk(index2),
             msgHash.toEthSignedMessageHash()
         );
+        bytes memory signature2 = abi.encodePacked(r2, s2, v2);
 
         signatures[0] = IUserSafe.Signature({
             index: index1,
-            r: r1,
-            s: s1,
-            v: v1
+            signature: signature1
         });
         signatures[1] = IUserSafe.Signature({
             index: index2,
-            r: r2,
-            s: s2,
-            v: v2
+            signature: signature2
         });
     }
 

@@ -123,14 +123,14 @@ contract UserSafeWithdrawalTest is UserSafeSetup {
             recipient,
             finalizeTime
         );
+        bytes memory signature = abi.encodePacked(r, s, v);
+
         aliceSafe.requestWithdrawalWithPermit(
             tokens,
             amounts,
             recipient,
             nonce,
-            r,
-            s,
-            v
+            signature
         );
 
         UserSafe.WithdrawalData memory pendingWithdrawalRequestAfter = aliceSafe
