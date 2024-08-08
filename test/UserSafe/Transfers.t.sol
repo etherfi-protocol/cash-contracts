@@ -1,11 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import {IUserSafe, UserSafe} from "../../src/user-safe/UserSafe.sol";
+import {IUserSafe, OwnerLib, UserSafe} from "../../src/user-safe/UserSafe.sol";
 import {MessageHashUtils} from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
 import {ERC20, UserSafeSetup} from "./UserSafeSetup.sol";
-
-error OwnableUnauthorizedAccount(address account);
 
 contract UserSafeTransfersTest is UserSafeSetup {
     uint256 aliceSafeUsdcBalanceBefore;

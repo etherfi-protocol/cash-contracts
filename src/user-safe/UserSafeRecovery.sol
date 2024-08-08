@@ -3,15 +3,18 @@ pragma solidity ^0.8.24;
 
 import {SafeERC20, IERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {ICashDataProvider} from "../interfaces/ICashDataProvider.sol";
-import {EIP1271SignatureUtils} from "../libraries/EIP1271SignatureUtils.sol";
+import {SignatureUtils} from "../libraries/SignatureUtils.sol";
 import {IUserSafe} from "../interfaces/IUserSafe.sol";
+import {OwnerLib} from "../libraries/OwnerLib.sol";
 
 abstract contract UserSafeRecovery is IUserSafe {
     using SafeERC20 for IERC20;
-    using EIP1271SignatureUtils for bytes32;
+    using SignatureUtils for bytes32;
+    using OwnerLib for bytes;
+    using OwnerLib for address;
 
     bytes32 public constant RECOVERY_METHOD = keccak256("recoverUserSafe");
-    bytes32 public constant TOGGLE_RECOVERY_METHOD =
+    bytes32 public constant SET_IS_RECOVERY_ACTIVE_METHOD =
         keccak256("setIsRecoveryActive");
 
     // Address of the EtherFi Recovery safe
@@ -52,11 +55,11 @@ abstract contract UserSafeRecovery is IUserSafe {
     function recoverySigners()
         external
         view
-        returns (address[3] memory signers)
+        returns (OwnerLib.OwnerObject[3] memory signers)
     {
         signers[0] = this.owner();
-        signers[1] = _etherFiRecoverySigner;
-        signers[2] = _thirdPartyRecoverySigner;
+        signers[1] = _etherFiRecoverySigner.getOwnerObject();
+        signers[2] = _thirdPartyRecoverySigner.getOwnerObject();
     }
 
     /**
@@ -78,58 +81,78 @@ abstract contract UserSafeRecovery is IUserSafe {
     ) internal {
         bytes32 msgHash = keccak256(
             abi.encode(
-                TOGGLE_RECOVERY_METHOD,
+                SET_IS_RECOVERY_ACTIVE_METHOD,
+                block.chainid,
                 address(this),
                 isActive,
                 userNonce
             )
         );
 
-        msgHash.checkSignature_EIP1271(this.owner(), signature);
+        msgHash.verifySig(this.owner(), signature);
         _setIsRecoveryActive(isActive);
     }
 
     function _recoverUserSafe(
         uint256 userNonce,
-        Signature[2] memory signatures,
-        FundsDetails[] memory fundsDetails
+        Signature[2] calldata signatures,
+        address[] calldata tokensToPull
     ) internal {
         bytes32 msgHash = keccak256(
-            abi.encode(RECOVERY_METHOD, address(this), fundsDetails, userNonce)
+            abi.encode(
+                RECOVERY_METHOD,
+                block.chainid,
+                address(this),
+                tokensToPull,
+                userNonce
+            )
         );
 
         if (signatures[0].index == signatures[1].index)
             revert SignatureIndicesCannotBeSame();
 
-        msgHash.checkSignature_EIP1271(
+        msgHash.verifySig(
             _getRecoveryOwner(signatures[0].index),
             signatures[0].signature
         );
 
-        msgHash.checkSignature_EIP1271(
+        msgHash.verifySig(
             _getRecoveryOwner(signatures[1].index),
             signatures[1].signature
         );
 
-        uint256 len = fundsDetails.length;
+        uint256 len = tokensToPull.length;
+        FundsDetails[] memory fundsDetails = new FundsDetails[](len);
+        uint256 numTokens = 0;
         for (uint256 i = 0; i < len; ) {
-            IERC20(fundsDetails[i].token).safeTransfer(
-                _etherFiRecoverySafe,
-                fundsDetails[i].amount
-            );
+            uint256 bal = IERC20(tokensToPull[i]).balanceOf(address(this));
+            if (bal > 0) {
+                fundsDetails[numTokens] = FundsDetails({
+                    token: tokensToPull[i],
+                    amount: bal
+                });
+                numTokens++;
+                IERC20(tokensToPull[i]).safeTransfer(_etherFiRecoverySafe, bal);
+            }
 
             unchecked {
                 ++i;
             }
         }
 
+        assembly {
+            mstore(fundsDetails, numTokens)
+        }
+
         emit UserSafeRecovered(this.owner(), fundsDetails);
     }
 
-    function _getRecoveryOwner(uint8 index) internal view returns (address) {
+    function _getRecoveryOwner(
+        uint8 index
+    ) internal view returns (OwnerLib.OwnerObject memory) {
         if (index == 0) return this.owner();
-        else if (index == 1) return _etherFiRecoverySigner;
-        else if (index == 2) return _thirdPartyRecoverySigner;
+        else if (index == 1) return _etherFiRecoverySigner.getOwnerObject();
+        else if (index == 2) return _thirdPartyRecoverySigner.getOwnerObject();
         else revert InvalidSignatureIndex();
     }
 

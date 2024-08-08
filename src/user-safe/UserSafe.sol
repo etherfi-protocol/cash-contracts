@@ -4,27 +4,24 @@ pragma solidity ^0.8.24;
 import {SafeERC20, IERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IERC20Permit} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Permit.sol";
 import {ICashDataProvider} from "../interfaces/ICashDataProvider.sol";
-import {EIP1271SignatureUtils} from "../libraries/EIP1271SignatureUtils.sol";
+import {SignatureUtils} from "../libraries/SignatureUtils.sol";
 import {ISwapper} from "../interfaces/ISwapper.sol";
 import {IPriceProvider} from "../interfaces/IPriceProvider.sol";
-import {OwnableUpgradeable} from "openzeppelin-contracts-upgradeable/contracts/access/OwnableUpgradeable.sol";
 import {Initializable} from "openzeppelin-contracts-upgradeable/contracts/proxy/utils/Initializable.sol";
 import {IUserSafe} from "../interfaces/IUserSafe.sol";
 import {UserSafeRecovery} from "./UserSafeRecovery.sol";
+import {WebAuthn} from "../libraries/WebAuthn.sol";
+import {OwnerLib} from "../libraries/OwnerLib.sol";
 
 /**
  * @title UserSafe
  * @author ether.fi [shivam@ether.fi]
  * @notice User safe account for interactions with the EtherFi Cash contracts
  */
-contract UserSafe is
-    IUserSafe,
-    Initializable,
-    OwnableUpgradeable,
-    UserSafeRecovery
-{
+contract UserSafe is IUserSafe, Initializable, UserSafeRecovery {
     using SafeERC20 for IERC20;
-    using EIP1271SignatureUtils for bytes32;
+    using SignatureUtils for bytes32;
+    using OwnerLib for bytes;
 
     bytes32 public constant REQUEST_WITHDRAWAL_METHOD =
         keccak256("requestWithdrawal");
@@ -33,7 +30,9 @@ contract UserSafe is
         keccak256("resetSpendingLimit");
     bytes32 public constant UPDATE_SPENDING_LIMIT_METHOD =
         keccak256("updateSpendingLimit");
+    bytes32 public constant SET_OWNER_METHOD = keccak256("setOwner");
 
+    bytes private _ownerBytes;
     // Address of the USDC token
     address private immutable _usdc;
     // Address of the weETH token
@@ -73,13 +72,13 @@ contract UserSafe is
     }
 
     function initialize(
-        address _owner,
-        uint256 _defaultSpendingLimit
+        bytes calldata __owner,
+        uint256 __defaultSpendingLimit
     ) external initializer {
-        __Ownable_init(_owner);
+        _ownerBytes = __owner;
         _resetSpendingLimit(
             uint8(SpendingLimitTypes.Monthly),
-            _defaultSpendingLimit
+            __defaultSpendingLimit
         );
         __UserSafeRecovery_init();
     }
@@ -87,13 +86,15 @@ contract UserSafe is
     /**
      * @inheritdoc IUserSafe
      */
-    function owner()
-        public
-        view
-        override(IUserSafe, OwnableUpgradeable)
-        returns (address)
-    {
-        return super.owner();
+    function ownerBytes() public view returns (bytes memory) {
+        return _ownerBytes;
+    }
+
+    /**
+     * @inheritdoc IUserSafe
+     */
+    function owner() public view returns (OwnerLib.OwnerObject memory) {
+        return _ownerBytes.getOwnerObject();
     }
 
     /**
@@ -207,6 +208,35 @@ contract UserSafe is
     /**
      * @inheritdoc IUserSafe
      */
+    function setOwner(bytes calldata __owner) external onlyOwner {
+        _setOwner(__owner);
+    }
+
+    /**
+     * @inheritdoc IUserSafe
+     */
+    function setOwnerWithPermit(
+        bytes calldata __owner,
+        uint256 userNonce,
+        bytes calldata signature
+    ) external validateNonce(userNonce) {
+        bytes32 msgHash = keccak256(
+            abi.encode(
+                SET_OWNER_METHOD,
+                block.chainid,
+                address(this),
+                __owner,
+                userNonce
+            )
+        );
+
+        msgHash.verifySig(owner(), signature);
+        _setOwner(__owner);
+    }
+
+    /**
+     * @inheritdoc IUserSafe
+     */
     function resetSpendingLimit(
         uint8 spendingLimitType,
         uint256 limitInUsd
@@ -222,21 +252,20 @@ contract UserSafe is
         uint256 limitInUsd,
         uint256 userNonce,
         bytes calldata signature
-    ) external {
-        _nonce++;
-        if (userNonce != _nonce) revert InvalidNonce();
-
+    ) external validateNonce(userNonce) {
         bytes32 msgHash = keccak256(
             abi.encode(
                 RESET_SPENDING_LIMIT_METHOD,
+                block.chainid,
                 address(this),
+                block.chainid,
                 spendingLimitType,
                 limitInUsd,
                 userNonce
             )
         );
 
-        msgHash.checkSignature_EIP1271(owner(), signature);
+        msgHash.verifySig(owner(), signature);
         _resetSpendingLimit(spendingLimitType, limitInUsd);
     }
 
@@ -254,20 +283,18 @@ contract UserSafe is
         uint256 limitInUsd,
         uint256 userNonce,
         bytes calldata signature
-    ) external {
-        _nonce++;
-        if (userNonce != _nonce) revert InvalidNonce();
-
+    ) external validateNonce(userNonce) {
         bytes32 msgHash = keccak256(
             abi.encode(
                 UPDATE_SPENDING_LIMIT_METHOD,
+                block.chainid,
                 address(this),
                 limitInUsd,
                 userNonce
             )
         );
 
-        msgHash.checkSignature_EIP1271(owner(), signature);
+        msgHash.verifySig(owner(), signature);
         _updateSpendingLimit(limitInUsd);
     }
 
@@ -327,13 +354,11 @@ contract UserSafe is
         uint256 amount,
         uint256 userNonce,
         bytes calldata signature
-    ) external {
-        _nonce++;
-        if (userNonce != _nonce) revert InvalidNonce();
-
+    ) external validateNonce(userNonce) {
         bytes32 msgHash = keccak256(
             abi.encode(
                 APPROVE_METHOD,
+                block.chainid,
                 address(this),
                 token,
                 spender,
@@ -342,7 +367,7 @@ contract UserSafe is
             )
         );
 
-        msgHash.checkSignature_EIP1271(owner(), signature);
+        msgHash.verifySig(owner(), signature);
         _approve(token, spender, amount);
     }
 
@@ -350,8 +375,8 @@ contract UserSafe is
      * @inheritdoc IUserSafe
      */
     function requestWithdrawal(
-        address[] memory tokens,
-        uint256[] memory amounts,
+        address[] calldata tokens,
+        uint256[] calldata amounts,
         address recipient
     ) external onlyOwner {
         _requestWithdrawal(tokens, amounts, recipient);
@@ -361,17 +386,16 @@ contract UserSafe is
      * @inheritdoc IUserSafe
      */
     function requestWithdrawalWithPermit(
-        address[] memory tokens,
-        uint256[] memory amounts,
+        address[] calldata tokens,
+        uint256[] calldata amounts,
         address recipient,
         uint256 userNonce,
         bytes calldata signature
-    ) external {
-        _nonce++;
-        if (userNonce != _nonce) revert InvalidNonce();
+    ) external validateNonce(userNonce) {
         bytes32 msgHash = keccak256(
             abi.encode(
                 REQUEST_WITHDRAWAL_METHOD,
+                block.chainid,
                 address(this),
                 tokens,
                 amounts,
@@ -380,8 +404,7 @@ contract UserSafe is
             )
         );
 
-        msgHash.checkSignature_EIP1271(owner(), signature);
-
+        msgHash.verifySig(owner(), signature);
         _requestWithdrawal(tokens, amounts, recipient);
     }
 
@@ -422,10 +445,7 @@ contract UserSafe is
         bool isActive,
         uint256 userNonce,
         bytes calldata signature
-    ) external {
-        _nonce++;
-        if (userNonce != _nonce) revert InvalidNonce();
-
+    ) external validateNonce(userNonce) {
         _setIsRecoveryActiveWithPermit(isActive, userNonce, signature);
     }
 
@@ -434,12 +454,10 @@ contract UserSafe is
      */
     function recoverUserSafe(
         uint256 userNonce,
-        Signature[2] memory signatures,
-        FundsDetails[] memory fundsDetails
-    ) external onlyWhenRecoveryActive {
-        _nonce++;
-        if (userNonce != _nonce) revert InvalidNonce();
-        _recoverUserSafe(userNonce, signatures, fundsDetails);
+        Signature[2] calldata signatures,
+        address[] calldata tokensToPull
+    ) external onlyWhenRecoveryActive validateNonce(userNonce) {
+        _recoverUserSafe(userNonce, signatures, tokensToPull);
     }
 
     /**
@@ -581,8 +599,8 @@ contract UserSafe is
     }
 
     function _requestWithdrawal(
-        address[] memory tokens,
-        uint256[] memory amounts,
+        address[] calldata tokens,
+        uint256[] calldata amounts,
         address recipient
     ) internal {
         _cancelOldWithdrawal();
@@ -641,6 +659,11 @@ contract UserSafe is
         emit ApprovalFunds(token, spender, amount);
     }
 
+    function _setOwner(bytes calldata __owner) internal {
+        emit SetOwner(_ownerBytes.getOwnerObject(), __owner.getOwnerObject());
+        _ownerBytes = __owner;
+    }
+
     function _checkSpendingLimit(address token, uint256 amount) internal {
         // If spending limit needs to be renewed, then renew it
         if (block.timestamp > _spendingLimit.renewalTimestamp) {
@@ -664,6 +687,11 @@ contract UserSafe is
         _spendingLimit.usedUpAmount += amount;
     }
 
+    function _validateNonce(uint256 userNonce) private {
+        _nonce++;
+        if (userNonce != _nonce) revert InvalidNonce();
+    }
+
     function _onlyEtherFiCashSafe() private view {
         if (msg.sender != _cashDataProvider.etherFiCashMultiSig())
             revert UnauthorizedCall();
@@ -681,6 +709,16 @@ contract UserSafe is
 
     modifier onlyEtherFiCashDebtManager() {
         _onlyEtherFiCashDebtManager();
+        _;
+    }
+
+    modifier onlyOwner() {
+        _ownerBytes._onlyOwner();
+        _;
+    }
+
+    modifier validateNonce(uint256 userNonce) {
+        _validateNonce(userNonce);
         _;
     }
 }

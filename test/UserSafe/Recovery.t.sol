@@ -1,15 +1,15 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import {IUserSafe, UserSafe} from "../../src/user-safe/UserSafe.sol";
+import {IUserSafe, OwnerLib, UserSafe} from "../../src/user-safe/UserSafe.sol";
 import {MessageHashUtils} from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
 import {EIP1271SignatureUtils} from "../../src/libraries/EIP1271SignatureUtils.sol";
 import {ERC20, UserSafeSetup} from "./UserSafeSetup.sol";
-
-error OwnableUnauthorizedAccount(address account);
+import {OwnerLib} from "../../src/libraries/OwnerLib.sol";
 
 contract UserSafeRecoveryTest is UserSafeSetup {
     using MessageHashUtils for bytes32;
+    using OwnerLib for address;
 
     function test_IsRecoveryActive() public view {
         assertEq(aliceSafe.isRecoveryActive(), true);
@@ -31,12 +31,7 @@ contract UserSafeRecoveryTest is UserSafeSetup {
 
     function test_OnlyOwnerCanSetIsRecoveryActive() public {
         vm.prank(notOwner);
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                OwnableUnauthorizedAccount.selector,
-                notOwner
-            )
-        );
+        vm.expectRevert(abi.encodeWithSelector(OwnerLib.OnlyOwner.selector));
         aliceSafe.setIsRecoveryActive(false);
     }
 
@@ -46,7 +41,8 @@ contract UserSafeRecoveryTest is UserSafeSetup {
         bool setValue = false;
         bytes32 msgHash = keccak256(
             abi.encode(
-                aliceSafe.TOGGLE_RECOVERY_METHOD(),
+                aliceSafe.SET_IS_RECOVERY_ACTIVE_METHOD(),
+                block.chainid,
                 address(aliceSafe),
                 setValue,
                 nonce
@@ -69,16 +65,20 @@ contract UserSafeRecoveryTest is UserSafeSetup {
         uint256 usdcAmount = 1 ether;
         uint256 weETHAmount = 1000 ether;
 
+        address[] memory tokensToPull = new address[](2);
         IUserSafe.FundsDetails[]
             memory fundsDetails = new IUserSafe.FundsDetails[](2);
         fundsDetails[0] = IUserSafe.FundsDetails({
             token: address(usdc),
             amount: usdcAmount
         });
+        tokensToPull[0] = fundsDetails[0].token;
+
         fundsDetails[1] = IUserSafe.FundsDetails({
             token: address(weETH),
             amount: weETHAmount
         });
+        tokensToPull[1] = fundsDetails[1].token;
 
         IUserSafe.Signature[2] memory signatures;
 
@@ -91,8 +91,9 @@ contract UserSafeRecoveryTest is UserSafeSetup {
             bytes32 msgHash = keccak256(
                 abi.encode(
                     aliceSafe.RECOVERY_METHOD(),
+                    block.chainid,
                     address(aliceSafe),
-                    fundsDetails,
+                    tokensToPull,
                     nonce
                 )
             );
@@ -111,8 +112,11 @@ contract UserSafeRecoveryTest is UserSafeSetup {
             );
 
             vm.expectEmit();
-            emit IUserSafe.UserSafeRecovered(alice, fundsDetails);
-            aliceSafe.recoverUserSafe(nonce, signatures, fundsDetails);
+            emit IUserSafe.UserSafeRecovered(
+                alice.getOwnerObject(),
+                fundsDetails
+            );
+            aliceSafe.recoverUserSafe(nonce, signatures, tokensToPull);
 
             assertEq(
                 usdc.balanceOf(etherFiRecoverySafe) -
@@ -149,24 +153,19 @@ contract UserSafeRecoveryTest is UserSafeSetup {
         deal(address(usdc), address(aliceSafe), usdcAmount);
         deal(address(weETH), address(aliceSafe), weETHAmount);
 
-        IUserSafe.FundsDetails[]
-            memory fundsDetails = new IUserSafe.FundsDetails[](2);
-        fundsDetails[0] = IUserSafe.FundsDetails({
-            token: address(usdc),
-            amount: usdcAmount
-        });
-        fundsDetails[1] = IUserSafe.FundsDetails({
-            token: address(weETH),
-            amount: weETHAmount
-        });
+        address[] memory tokensToPull = new address[](2);
+
+        tokensToPull[0] = address(usdc);
+        tokensToPull[1] = address(weETH);
 
         uint256 nonce = aliceSafe.nonce() + 1;
 
         bytes32 msgHash = keccak256(
             abi.encode(
                 aliceSafe.RECOVERY_METHOD(),
+                block.chainid,
                 address(aliceSafe),
-                fundsDetails,
+                tokensToPull,
                 nonce
             )
         );
@@ -174,7 +173,7 @@ contract UserSafeRecoveryTest is UserSafeSetup {
         IUserSafe.Signature[2] memory signatures = _signRecovery(msgHash, 0, 1);
 
         vm.expectRevert(IUserSafe.RecoveryNotActive.selector);
-        aliceSafe.recoverUserSafe(nonce, signatures, fundsDetails);
+        aliceSafe.recoverUserSafe(nonce, signatures, tokensToPull);
     }
 
     function test_RecoveryFailsIfSignatureIndicesAreSame() public {
@@ -184,24 +183,19 @@ contract UserSafeRecoveryTest is UserSafeSetup {
         deal(address(usdc), address(aliceSafe), usdcAmount);
         deal(address(weETH), address(aliceSafe), weETHAmount);
 
-        IUserSafe.FundsDetails[]
-            memory fundsDetails = new IUserSafe.FundsDetails[](2);
-        fundsDetails[0] = IUserSafe.FundsDetails({
-            token: address(usdc),
-            amount: usdcAmount
-        });
-        fundsDetails[1] = IUserSafe.FundsDetails({
-            token: address(weETH),
-            amount: weETHAmount
-        });
+        address[] memory tokensToPull = new address[](2);
+
+        tokensToPull[0] = address(usdc);
+        tokensToPull[1] = address(weETH);
 
         uint256 nonce = aliceSafe.nonce() + 1;
 
         bytes32 msgHash = keccak256(
             abi.encode(
                 aliceSafe.RECOVERY_METHOD(),
+                block.chainid,
                 address(aliceSafe),
-                fundsDetails,
+                tokensToPull,
                 nonce
             )
         );
@@ -209,7 +203,7 @@ contract UserSafeRecoveryTest is UserSafeSetup {
         IUserSafe.Signature[2] memory signatures = _signRecovery(msgHash, 0, 0);
 
         vm.expectRevert(IUserSafe.SignatureIndicesCannotBeSame.selector);
-        aliceSafe.recoverUserSafe(nonce, signatures, fundsDetails);
+        aliceSafe.recoverUserSafe(nonce, signatures, tokensToPull);
     }
 
     function test_RecoveryFailsIfSignatureIsInvalid() public {
@@ -219,24 +213,19 @@ contract UserSafeRecoveryTest is UserSafeSetup {
         deal(address(usdc), address(aliceSafe), usdcAmount);
         deal(address(weETH), address(aliceSafe), weETHAmount);
 
-        IUserSafe.FundsDetails[]
-            memory fundsDetails = new IUserSafe.FundsDetails[](2);
-        fundsDetails[0] = IUserSafe.FundsDetails({
-            token: address(usdc),
-            amount: usdcAmount
-        });
-        fundsDetails[1] = IUserSafe.FundsDetails({
-            token: address(weETH),
-            amount: weETHAmount
-        });
+        address[] memory tokensToPull = new address[](2);
+
+        tokensToPull[0] = address(usdc);
+        tokensToPull[1] = address(weETH);
 
         uint256 nonce = aliceSafe.nonce() + 1;
 
         bytes32 msgHash = keccak256(
             abi.encode(
                 aliceSafe.RECOVERY_METHOD(),
+                block.chainid,
                 address(aliceSafe),
-                fundsDetails,
+                tokensToPull,
                 nonce
             )
         );
@@ -246,36 +235,7 @@ contract UserSafeRecoveryTest is UserSafeSetup {
         signatures[0].signature = signatures[1].signature;
 
         vm.expectRevert(EIP1271SignatureUtils.InvalidSigner.selector);
-        aliceSafe.recoverUserSafe(nonce, signatures, fundsDetails);
-    }
-
-    function test_RecoveryFailsIfFundsAreInsufficient() public {
-        uint256 usdcAmount = 1 ether;
-
-        deal(address(usdc), address(aliceSafe), usdcAmount - 1);
-
-        IUserSafe.FundsDetails[]
-            memory fundsDetails = new IUserSafe.FundsDetails[](1);
-        fundsDetails[0] = IUserSafe.FundsDetails({
-            token: address(usdc),
-            amount: usdcAmount
-        });
-
-        uint256 nonce = aliceSafe.nonce() + 1;
-
-        bytes32 msgHash = keccak256(
-            abi.encode(
-                aliceSafe.RECOVERY_METHOD(),
-                address(aliceSafe),
-                fundsDetails,
-                nonce
-            )
-        );
-
-        IUserSafe.Signature[2] memory signatures = _signRecovery(msgHash, 0, 1);
-
-        vm.expectRevert("ERC20: transfer amount exceeds balance");
-        aliceSafe.recoverUserSafe(nonce, signatures, fundsDetails);
+        aliceSafe.recoverUserSafe(nonce, signatures, tokensToPull);
     }
 
     function _signRecovery(

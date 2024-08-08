@@ -47,6 +47,33 @@ library EIP1271SignatureUtils {
         }
     }
 
+    function isValidSignature_EIP1271(
+        bytes32 msgHash,
+        address signer,
+        bytes memory signature
+    ) internal view returns (bool) {
+        bytes32 digestHash = msgHash.toEthSignedMessageHash();
+
+        /**
+         * check validity of signature:
+         * 1) if `signer` is an EOA, then `signature` must be a valid ECDSA signature from `signer`,
+         * indicating their intention for this action
+         * 2) if `signer` is a contract, then `signature` must will be checked according to EIP-1271
+         */
+        if (isContract(signer)) {
+            if (
+                IERC1271(signer).isValidSignature(digestHash, signature) !=
+                EIP1271_MAGICVALUE
+            ) return false;
+
+            return true;
+        } else {
+            if (ECDSA.recover(digestHash, signature) != signer) return false;
+
+            return true;
+        }
+    }
+
     function isContract(address account) internal view returns (bool) {
         uint256 size;
         assembly {

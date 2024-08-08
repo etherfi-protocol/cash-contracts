@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
+import {OwnerLib} from "../libraries/OwnerLib.sol";
+
 interface IUserSafe {
     enum SpendingLimitTypes {
         None,
@@ -69,7 +71,14 @@ interface IUserSafe {
     event ResetSpendingLimit(uint8 spendingLimitType, uint256 limitInUsd);
     event UpdateSpendingLimit(uint256 oldLimitInUsd, uint256 newLimitInUsd);
     event IsRecoveryActiveSet(bool isActive);
-    event UserSafeRecovered(address owner, FundsDetails[] fundsDetails);
+    event UserSafeRecovered(
+        OwnerLib.OwnerObject owner,
+        FundsDetails[] fundsDetails
+    );
+    event SetOwner(
+        OwnerLib.OwnerObject oldOwner,
+        OwnerLib.OwnerObject newOwner
+    );
 
     error InsufficientBalance();
     error ArrayLengthMismatch();
@@ -85,10 +94,16 @@ interface IUserSafe {
     error SignatureIndicesCannotBeSame();
 
     /**
+     * @notice Function to fetch the owner bytes for the User Safe.
+     * @return owner bytes of the User Safe.
+     */
+    function ownerBytes() external view returns (bytes memory);
+
+    /**
      * @notice Function to fetch the address of the owner of the User Safe.
      * @return address of the owner of the User Safe.
      */
-    function owner() external view returns (address);
+    function owner() external view returns (OwnerLib.OwnerObject memory);
 
     /**
      * @notice Function to fetch the contract address of the USDC token.
@@ -150,7 +165,10 @@ interface IUserSafe {
      * @notice Function to fetch the recovery signers.
      * @return Array of recovery signers.
      */
-    function recoverySigners() external view returns (address[3] memory);
+    function recoverySigners()
+        external
+        view
+        returns (OwnerLib.OwnerObject[3] memory);
 
     /**
      * @notice Function to get the spending limit for the user.
@@ -167,6 +185,26 @@ interface IUserSafe {
         external
         view
         returns (SpendingLimitData memory);
+
+    /**
+     * @notice Function to set the owner of the contract.
+     * @dev Can only be called by the owner if it is an Ethereum address.
+     * @dev If owner is a passkey, setOwnerWithPermit should be called to set the new owner.
+     * @param __owner Address of the new owner
+     */
+    function setOwner(bytes calldata __owner) external;
+
+    /**
+     * @notice Function to set the owner of the contract.
+     * @param __owner Address of the new owner
+     * @param userNonce Nonce for this call. Must be equal to current nonce.
+     * @param signature Must be a valid signature from the user.
+     */
+    function setOwnerWithPermit(
+        bytes calldata __owner,
+        uint256 userNonce,
+        bytes calldata signature
+    ) external;
 
     /**
      * @notice Function to set the spending limit.
@@ -268,8 +306,8 @@ interface IUserSafe {
      * @param recipient Address of the recipient of funds.
      */
     function requestWithdrawal(
-        address[] memory tokens,
-        uint256[] memory amounts,
+        address[] calldata tokens,
+        uint256[] calldata amounts,
         address recipient
     ) external;
 
@@ -283,8 +321,8 @@ interface IUserSafe {
      * @param signature Must be a valid signature from the user.
      */
     function requestWithdrawalWithPermit(
-        address[] memory tokens,
-        uint256[] memory amounts,
+        address[] calldata tokens,
+        uint256[] calldata amounts,
         address recipient,
         uint256 userNonce,
         bytes calldata signature
@@ -304,12 +342,12 @@ interface IUserSafe {
      * @notice On recovery, funds are sent to the etherFiRecoverySafe contract which can be distributed to the user.
      * @param userNonce Nonce for this call. Must be equal to current nonce.
      * @param signatures Array of the signature struct containing any 2 out of 3 signers' signatures.
-     * @param fundsDetails Array of the funds details to be recovered.
+     * @param tokensToPull Array of the toen addresses to be recovered.
      */
     function recoverUserSafe(
         uint256 userNonce,
-        Signature[2] memory signatures,
-        FundsDetails[] memory fundsDetails
+        Signature[2] calldata signatures,
+        address[] calldata tokensToPull
     ) external;
 
     /**

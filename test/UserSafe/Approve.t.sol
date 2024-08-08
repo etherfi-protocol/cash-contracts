@@ -1,11 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import {IUserSafe, UserSafe} from "../../src/user-safe/UserSafe.sol";
+import {IUserSafe, OwnerLib, UserSafe} from "../../src/user-safe/UserSafe.sol";
 import {MessageHashUtils} from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
 import {UserSafeSetup} from "./UserSafeSetup.sol";
-
-error OwnableUnauthorizedAccount(address account);
 
 contract UserSafeApproveTest is UserSafeSetup {
     using MessageHashUtils for bytes32;
@@ -22,12 +20,7 @@ contract UserSafeApproveTest is UserSafeSetup {
         uint256 amount = 1000000;
 
         vm.prank(notOwner);
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                OwnableUnauthorizedAccount.selector,
-                notOwner
-            )
-        );
+        vm.expectRevert(abi.encodeWithSelector(OwnerLib.OnlyOwner.selector));
         aliceSafe.approve(address(usdc), owner, amount);
     }
 
@@ -40,6 +33,7 @@ contract UserSafeApproveTest is UserSafeSetup {
         bytes32 msgHash = keccak256(
             abi.encode(
                 aliceSafe.APPROVE_METHOD(),
+                block.chainid,
                 address(aliceSafe),
                 token,
                 spender,

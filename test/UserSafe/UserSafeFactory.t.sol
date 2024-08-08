@@ -4,7 +4,7 @@ pragma solidity ^0.8.24;
 import {Test, console, stdError} from "forge-std/Test.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {UserSafeFactory} from "../../src/user-safe/UserSafeFactory.sol";
-import {UserSafe} from "../../src/user-safe/UserSafe.sol";
+import {UserSafe, OwnerLib} from "../../src/user-safe/UserSafe.sol";
 import {UserSafeV2Mock} from "../../src/mocks/UserSafeV2Mock.sol";
 import {Swapper1InchV6} from "../../src/utils/Swapper1InchV6.sol";
 import {PriceProvider} from "../../src/oracle/PriceProvider.sol";
@@ -13,6 +13,7 @@ import {CashDataProvider} from "../../src/utils/CashDataProvider.sol";
 import {Upgrades} from "openzeppelin-foundry-upgrades/Upgrades.sol";
 
 contract UserSafeFactoryTest is Test {
+    using OwnerLib for address;
     address owner = makeAddr("owner");
 
     address etherFiRecoverySigner = makeAddr("etherFiRecoverySigner");
@@ -39,7 +40,10 @@ contract UserSafeFactoryTest is Test {
     address swapRouter1InchV6 = 0x111111125421cA6dc452d289314280a0f8842A65;
 
     address alice = makeAddr("alice");
+    bytes aliceBytes = abi.encode(alice);
     address bob = makeAddr("bob");
+    bytes bobBytes = abi.encode(bob);
+
     UserSafe aliceSafe;
     UserSafe bobSafe;
 
@@ -87,9 +91,9 @@ contract UserSafeFactoryTest is Test {
         aliceSafe = UserSafe(
             factory.createUserSafe(
                 abi.encodeWithSelector(
-                    // initialize(address,uint256)
-                    0xcd6dc687,
-                    alice,
+                    // initialize(bytes,uint256)
+                    0x458c5191,
+                    aliceBytes,
                     defaultSpendingLimit
                 )
             )
@@ -98,9 +102,9 @@ contract UserSafeFactoryTest is Test {
         bobSafe = UserSafe(
             factory.createUserSafe(
                 abi.encodeWithSelector(
-                    // initialize(address,uint256)
-                    0xcd6dc687,
-                    bob,
+                    // initialize(bytes,uint256)
+                    0x458c5191,
+                    bobBytes,
                     defaultSpendingLimit
                 )
             )
@@ -110,8 +114,8 @@ contract UserSafeFactoryTest is Test {
     }
 
     function test_Deploy() public view {
-        assertEq(aliceSafe.owner(), alice);
-        assertEq(bobSafe.owner(), bob);
+        assertEq(aliceSafe.owner().ethAddr, alice);
+        assertEq(bobSafe.owner().ethAddr, bob);
     }
 
     function test_Upgrade() public {

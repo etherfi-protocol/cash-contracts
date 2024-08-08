@@ -1,11 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import {IUserSafe, UserSafe} from "../../src/user-safe/UserSafe.sol";
+import {IUserSafe, OwnerLib, UserSafe} from "../../src/user-safe/UserSafe.sol";
 import {MessageHashUtils} from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
 import {UserSafeSetup} from "./UserSafeSetup.sol";
-
-error OwnableUnauthorizedAccount(address account);
 
 contract UserSafeSpendingLimitTest is UserSafeSetup {
     using MessageHashUtils for bytes32;
@@ -92,12 +90,7 @@ contract UserSafeSpendingLimitTest is UserSafeSetup {
         uint256 spendingLimit = 1000000;
 
         vm.prank(notOwner);
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                OwnableUnauthorizedAccount.selector,
-                notOwner
-            )
-        );
+        vm.expectRevert(abi.encodeWithSelector(OwnerLib.OnlyOwner.selector));
         aliceSafe.resetSpendingLimit(
             uint8(IUserSafe.SpendingLimitTypes.Daily),
             spendingLimit
@@ -112,6 +105,7 @@ contract UserSafeSpendingLimitTest is UserSafeSetup {
         bytes32 msgHash = keccak256(
             abi.encode(
                 aliceSafe.RESET_SPENDING_LIMIT_METHOD(),
+                block.chainid,
                 address(aliceSafe),
                 spendingLimitType,
                 spendingLimitInUsd,
@@ -176,12 +170,7 @@ contract UserSafeSpendingLimitTest is UserSafeSetup {
         uint256 spendingLimitInUsd = 1000000000;
 
         vm.prank(notOwner);
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                OwnableUnauthorizedAccount.selector,
-                notOwner
-            )
-        );
+        vm.expectRevert(abi.encodeWithSelector(OwnerLib.OnlyOwner.selector));
         aliceSafe.updateSpendingLimit(spendingLimitInUsd);
     }
 
@@ -210,6 +199,7 @@ contract UserSafeSpendingLimitTest is UserSafeSetup {
         bytes32 msgHash = keccak256(
             abi.encode(
                 aliceSafe.UPDATE_SPENDING_LIMIT_METHOD(),
+                block.chainid,
                 address(aliceSafe),
                 spendingLimitInUsd,
                 nonce

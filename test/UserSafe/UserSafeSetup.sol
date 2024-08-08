@@ -10,9 +10,13 @@ import {Swapper1InchV6} from "../../src/utils/Swapper1InchV6.sol";
 import {PriceProvider} from "../../src/oracle/PriceProvider.sol";
 import {CashDataProvider} from "../../src/utils/CashDataProvider.sol";
 import {Upgrades} from "openzeppelin-foundry-upgrades/Upgrades.sol";
+import {OwnerLib} from "../../src/libraries/OwnerLib.sol";
 
 contract UserSafeSetup is Test {
+    using OwnerLib for address;
+
     address owner = makeAddr("owner");
+
     address notOwner = makeAddr("notOwner");
 
     uint256 etherFiRecoverySignerPk;
@@ -42,7 +46,16 @@ contract UserSafeSetup is Test {
 
     address alice;
     uint256 alicePk;
+    bytes aliceBytes;
     UserSafe aliceSafe;
+
+    uint256 passkeyPrivateKey =
+        uint256(
+            0x03d99692017473e2d631945a812607b23269d85721e0f370b8d3e7d29a874fd2
+        );
+    bytes passkeyOwner =
+        hex"1c05286fe694493eae33312f2d2e0d0abeda8db76238b7a204be1fb87f54ce4228fef61ef4ac300f631657635c28e59bfb2fe71bce1634c81c65642042f6dc4d";
+    UserSafe passkeyOwnerSafe;
 
     function setUp() public virtual {
         vm.createSelectFork("https://arbitrum-one.public.blastapi.io");
@@ -88,13 +101,25 @@ contract UserSafeSetup is Test {
         factory = new UserSafeFactory(address(impl), owner);
 
         (alice, alicePk) = makeAddrAndKey("alice");
+        aliceBytes = abi.encode(alice);
 
         aliceSafe = UserSafe(
             factory.createUserSafe(
                 abi.encodeWithSelector(
-                    // initialize(address,uint256)
-                    0xcd6dc687,
-                    alice,
+                    // initialize(bytes,uint256)
+                    0x458c5191,
+                    aliceBytes,
+                    defaultSpendingLimit
+                )
+            )
+        );
+
+        passkeyOwnerSafe = UserSafe(
+            factory.createUserSafe(
+                abi.encodeWithSelector(
+                    // initialize(bytes,uint256)
+                    0x458c5191,
+                    passkeyOwner,
                     defaultSpendingLimit
                 )
             )
@@ -107,11 +132,36 @@ contract UserSafeSetup is Test {
     }
 
     function test_Deploy() public view {
-        assertEq(aliceSafe.owner(), alice);
+        assertEq(aliceSafe.owner().ethAddr, alice);
         assertEq(aliceSafe.etherFiRecoverySafe(), etherFiRecoverySafe);
-        assertEq(aliceSafe.recoverySigners()[0], alice);
-        assertEq(aliceSafe.recoverySigners()[1], etherFiRecoverySigner);
-        assertEq(aliceSafe.recoverySigners()[2], thirdPartyRecoverySigner);
+        assertEq(aliceSafe.recoverySigners()[0].ethAddr, alice);
+        assertEq(aliceSafe.recoverySigners()[1].ethAddr, etherFiRecoverySigner);
+        assertEq(
+            aliceSafe.recoverySigners()[2].ethAddr,
+            thirdPartyRecoverySigner
+        );
+
+        assertEq(
+            abi.encode(passkeyOwnerSafe.owner().x, passkeyOwnerSafe.owner().y),
+            passkeyOwner
+        );
+
+        assertEq(passkeyOwnerSafe.etherFiRecoverySafe(), etherFiRecoverySafe);
+        assertEq(
+            abi.encode(
+                passkeyOwnerSafe.recoverySigners()[0].x,
+                passkeyOwnerSafe.recoverySigners()[0].y
+            ),
+            passkeyOwner
+        );
+        assertEq(
+            passkeyOwnerSafe.recoverySigners()[1].ethAddr,
+            etherFiRecoverySigner
+        );
+        assertEq(
+            passkeyOwnerSafe.recoverySigners()[2].ethAddr,
+            thirdPartyRecoverySigner
+        );
 
         UserSafe.SpendingLimitData memory spendingLimit = aliceSafe
             .spendingLimit();
