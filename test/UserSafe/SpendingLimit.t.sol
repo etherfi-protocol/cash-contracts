@@ -149,7 +149,7 @@ contract UserSafeSpendingLimitTest is UserSafeSetup {
         assertEq(spendingLimitBefore.usedUpAmount, 0);
 
         assertEq(usdc.balanceOf(etherFiCashMultisig), 0);
-        vm.prank(etherFiCashMultisig);
+        vm.prank(etherFiWallet);
         aliceSafe.transfer(address(usdc), transferAmount);
         assertEq(usdc.balanceOf(etherFiCashMultisig), transferAmount);
 
@@ -186,7 +186,7 @@ contract UserSafeSpendingLimitTest is UserSafeSetup {
         assertEq(spendingLimitBefore.usedUpAmount, 0);
 
         assertEq(usdc.balanceOf(etherFiCashMultisig), 0);
-        vm.prank(etherFiCashMultisig);
+        vm.prank(etherFiWallet);
         aliceSafe.transfer(address(usdc), transferAmount);
         assertEq(usdc.balanceOf(etherFiCashMultisig), transferAmount);
 
@@ -226,7 +226,7 @@ contract UserSafeSpendingLimitTest is UserSafeSetup {
         vm.prank(alice);
         usdc.transfer(address(aliceSafe), amount);
 
-        vm.prank(etherFiCashMultisig);
+        vm.prank(etherFiWallet);
         vm.expectRevert(IUserSafe.ExceededSpendingLimit.selector);
         aliceSafe.transfer(address(usdc), amount);
     }
@@ -237,18 +237,18 @@ contract UserSafeSpendingLimitTest is UserSafeSetup {
 
         deal(address(usdc), address(aliceSafe), 1 ether);
 
-        vm.prank(etherFiCashMultisig);
+        vm.prank(etherFiWallet);
         aliceSafe.transfer(address(usdc), amount);
 
         uint256 usedUpAmount = aliceSafe.spendingLimit().usedUpAmount;
         assertEq(usedUpAmount, amount);
 
-        vm.prank(etherFiCashMultisig);
+        vm.prank(etherFiWallet);
         vm.expectRevert(IUserSafe.ExceededSpendingLimit.selector);
         aliceSafe.transfer(address(usdc), spendingLimit - amount + 1);
 
         vm.warp(aliceSafe.spendingLimit().renewalTimestamp);
-        vm.prank(etherFiCashMultisig);
+        vm.prank(etherFiWallet);
         vm.expectRevert(IUserSafe.ExceededSpendingLimit.selector);
         aliceSafe.transfer(address(usdc), spendingLimit - amount + 1);
 
@@ -258,7 +258,7 @@ contract UserSafeSpendingLimitTest is UserSafeSetup {
         assertEq(aliceSafe.applicableSpendingLimit().usedUpAmount, 0);
 
         // Since the time for renewal is in the past, we should be able to spend the whole spending limit again
-        vm.prank(etherFiCashMultisig);
+        vm.prank(etherFiWallet);
         vm.expectEmit(true, true, true, true);
         emit IUserSafe.TransferForSpending(address(usdc), spendingLimit);
         aliceSafe.transfer(address(usdc), spendingLimit);

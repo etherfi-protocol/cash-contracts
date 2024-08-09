@@ -39,6 +39,7 @@ contract UserSafeSetup is Test {
     uint64 withdrawalDelay = 10;
     address etherFiCashMultisig = makeAddr("multisig");
     address etherFiCashDebtManager = makeAddr("debtManager");
+    address etherFiWallet = makeAddr("etherFiWallet");
 
     address weEthWethOracle = 0xE141425bc1594b8039De6390db1cDaf4397EA22b;
     address ethUsdcOracle = 0x639Fe6ab55C921f74e7fac1ee960C0B6293ba612;
@@ -106,9 +107,10 @@ contract UserSafeSetup is Test {
         aliceSafe = UserSafe(
             factory.createUserSafe(
                 abi.encodeWithSelector(
-                    // initialize(bytes,uint256)
-                    0x458c5191,
+                    // initialize(bytes,address,uint256)
+                    0x80db4b91,
                     aliceBytes,
+                    etherFiWallet,
                     defaultSpendingLimit
                 )
             )
@@ -117,9 +119,10 @@ contract UserSafeSetup is Test {
         passkeyOwnerSafe = UserSafe(
             factory.createUserSafe(
                 abi.encodeWithSelector(
-                    // initialize(bytes,uint256)
-                    0x458c5191,
+                    // initialize(bytes,address,uint256)
+                    0x80db4b91,
                     passkeyOwner,
+                    etherFiWallet,
                     defaultSpendingLimit
                 )
             )

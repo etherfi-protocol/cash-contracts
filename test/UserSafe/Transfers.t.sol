@@ -23,7 +23,7 @@ contract UserSafeTransfersTest is UserSafeSetup {
 
         uint256 multiSigUsdcBalBefore = usdc.balanceOf(etherFiCashMultisig);
 
-        vm.prank(etherFiCashMultisig);
+        vm.prank(etherFiWallet);
         vm.expectEmit(true, true, true, true);
         emit IUserSafe.TransferForSpending(address(usdc), amount);
         aliceSafe.transfer(address(usdc), amount);
@@ -42,7 +42,7 @@ contract UserSafeTransfersTest is UserSafeSetup {
         vm.prank(alice);
         aliceSafe.updateSpendingLimit(amount);
 
-        vm.prank(etherFiCashMultisig);
+        vm.prank(etherFiWallet);
         vm.expectRevert(IUserSafe.InsufficientBalance.selector);
         aliceSafe.transfer(address(usdc), amount);
     }
@@ -56,7 +56,7 @@ contract UserSafeTransfersTest is UserSafeSetup {
 
     function test_CannotTransferMoreThanSpendingLimit() public {
         uint256 amount = defaultSpendingLimit + 1;
-        vm.prank(etherFiCashMultisig);
+        vm.prank(etherFiWallet);
         vm.expectRevert(IUserSafe.ExceededSpendingLimit.selector);
         aliceSafe.transfer(address(usdc), amount);
     }
@@ -75,7 +75,7 @@ contract UserSafeTransfersTest is UserSafeSetup {
 
         uint256 cashMultiSigUsdcBalBefore = usdc.balanceOf(etherFiCashMultisig);
 
-        vm.prank(etherFiCashMultisig);
+        vm.prank(etherFiWallet);
         vm.expectEmit(true, true, true, true);
         emit IUserSafe.SwapTransferForSpending(
             address(weETH),
@@ -111,7 +111,7 @@ contract UserSafeTransfersTest is UserSafeSetup {
         );
 
         uint256 newAmountUsdcToSend = 10000e6;
-        vm.prank(etherFiCashMultisig);
+        vm.prank(etherFiWallet);
         vm.expectRevert(IUserSafe.TransferAmountGreaterThanReceived.selector);
         aliceSafe.swapAndTransfer(
             address(weETH),
@@ -131,7 +131,7 @@ contract UserSafeTransfersTest is UserSafeSetup {
 
         uint256 newInputAmt = 5 ether;
         newAmountUsdcToSend = aliceSafe.spendingLimit().spendingLimit + 1;
-        vm.prank(etherFiCashMultisig);
+        vm.prank(etherFiWallet);
         vm.expectRevert(IUserSafe.ExceededSpendingLimit.selector);
         aliceSafe.swapAndTransfer(
             address(weETH),
@@ -145,7 +145,7 @@ contract UserSafeTransfersTest is UserSafeSetup {
 
     function test_CannotSwapAndTransferIfBalanceIsInsufficient() public {
         uint256 inputAmountWeETHToSwap = aliceSafeWeETHBalanceBefore + 1 ether;
-        vm.prank(etherFiCashMultisig);
+        vm.prank(etherFiWallet);
         vm.expectRevert(IUserSafe.InsufficientBalance.selector);
         aliceSafe.swapAndTransfer(
             address(weETH),
@@ -164,7 +164,7 @@ contract UserSafeTransfersTest is UserSafeSetup {
             etherFiCashDebtManager
         );
 
-        vm.prank(etherFiCashDebtManager);
+        vm.prank(etherFiWallet);
         vm.expectEmit(true, true, true, true);
         emit IUserSafe.TransferCollateral(address(weETH), amount);
         aliceSafe.transferFundsToDebtManager(address(weETH), amount);
@@ -188,7 +188,7 @@ contract UserSafeTransfersTest is UserSafeSetup {
     {
         uint256 amount = 10 ether;
 
-        vm.prank(etherFiCashDebtManager);
+        vm.prank(etherFiWallet);
         vm.expectRevert(IUserSafe.ExceededSpendingLimit.selector);
         aliceSafe.transferFundsToDebtManager(address(weETH), amount);
     }
@@ -208,7 +208,7 @@ contract UserSafeTransfersTest is UserSafeSetup {
         vm.prank(alice);
         aliceSafe.updateSpendingLimit(aliceSafeWeETHBalanceBefore + 1);
 
-        vm.prank(etherFiCashDebtManager);
+        vm.prank(etherFiWallet);
         vm.expectRevert(IUserSafe.InsufficientBalance.selector);
         aliceSafe.transferFundsToDebtManager(address(weETH), amount);
     }
@@ -217,7 +217,7 @@ contract UserSafeTransfersTest is UserSafeSetup {
         address unsupportedToken = makeAddr("unsupportedToken");
 
         uint256 amount = 1 ether;
-        vm.prank(etherFiCashMultisig);
+        vm.prank(etherFiWallet);
         vm.expectRevert(IUserSafe.UnsupportedToken.selector);
         aliceSafe.transfer(unsupportedToken, amount);
     }
@@ -227,7 +227,7 @@ contract UserSafeTransfersTest is UserSafeSetup {
 
         uint256 amount = 1 ether;
 
-        vm.prank(etherFiCashMultisig);
+        vm.prank(etherFiWallet);
         vm.expectRevert(IUserSafe.UnsupportedToken.selector);
         aliceSafe.swapAndTransfer(
             unsupportedToken,
@@ -243,7 +243,7 @@ contract UserSafeTransfersTest is UserSafeSetup {
         address unsupportedToken = makeAddr("unsupportedToken");
 
         uint256 amount = 1 ether;
-        vm.prank(etherFiCashDebtManager);
+        vm.prank(etherFiWallet);
         vm.expectRevert(IUserSafe.UnsupportedToken.selector);
         aliceSafe.transferFundsToDebtManager(unsupportedToken, amount);
     }

@@ -32,6 +32,7 @@ contract UserSafe is IUserSafe, Initializable, UserSafeRecovery {
         keccak256("updateSpendingLimit");
     bytes32 public constant SET_OWNER_METHOD = keccak256("setOwner");
 
+    // Owner: if ethAddr -> abi.encode(owner), if passkey -> abi.encode(x,y)
     bytes private _ownerBytes;
     // Address of the USDC token
     address private immutable _usdc;
@@ -44,6 +45,8 @@ contract UserSafe is IUserSafe, Initializable, UserSafeRecovery {
     // Address of the swapper
     ISwapper private immutable _swapper;
 
+    // Address of etherFi wallet
+    address private _etherFiWallet;
     // Withdrawal requests pending with the contract
     WithdrawalRequest private _pendingWithdrawalRequest;
     // Funds blocked for withdrawal
@@ -73,9 +76,11 @@ contract UserSafe is IUserSafe, Initializable, UserSafeRecovery {
 
     function initialize(
         bytes calldata __owner,
+        address __etherFiWallet,
         uint256 __defaultSpendingLimit
     ) external initializer {
         _ownerBytes = __owner;
+        _etherFiWallet = __etherFiWallet;
         _resetSpendingLimit(
             uint8(SpendingLimitTypes.Monthly),
             __defaultSpendingLimit
@@ -458,7 +463,7 @@ contract UserSafe is IUserSafe, Initializable, UserSafeRecovery {
     function transfer(
         address token,
         uint256 amount
-    ) external onlyEtherFiCashSafe {
+    ) external onlyEtherFiWallet {
         if (token != _usdc) revert UnsupportedToken();
         _checkSpendingLimit(token, amount);
 
@@ -467,7 +472,10 @@ contract UserSafe is IUserSafe, Initializable, UserSafeRecovery {
             IERC20(token).balanceOf(address(this))
         ) revert InsufficientBalance();
 
-        IERC20(token).safeTransfer(msg.sender, amount);
+        IERC20(token).safeTransfer(
+            _cashDataProvider.etherFiCashMultiSig(),
+            amount
+        );
         emit TransferForSpending(token, amount);
     }
 
@@ -477,7 +485,7 @@ contract UserSafe is IUserSafe, Initializable, UserSafeRecovery {
     function transferFundsToDebtManager(
         address token,
         uint256 amount
-    ) external onlyEtherFiCashDebtManager {
+    ) external onlyEtherFiWallet {
         if (token != _weETH) revert UnsupportedToken();
         _checkSpendingLimit(token, amount);
 
@@ -486,7 +494,10 @@ contract UserSafe is IUserSafe, Initializable, UserSafeRecovery {
             IERC20(token).balanceOf(address(this))
         ) revert InsufficientBalance();
 
-        IERC20(token).safeTransfer(msg.sender, amount);
+        IERC20(token).safeTransfer(
+            _cashDataProvider.etherFiCashDebtManager(),
+            amount
+        );
         emit TransferCollateral(token, amount);
     }
 
@@ -500,7 +511,7 @@ contract UserSafe is IUserSafe, Initializable, UserSafeRecovery {
         uint256 outputMinAmount,
         uint256 outputAmountToTransfer,
         bytes calldata swapData
-    ) external onlyEtherFiCashSafe {
+    ) external onlyEtherFiWallet {
         if (inputTokenToSwap != _weETH || outputToken != _usdc)
             revert UnsupportedToken();
 
@@ -522,7 +533,10 @@ contract UserSafe is IUserSafe, Initializable, UserSafeRecovery {
         if (outputAmountToTransfer > returnAmount)
             revert TransferAmountGreaterThanReceived();
 
-        IERC20(outputToken).safeTransfer(msg.sender, outputAmountToTransfer);
+        IERC20(outputToken).safeTransfer(
+            _cashDataProvider.etherFiCashMultiSig(),
+            outputAmountToTransfer
+        );
 
         emit SwapTransferForSpending(
             inputTokenToSwap,
@@ -683,23 +697,12 @@ contract UserSafe is IUserSafe, Initializable, UserSafeRecovery {
         _nonce++;
     }
 
-    function _onlyEtherFiCashSafe() private view {
-        if (msg.sender != _cashDataProvider.etherFiCashMultiSig())
-            revert UnauthorizedCall();
+    function _onlyEtherFiWallet() private view {
+        if (msg.sender != _etherFiWallet) revert UnauthorizedCall();
     }
 
-    function _onlyEtherFiCashDebtManager() private view {
-        if (msg.sender != _cashDataProvider.etherFiCashDebtManager())
-            revert UnauthorizedCall();
-    }
-
-    modifier onlyEtherFiCashSafe() {
-        _onlyEtherFiCashSafe();
-        _;
-    }
-
-    modifier onlyEtherFiCashDebtManager() {
-        _onlyEtherFiCashDebtManager();
+    modifier onlyEtherFiWallet() {
+        _onlyEtherFiWallet();
         _;
     }
 
