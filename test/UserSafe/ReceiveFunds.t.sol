@@ -31,34 +31,35 @@ contract UserSafeReceiveFundsTest is UserSafeSetup {
     }
 
     function test_ReceiveFundsWithPermit() public {
-        uint256 amount = 10 ether;
-        uint256 deadline = type(uint256).max;
-        bytes32 DOMAIN_SEPARATOR_WEETH = 0x2dcc2f01a01098023cfce9f6b30f72af3d7809ae69a1ea8b5ac6f012e91b3248;
+        if (keccak256(bytes(chainId)) != keccak256(bytes("local"))) {
+            uint256 amount = 10 ether;
+            uint256 deadline = type(uint256).max;
+            bytes32 DOMAIN_SEPARATOR_WEETH = 0x2dcc2f01a01098023cfce9f6b30f72af3d7809ae69a1ea8b5ac6f012e91b3248;
 
-        Permit memory permit = Permit({
-            owner: alice,
-            spender: address(aliceSafe),
-            value: amount,
-            nonce: 0,
-            deadline: deadline
-        });
+            Permit memory permit = Permit({
+                owner: alice,
+                spender: address(aliceSafe),
+                value: amount,
+                nonce: 0,
+                deadline: deadline
+            });
 
-        bytes32 digest = getTypedDataHash(DOMAIN_SEPARATOR_WEETH, permit);
-        (uint8 v, bytes32 r, bytes32 s) = vm.sign(alicePk, digest);
+            bytes32 digest = getTypedDataHash(DOMAIN_SEPARATOR_WEETH, permit);
+            (uint8 v, bytes32 r, bytes32 s) = vm.sign(alicePk, digest);
 
-        vm.prank(notOwner);
-        vm.expectEmit(true, true, true, true);
-        emit IUserSafe.DepositFunds(address(weETH), amount);
-        aliceSafe.receiveFundsWithPermit(
-            alice,
-            address(weETH),
-            amount,
-            deadline,
-            r,
-            s,
-            v
-        );
-        vm.stopPrank();
+            vm.prank(notOwner);
+            vm.expectEmit(true, true, true, true);
+            emit IUserSafe.DepositFunds(address(weETH), amount);
+            aliceSafe.receiveFundsWithPermit(
+                alice,
+                address(weETH),
+                amount,
+                deadline,
+                r,
+                s,
+                v
+            );
+        }
     }
 
     // computes the hash of the fully encoded EIP-712 message for the domain, which can be used to recover the signer

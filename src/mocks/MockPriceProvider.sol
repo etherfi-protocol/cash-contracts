@@ -6,9 +6,10 @@ pragma solidity ^0.8.24;
  */
 contract MockPriceProvider {
     uint256 price;
-    uint8 public constant decimals = 6;
 
-    error PriceCannotBeZeroOrNegative();
+    constructor(uint256 _price) {
+        price = _price;
+    }
 
     function setWeEthUsdPrice(uint256 _price) external {
         price = _price;

@@ -24,32 +24,32 @@ contract Utils is Test {
 
         string memory rpc = stdJson.readString(
             inputJson,
-            string.concat(".", chainId, "rpc")
+            string.concat(".", chainId, ".", "rpc")
         );
 
         address usdc = stdJson.readAddress(
             inputJson,
-            string.concat(".", chainId, "usdc")
+            string.concat(".", chainId, ".", "usdc")
         );
 
         address weETH = stdJson.readAddress(
             inputJson,
-            string.concat(".", chainId, "weETH")
+            string.concat(".", chainId, ".", "weETH")
         );
 
         address weEthWethOracle = stdJson.readAddress(
             inputJson,
-            string.concat(".", chainId, "weEthWethOracle")
+            string.concat(".", chainId, ".", "weEthWethOracle")
         );
 
         address ethUsdcOracle = stdJson.readAddress(
             inputJson,
-            string.concat(".", chainId, "ethUsdcOracle")
+            string.concat(".", chainId, ".", "ethUsdcOracle")
         );
 
         address swapRouter1InchV6 = stdJson.readAddress(
             inputJson,
-            string.concat(".", chainId, "swapRouter1InchV6")
+            string.concat(".", chainId, ".", "swapRouter1InchV6")
         );
 
         return
@@ -61,5 +61,33 @@ contract Utils is Test {
                 ethUsdcOracle: ethUsdcOracle,
                 swapRouter1InchV6: swapRouter1InchV6
             });
+    }
+
+    function isFork(string memory chainId) internal pure returns (bool) {
+        if (keccak256(bytes(chainId)) == keccak256(bytes("local")))
+            return false;
+        else return true;
+    }
+
+    function getQuoteOneInch(
+        string memory chainId,
+        address from,
+        address to,
+        address srcToken,
+        address dstToken,
+        uint256 amount
+    ) internal returns (bytes memory data) {
+        string[] memory inputs = new string[](9);
+        inputs[0] = "npx";
+        inputs[1] = "ts-node";
+        inputs[2] = "test/getQuote1Inch.ts";
+        inputs[3] = chainId;
+        inputs[4] = vm.toString(from);
+        inputs[5] = vm.toString(to);
+        inputs[6] = vm.toString(srcToken);
+        inputs[7] = vm.toString(dstToken);
+        inputs[8] = vm.toString(amount);
+
+        return vm.ffi(inputs);
     }
 }

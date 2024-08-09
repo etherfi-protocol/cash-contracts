@@ -11,6 +11,7 @@ ast = true
 build_info = true
 extra_output = ["storageLayout"]
 gas_reports = ["*"]
+fs_permissions = [{ access = "read-write", path = "./" }]
 
 [profile.zksync]
 src = 'src'

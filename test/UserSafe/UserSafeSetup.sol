@@ -13,6 +13,9 @@ import {CashDataProvider} from "../../src/utils/CashDataProvider.sol";
 import {Upgrades} from "openzeppelin-foundry-upgrades/Upgrades.sol";
 import {OwnerLib} from "../../src/libraries/OwnerLib.sol";
 import {Utils, ChainConfig} from "../Utils.sol";
+import {MockERC20} from "../../src/mocks/MockERC20.sol";
+import {MockPriceProvider} from "../../src/mocks/MockPriceProvider.sol";
+import {MockSwapper} from "../../src/mocks/MockSwapper.sol";
 
 contract UserSafeSetup is Utils {
     using OwnerLib for address;
@@ -20,6 +23,8 @@ contract UserSafeSetup is Utils {
     address owner = makeAddr("owner");
 
     address notOwner = makeAddr("notOwner");
+
+    string chainId;
 
     uint256 etherFiRecoverySignerPk;
     address etherFiRecoverySigner;
@@ -31,12 +36,13 @@ contract UserSafeSetup is Utils {
     UserSafeFactory factory;
     UserSafe impl;
 
-    ERC20 usdc = ERC20(0xaf88d065e77c8cC2239327C5EDb3A432268e5831);
-    ERC20 weETH = ERC20(0x35751007a407ca6FEFfE80b3cB397736D2cf4dbe);
+    ERC20 usdc;
+    ERC20 weETH;
     Swapper1InchV6 swapper;
     PriceProvider priceProvider;
     CashDataProvider cashDataProvider;
 
+    uint256 mockWeETHPriceInUsd = 3000e6;
     uint256 defaultSpendingLimit = 10000e6;
     uint256 collateralLimit = 10000e6;
     uint64 delay = 10;
@@ -44,9 +50,9 @@ contract UserSafeSetup is Utils {
     address etherFiCashDebtManager = makeAddr("debtManager");
     address etherFiWallet = makeAddr("etherFiWallet");
 
-    address weEthWethOracle = 0xE141425bc1594b8039De6390db1cDaf4397EA22b;
-    address ethUsdcOracle = 0x639Fe6ab55C921f74e7fac1ee960C0B6293ba612;
-    address swapRouter1InchV6 = 0x111111125421cA6dc452d289314280a0f8842A65;
+    address weEthWethOracle;
+    address ethUsdcOracle;
+    address swapRouter1InchV6;
 
     address alice;
     uint256 alicePk;
@@ -62,21 +68,38 @@ contract UserSafeSetup is Utils {
     UserSafe passkeyOwnerSafe;
 
     function setUp() public virtual {
-        string memory testChainId = vm.envString("TEST_CHAIN");
-
-        if (
-            keccak256(bytes(testChainId)) == keccak256(bytes("local"))
-        ) {} else {
-            ChainConfig memory chainConfig = getChainConfig(testChainId);
-            vm.createSelectFork(chainConfig.rpc);
-        }
-
-        address[] memory assets = new address[](1);
-        assets[0] = address(weETH);
+        chainId = vm.envString("TEST_CHAIN");
 
         vm.startPrank(owner);
-        swapper = new Swapper1InchV6(swapRouter1InchV6, assets);
-        priceProvider = new PriceProvider(weEthWethOracle, ethUsdcOracle);
+
+        if (!isFork(chainId)) {
+            emit log_named_string("Testing on ChainID", chainId);
+
+            usdc = ERC20(address(new MockERC20("usdc", "usdc", 6)));
+            weETH = ERC20(address(new MockERC20("weETH", "weETH", 18)));
+
+            swapper = Swapper1InchV6(address(new MockSwapper()));
+            priceProvider = PriceProvider(
+                address(new MockPriceProvider(mockWeETHPriceInUsd))
+            );
+        } else {
+            emit log_named_string("Testing on ChainID", chainId);
+
+            ChainConfig memory chainConfig = getChainConfig(chainId);
+            vm.createSelectFork(chainConfig.rpc);
+
+            usdc = ERC20(chainConfig.usdc);
+            weETH = ERC20(chainConfig.weETH);
+            weEthWethOracle = chainConfig.weEthWethOracle;
+            ethUsdcOracle = chainConfig.ethUsdcOracle;
+            swapRouter1InchV6 = chainConfig.swapRouter1InchV6;
+
+            address[] memory assets = new address[](1);
+            assets[0] = address(weETH);
+
+            swapper = new Swapper1InchV6(swapRouter1InchV6, assets);
+            priceProvider = new PriceProvider(weEthWethOracle, ethUsdcOracle);
+        }
 
         etherFiCashDebtManager = address(
             new L2DebtManager(
@@ -150,44 +173,8 @@ contract UserSafeSetup is Utils {
 
         deal(address(weETH), alice, 1000 ether);
         deal(address(usdc), alice, 1 ether);
+        deal(address(usdc), address(swapper), 1 ether);
 
         vm.stopPrank();
-    }
-
-    function test_Deploy() public view {
-        assertEq(aliceSafe.owner().ethAddr, alice);
-        assertEq(aliceSafe.etherFiRecoverySafe(), etherFiRecoverySafe);
-        assertEq(aliceSafe.recoverySigners()[0].ethAddr, alice);
-        assertEq(aliceSafe.recoverySigners()[1].ethAddr, etherFiRecoverySigner);
-        assertEq(
-            aliceSafe.recoverySigners()[2].ethAddr,
-            thirdPartyRecoverySigner
-        );
-
-        assertEq(
-            abi.encode(passkeyOwnerSafe.owner().x, passkeyOwnerSafe.owner().y),
-            passkeyOwner
-        );
-
-        assertEq(passkeyOwnerSafe.etherFiRecoverySafe(), etherFiRecoverySafe);
-        assertEq(
-            abi.encode(
-                passkeyOwnerSafe.recoverySigners()[0].x,
-                passkeyOwnerSafe.recoverySigners()[0].y
-            ),
-            passkeyOwner
-        );
-        assertEq(
-            passkeyOwnerSafe.recoverySigners()[1].ethAddr,
-            etherFiRecoverySigner
-        );
-        assertEq(
-            passkeyOwnerSafe.recoverySigners()[2].ethAddr,
-            thirdPartyRecoverySigner
-        );
-
-        UserSafe.SpendingLimitData memory spendingLimit = aliceSafe
-            .spendingLimit();
-        assertEq(spendingLimit.spendingLimit, defaultSpendingLimit);
     }
 }

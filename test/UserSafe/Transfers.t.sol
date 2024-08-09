@@ -64,15 +64,19 @@ contract UserSafeTransfersTest is UserSafeSetup {
 
     function test_SwapAndTransferForSpending() public {
         uint256 inputAmountWeETHToSwap = 1 ether;
-        uint256 outputMinUsdcAmount = 1000e6;
+        uint256 outputMinUsdcAmount = 1500e6;
         uint256 amountUsdcToSend = 100e6;
-        bytes memory swapData = getQuoteOneInch(
-            address(swapper),
-            address(aliceSafe),
-            address(weETH),
-            address(usdc),
-            inputAmountWeETHToSwap
-        );
+
+        bytes memory swapData;
+        if (isFork(chainId))
+            swapData = getQuoteOneInch(
+                chainId,
+                address(swapper),
+                address(aliceSafe),
+                address(weETH),
+                address(usdc),
+                inputAmountWeETHToSwap
+            );
 
         uint256 cashMultiSigUsdcBalBefore = usdc.balanceOf(etherFiCashMultisig);
 
@@ -239,28 +243,4 @@ contract UserSafeTransfersTest is UserSafeSetup {
         vm.expectRevert(IUserSafe.UnsupportedToken.selector);
         aliceSafe.addCollateral(unsupportedToken, amount);
     }
-
-    function getQuoteOneInch(
-        address from,
-        address to,
-        address srcToken,
-        address dstToken,
-        uint256 amount
-    ) internal returns (bytes memory data) {
-        string[] memory inputs = new string[](8);
-        inputs[0] = "npx";
-        inputs[1] = "ts-node";
-        inputs[2] = "test/getQuote1Inch.ts";
-        inputs[3] = vm.toString(from);
-        inputs[4] = vm.toString(to);
-        inputs[5] = vm.toString(srcToken);
-        inputs[6] = vm.toString(dstToken);
-        inputs[7] = vm.toString(amount);
-
-        return vm.ffi(inputs);
-    }
 }
-
-// [FAIL. Reason: Error != expected error:  != 0xf4d678b8] test_CannotAddCollateralToDebtManagerIfBalanceIsInsufficient() (gas: 163916)
-// [FAIL. Reason: Error != expected error:  != 0xf4d678b8] test_CannotSwapAndTransferIfBalanceIsInsufficient() (gas: 62839)
-// [FAIL. Reason: Error != expected error: 0x8749623e != 0xf4d678b8] test_CannotTransferForSpendingWhenBalanceIsInsufficient() (gas: 121608)

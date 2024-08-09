@@ -9,98 +9,26 @@ import {UserSafeV2Mock} from "../../src/mocks/UserSafeV2Mock.sol";
 import {Swapper1InchV6} from "../../src/utils/Swapper1InchV6.sol";
 import {PriceProvider} from "../../src/oracle/PriceProvider.sol";
 import {CashDataProvider} from "../../src/utils/CashDataProvider.sol";
-
+import {UserSafeSetup} from "./UserSafeSetup.sol";
 import {Upgrades} from "openzeppelin-foundry-upgrades/Upgrades.sol";
 
-contract UserSafeFactoryTest is Test {
+contract UserSafeFactoryTest is UserSafeSetup {
     using OwnerLib for address;
-    address owner = makeAddr("owner");
 
-    address etherFiRecoverySigner = makeAddr("etherFiRecoverySigner");
-    address thirdPartyRecoverySigner = makeAddr("thirdPartyRecoverySigner");
-    address etherFiRecoverySafe = makeAddr("etherFiRecoverySafe");
-
-    UserSafeFactory factory;
-    UserSafe impl;
     UserSafeV2Mock implV2;
 
-    ERC20 usdc = ERC20(0xaf88d065e77c8cC2239327C5EDb3A432268e5831);
-    ERC20 weETH = ERC20(0x35751007a407ca6FEFfE80b3cB397736D2cf4dbe);
-    Swapper1InchV6 swapper;
-    PriceProvider priceProvider;
-    CashDataProvider cashDataProvider;
-
-    uint256 defaultSpendingLimit = 10000e6;
-    uint256 collateralLimit = 10000e6;
-    uint64 delay = 10;
-    address etherFiCashMultisig = makeAddr("multisig");
-    address etherFiCashDebtManager = makeAddr("debtManager");
-    address etherFiWallet = makeAddr("etherFiWallet");
-
-    address weEthWethOracle = 0xE141425bc1594b8039De6390db1cDaf4397EA22b;
-    address ethUsdcOracle = 0x639Fe6ab55C921f74e7fac1ee960C0B6293ba612;
-    address swapRouter1InchV6 = 0x111111125421cA6dc452d289314280a0f8842A65;
-
-    address alice = makeAddr("alice");
-    bytes aliceBytes = abi.encode(alice);
     address bob = makeAddr("bob");
     bytes bobBytes = abi.encode(bob);
 
-    UserSafe aliceSafe;
     UserSafe bobSafe;
 
-    function setUp() public {
-        vm.createSelectFork("https://rpc.ankr.com/arbitrum");
-        address[] memory assets = new address[](1);
-        assets[0] = address(weETH);
-
-        vm.startPrank(owner);
-        swapper = new Swapper1InchV6(swapRouter1InchV6, assets);
-        priceProvider = new PriceProvider(weEthWethOracle, ethUsdcOracle);
-
-        address proxy = Upgrades.deployUUPSProxy(
-            "CashDataProvider.sol:CashDataProvider",
-            abi.encodeWithSelector(
-                // intiailize(address,uint64,address,address,address,address,address,address,address,address)
-                0xf86fac96,
-                owner,
-                delay,
-                etherFiWallet,
-                etherFiCashMultisig,
-                etherFiCashDebtManager,
-                address(usdc),
-                address(weETH),
-                address(priceProvider),
-                address(swapper),
-                etherFiRecoverySafe
-            )
-        );
-        cashDataProvider = CashDataProvider(proxy);
-
-        impl = new UserSafe(
-            address(cashDataProvider),
-            etherFiRecoverySigner,
-            thirdPartyRecoverySigner
-        );
+    function setUp() public override {
+        super.setUp();
 
         implV2 = new UserSafeV2Mock(
             address(cashDataProvider),
             etherFiRecoverySigner,
             thirdPartyRecoverySigner
-        );
-
-        factory = new UserSafeFactory(address(impl), owner);
-
-        aliceSafe = UserSafe(
-            factory.createUserSafe(
-                abi.encodeWithSelector(
-                    // initialize(bytes,uint256, uint256)
-                    0x32b218ac,
-                    aliceBytes,
-                    defaultSpendingLimit,
-                    collateralLimit
-                )
-            )
         );
 
         bobSafe = UserSafe(

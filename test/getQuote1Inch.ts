@@ -1,7 +1,7 @@
 import axios from "axios";
 import { ethers } from "ethers";
 
-const ONEINCH_API_ENDPOINT = "https://api.1inch.dev/swap/v6.0/42161/swap";
+const ONEINCH_API_ENDPOINT = "https://api.1inch.dev/swap/v6.0";
 const ONEINCH_API_KEY = "v0IsPOhQWKrDo7t1IZlOFibcSN41dc2n";
 const SWAP_SELECTOR = "0x07ed2379"; // swap(address,(address,address,address,address,uint256,uint256,uint256),bytes)
 const UNOSWAP_TO_SELECTOR = "0xe2c95c82"; // unoswapTo(uint256,uint256,uint256,uint256,uint256)
@@ -91,13 +91,15 @@ const ONE_INCH_V6_ABI = [
 
 export const getData = async () => {
   const args = process.argv;
-  const fromAddress = args[2];
-  const toAddress = args[3];
-  const fromAsset = args[4];
-  const toAsset = args[5];
-  const fromAmount = args[6];
+  const chainId = args[2];
+  const fromAddress = args[3];
+  const toAddress = args[4];
+  const fromAsset = args[5];
+  const toAsset = args[6];
+  const fromAmount = args[7];
 
   const data = await getIInchSwapData({
+    chainId,
     fromAddress,
     toAddress,
     fromAsset,
@@ -170,12 +172,14 @@ const recodeSwapData = (apiEncodedData: string): string => {
  * See https://api.1inch.io/v5.0/1/liquidity-sources
  */
 const getIInchSwapData = async ({
+  chainId,
   fromAddress,
   toAddress,
   fromAsset,
   toAsset,
   fromAmount,
 }: {
+  chainId: string;
   fromAddress: string;
   toAddress: string;
   fromAsset: string;
@@ -195,9 +199,11 @@ const getIInchSwapData = async ({
 
   let retries = 5;
 
+  const API_ENDPOINT = `${ONEINCH_API_ENDPOINT}/${chainId}/swap`;
+
   while (retries > 0) {
     try {
-      const response = await axios.get(ONEINCH_API_ENDPOINT, {
+      const response = await axios.get(API_ENDPOINT, {
         params,
         headers: {
           Authorization: `Bearer ${ONEINCH_API_KEY}`,
