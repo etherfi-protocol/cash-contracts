@@ -2,10 +2,10 @@
 pragma solidity ^0.8.24;
 
 import "forge-std/Test.sol";
-import "@aave/pool/Pool.sol";
-import "@aave/libraries/types/DataTypes.sol";
-import "@aave/libraries/math/WadRayMath.sol";
-import "@aave/libraries/math/PercentageMath.sol";
+import "@aave/protocol/pool/Pool.sol";
+import "@aave/protocol/libraries/types/DataTypes.sol";
+import "@aave/protocol/libraries/math/WadRayMath.sol";
+import "@aave/protocol/libraries/math/PercentageMath.sol";
 
 import "../src/interfaces/IERC20.sol";
 
@@ -20,7 +20,8 @@ contract AaveUnitTest is Test {
     IERC20 usdc;
 
     address constant AAVE_POOL = 0x87870Bca3F3fD6335C3F4ce8392D69350B4fA4E2;
-    address constant AAVE_POOL_CONFIGURATOR = 0x64b761D848206f447Fe2dd461b0c635Ec39EbB27;
+    address constant AAVE_POOL_CONFIGURATOR =
+        0x64b761D848206f447Fe2dd461b0c635Ec39EbB27;
     address constant WETH = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
     address constant USDC = 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48;
 
@@ -52,10 +53,14 @@ contract AaveUnitTest is Test {
     function test_healthFactor() public {
         weth.approve(address(aavePool), 50 ether);
         aavePool.supply(WETH, 50 ether, cashProtocol, 0);
-        AaveAccountData memory accountBeforeBorrow = getStructuredAccountData(cashProtocol);
+        AaveAccountData memory accountBeforeBorrow = getStructuredAccountData(
+            cashProtocol
+        );
 
         aavePool.borrow(USDC, dollarsToUSDC(10_000), 2, 0, cashProtocol);
-        AaveAccountData memory accountAfterBorrow = getStructuredAccountData(cashProtocol);
+        AaveAccountData memory accountAfterBorrow = getStructuredAccountData(
+            cashProtocol
+        );
 
         // `ltv` is an upperbound on how much can be borrowed. Evolves based on market conditions
         assertEq(accountBeforeBorrow.ltv, accountAfterBorrow.ltv);
@@ -65,19 +70,28 @@ contract AaveUnitTest is Test {
 
         // totalDebtBase * averageLiqidationthreshold / availableBorrowsBase
         // wad has 18 digits of precision like wei
-        uint256 healthFactorAfter = accountAfterBorrow.totalCollateralBase.percentMul(
-            accountAfterBorrow.currentLiquidationThreshold
-        ).wadDiv(accountAfterBorrow.totalDebtBase);
+        uint256 healthFactorAfter = accountAfterBorrow
+            .totalCollateralBase
+            .percentMul(accountAfterBorrow.currentLiquidationThreshold)
+            .wadDiv(accountAfterBorrow.totalDebtBase);
         assertEq(accountAfterBorrow.healthFactor, healthFactorAfter);
     }
 
     // simple full flow of supply -> borrow -> supply more -> borrow more -> repay -> withdraw
     function test_fullFlow() public {
-        AaveAccountData memory accountAfterBorrow = init_position(5 ether, dollarsToUSDC(1_000));
-        assertApproxEqAbs(dollarsToUSDA(1_000), accountAfterBorrow.totalDebtBase, 5e8);
+        AaveAccountData memory accountAfterBorrow = init_position(
+            5 ether,
+            dollarsToUSDC(1_000)
+        );
+        assertApproxEqAbs(
+            dollarsToUSDA(1_000),
+            accountAfterBorrow.totalDebtBase,
+            5e8
+        );
 
         // over borrow
-        uint256 overBorrowAmount = accountAfterBorrow.availableBorrowsBase + dollarsToUSDA(5);
+        uint256 overBorrowAmount = accountAfterBorrow.availableBorrowsBase +
+            dollarsToUSDA(5);
         // convert amount from USD on aave to USDC
         overBorrowAmount = overBorrowAmount / 1e2;
 
@@ -98,7 +112,10 @@ contract AaveUnitTest is Test {
         usdc.approve(address(aavePool), fullDebt);
         aavePool.repay(USDC, fullDebt, 2, cashProtocol);
 
-        assertEq(getStructuredAccountData(cashProtocol).healthFactor, type(uint256).max);
+        assertEq(
+            getStructuredAccountData(cashProtocol).healthFactor,
+            type(uint256).max
+        );
 
         // withdraw the ETH collateral
         aavePool.withdraw(WETH, 5 ether, cashProtocol);
@@ -107,7 +124,10 @@ contract AaveUnitTest is Test {
     // ========================== HELPERS ==========================
 
     // supplys and borrows in aave and returns the positon state after
-    function init_position(uint256 supplyAmount, uint256 borrowAmount) public returns (AaveAccountData memory) {
+    function init_position(
+        uint256 supplyAmount,
+        uint256 borrowAmount
+    ) public returns (AaveAccountData memory) {
         weth.approve(address(aavePool), supplyAmount);
         aavePool.supply(WETH, supplyAmount, cashProtocol, 0);
         aavePool.borrow(USDC, borrowAmount, 2, 0, cashProtocol);
@@ -115,7 +135,9 @@ contract AaveUnitTest is Test {
         return getStructuredAccountData(cashProtocol);
     }
 
-    function getStructuredAccountData(address user) public view returns (AaveAccountData memory) {
+    function getStructuredAccountData(
+        address user
+    ) public view returns (AaveAccountData memory) {
         (
             uint256 totalCollateralBase,
             uint256 totalDebtBase,
@@ -125,21 +147,25 @@ contract AaveUnitTest is Test {
             uint256 healthFactor
         ) = aavePool.getUserAccountData(user);
 
-        return AaveAccountData({
-            totalCollateralBase: totalCollateralBase,
-            totalDebtBase: totalDebtBase,
-            availableBorrowsBase: availableBorrowsBase,
-            currentLiquidationThreshold: currentLiquidationThreshold,
-            ltv: ltv,
-            healthFactor: healthFactor
-        });
+        return
+            AaveAccountData({
+                totalCollateralBase: totalCollateralBase,
+                totalDebtBase: totalDebtBase,
+                availableBorrowsBase: availableBorrowsBase,
+                currentLiquidationThreshold: currentLiquidationThreshold,
+                ltv: ltv,
+                healthFactor: healthFactor
+            });
     }
 
     function logStructuredAccountData(AaveAccountData memory data) public view {
         console.log("totalCollateralBase: ", data.totalCollateralBase);
         console.log("totalDebtBase: ", data.totalDebtBase);
         console.log("availableBorrowsBase: ", data.availableBorrowsBase);
-        console.log("currentLiquidationThreshold: ", data.currentLiquidationThreshold);
+        console.log(
+            "currentLiquidationThreshold: ",
+            data.currentLiquidationThreshold
+        );
         console.log("ltv: ", data.ltv);
         console.log("healthFactor: ", data.healthFactor);
     }
@@ -155,12 +181,20 @@ contract AaveUnitTest is Test {
     }
 
     // gets the `ltv` and `liquidationThreshold` of the pool
-    function getPoolLiquidationData(address pool) public view returns (DataTypes.ReserveConfigurationMap memory) {
-        aavePool.getConfiguration(USDC);
+    function getPoolLiquidationData()
+        public
+        view
+        returns (DataTypes.ReserveConfigurationMap memory)
+    {
+        return aavePool.getConfiguration(USDC);
     }
 
     // gets the `borrowCap` and `supplyCap` of the pool
-    function getPoolCaps(address pool) public view returns (DataTypes.ReserveConfigurationMap memory) {
-        aavePool.getConfiguration(USDC);
+    function getPoolCaps()
+        public
+        view
+        returns (DataTypes.ReserveConfigurationMap memory)
+    {
+        return aavePool.getConfiguration(USDC);
     }
 }

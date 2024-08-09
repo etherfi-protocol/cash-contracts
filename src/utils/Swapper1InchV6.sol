@@ -25,6 +25,8 @@ contract Swapper1InchV6 is ISwapper {
     // unoswapTo2(uint256,uint256,uint256,uint256,uint256,uint256)
     bytes4 internal constant UNOSWAP_TO_2_SELECTOR = 0xea76dddf;
 
+    error UnsupportedSwapFunction();
+
     constructor(address _swapRouter, address[] memory _assets) {
         swapRouter = _swapRouter;
         _approveAssets(_assets);
@@ -93,7 +95,7 @@ contract Swapper1InchV6 is ISwapper {
                 dex2
             );
         } else {
-            revert("Unsupported swap function");
+            revert UnsupportedSwapFunction();
         }
     }
 

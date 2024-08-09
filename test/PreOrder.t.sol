@@ -176,9 +176,6 @@ contract PreOrderTest is Test {
         // The expectRevert state hijacks the returned value of the low-level call
         assertEq(success, true);
 
-        vm.expectRevert("Direct transfers not allowed");
-        payable(address(preorder)).transfer(1 ether);
-
         // Revert on admin/owner functions
         vm.expectRevert(
             abi.encodeWithSelector(

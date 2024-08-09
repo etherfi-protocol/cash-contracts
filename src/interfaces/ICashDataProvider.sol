@@ -2,7 +2,8 @@
 pragma solidity ^0.8.24;
 
 interface ICashDataProvider {
-    event WithdrawalDelayUpdated(uint256 oldDelay, uint256 newDelay);
+    event DelayUpdated(uint256 oldDelay, uint256 newDelay);
+    event EtherFiWalletUpdated(address oldWallet, address newWallet);
     event CashMultiSigUpdated(address oldMultiSig, address newMultiSig);
     event CashDebtManagerUpdated(
         address oldDebtManager,
@@ -20,10 +21,17 @@ interface ICashDataProvider {
     error InvalidValue();
 
     /**
-     * @notice Function to fetch the withdrawal delay for tokens from User Safe
-     * @return Withdrawal delay in seconds
+     * @notice Function to fetch the timelock delay for tokens from User Safe
+     * @return Timelock delay in seconds
      */
-    function withdrawalDelay() external view returns (uint64);
+    function delay() external view returns (uint64);
+
+    /**
+     * @notice Function to fetch the address of the EtherFi Cash wallet
+     * @notice Only this wallet should be able to pull funds from User Safe
+     * @return EtherFi Cash wallet address
+     */
+    function etherFiWallet() external view returns (address);
 
     /**
      * @notice Function to fetch the address of the EtherFi Cash MultiSig wallet
@@ -67,11 +75,18 @@ interface ICashDataProvider {
     function etherFiRecoverySafe() external view returns (address);
 
     /**
-     * @notice Function to set the withdrawal delay for tokens from User Safe
+     * @notice Function to set the timelock delay for tokens from User Safe
      * @dev Can only be called by the owner of the contract
-     * @param delay Delay in seconds
+     * @param delay Timelock delay in seconds
      */
-    function setWithdrawalDelay(uint64 delay) external;
+    function setDelay(uint64 delay) external;
+
+    /**
+     * @notice Function to set the address of the EtherFi wallet
+     * @dev Can only be called by the owner of the contract
+     * @param wallet EtherFi Cash wallet address
+     */
+    function setEtherFiWallet(address wallet) external;
 
     /**
      * @notice Function to set the address of the EtherFi Cash MultiSig wallet

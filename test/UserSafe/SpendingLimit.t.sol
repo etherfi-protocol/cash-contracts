@@ -20,12 +20,13 @@ contract UserSafeSpendingLimitTest is UserSafeSetup {
             dailySpendingLimit
         );
 
+        vm.warp(block.timestamp + delay + 1);
         UserSafe.SpendingLimitData memory spendingLimitData = aliceSafe
-            .spendingLimit();
+            .applicableSpendingLimit();
 
         assertEq(
             spendingLimitData.renewalTimestamp,
-            block.timestamp + 24 * 60 * 60
+            (block.timestamp - 1) + 24 * 60 * 60
         );
         assertEq(spendingLimitData.spendingLimit, dailySpendingLimit);
         assertEq(
@@ -39,10 +40,12 @@ contract UserSafeSpendingLimitTest is UserSafeSetup {
             uint8(IUserSafe.SpendingLimitTypes.Weekly),
             weeklySpendingLimit
         );
-        spendingLimitData = aliceSafe.spendingLimit();
+
+        vm.warp(block.timestamp + delay + 1);
+        spendingLimitData = aliceSafe.applicableSpendingLimit();
         assertEq(
             spendingLimitData.renewalTimestamp,
-            block.timestamp + 7 * 24 * 60 * 60
+            (block.timestamp - 1) + 7 * 24 * 60 * 60
         );
         assertEq(spendingLimitData.spendingLimit, weeklySpendingLimit);
         assertEq(
@@ -56,10 +59,12 @@ contract UserSafeSpendingLimitTest is UserSafeSetup {
             uint8(IUserSafe.SpendingLimitTypes.Monthly),
             monthlySpendingLimit
         );
-        spendingLimitData = aliceSafe.spendingLimit();
+
+        vm.warp(block.timestamp + delay + 1);
+        spendingLimitData = aliceSafe.applicableSpendingLimit();
         assertEq(
             spendingLimitData.renewalTimestamp,
-            block.timestamp + 30 * 24 * 60 * 60
+            (block.timestamp - 1) + 30 * 24 * 60 * 60
         );
         assertEq(spendingLimitData.spendingLimit, monthlySpendingLimit);
         assertEq(
@@ -73,10 +78,12 @@ contract UserSafeSpendingLimitTest is UserSafeSetup {
             uint8(IUserSafe.SpendingLimitTypes.Yearly),
             yearlySpendingLimit
         );
-        spendingLimitData = aliceSafe.spendingLimit();
+
+        vm.warp(block.timestamp + delay + 1);
+        spendingLimitData = aliceSafe.applicableSpendingLimit();
         assertEq(
             spendingLimitData.renewalTimestamp,
-            block.timestamp + 365 * 24 * 60 * 60
+            (block.timestamp - 1) + 365 * 24 * 60 * 60
         );
         assertEq(spendingLimitData.spendingLimit, yearlySpendingLimit);
         assertEq(
@@ -131,8 +138,9 @@ contract UserSafeSpendingLimitTest is UserSafeSetup {
             signature
         );
 
+        vm.warp(block.timestamp + delay + 1);
         UserSafe.SpendingLimitData memory spendingLimitAfter = aliceSafe
-            .spendingLimit();
+            .applicableSpendingLimit();
         assertEq(spendingLimitAfter.spendingLimit, spendingLimitInUsd);
     }
 
@@ -159,8 +167,16 @@ contract UserSafeSpendingLimitTest is UserSafeSetup {
         vm.prank(alice);
         aliceSafe.updateSpendingLimit(spendingLimitInUsd);
 
+        UserSafe.SpendingLimitData memory spendingLimitAfterUpdate = aliceSafe
+            .applicableSpendingLimit();
+        assertEq(
+            spendingLimitAfterUpdate.spendingLimit,
+            spendingLimitBefore.spendingLimit
+        );
+
+        vm.warp(block.timestamp + delay + 1);
         UserSafe.SpendingLimitData memory spendingLimitAfter = aliceSafe
-            .spendingLimit();
+            .applicableSpendingLimit();
         assertEq(spendingLimitAfter.spendingLimit, spendingLimitInUsd);
         assertEq(spendingLimitAfter.usedUpAmount, transferAmount);
     }
@@ -214,8 +230,16 @@ contract UserSafeSpendingLimitTest is UserSafeSetup {
         vm.prank(notOwner);
         aliceSafe.updateSpendingLimitWithPermit(spendingLimitInUsd, signature);
 
+        UserSafe.SpendingLimitData memory spendingLimitAfterUpdate = aliceSafe
+            .applicableSpendingLimit();
+        assertEq(
+            spendingLimitAfterUpdate.spendingLimit,
+            spendingLimitBefore.spendingLimit
+        );
+
+        vm.warp(block.timestamp + delay + 1);
         UserSafe.SpendingLimitData memory spendingLimitAfter = aliceSafe
-            .spendingLimit();
+            .applicableSpendingLimit();
         assertEq(spendingLimitAfter.spendingLimit, spendingLimitInUsd);
         assertEq(spendingLimitAfter.usedUpAmount, transferAmount);
     }

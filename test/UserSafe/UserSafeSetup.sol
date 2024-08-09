@@ -5,14 +5,16 @@ import {Test, console, stdError} from "forge-std/Test.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {UserSafeFactory} from "../../src/user-safe/UserSafeFactory.sol";
 import {UserSafe} from "../../src//user-safe/UserSafe.sol";
+import {L2DebtManager} from "../../src/L2DebtManager.sol";
 import {UserSafeV2Mock} from "../../src/mocks/UserSafeV2Mock.sol";
 import {Swapper1InchV6} from "../../src/utils/Swapper1InchV6.sol";
 import {PriceProvider} from "../../src/oracle/PriceProvider.sol";
 import {CashDataProvider} from "../../src/utils/CashDataProvider.sol";
 import {Upgrades} from "openzeppelin-foundry-upgrades/Upgrades.sol";
 import {OwnerLib} from "../../src/libraries/OwnerLib.sol";
+import {Utils, ChainConfig} from "../Utils.sol";
 
-contract UserSafeSetup is Test {
+contract UserSafeSetup is Utils {
     using OwnerLib for address;
 
     address owner = makeAddr("owner");
@@ -36,7 +38,8 @@ contract UserSafeSetup is Test {
     CashDataProvider cashDataProvider;
 
     uint256 defaultSpendingLimit = 10000e6;
-    uint64 withdrawalDelay = 10;
+    uint256 collateralLimit = 10000e6;
+    uint64 delay = 10;
     address etherFiCashMultisig = makeAddr("multisig");
     address etherFiCashDebtManager = makeAddr("debtManager");
     address etherFiWallet = makeAddr("etherFiWallet");
@@ -59,7 +62,15 @@ contract UserSafeSetup is Test {
     UserSafe passkeyOwnerSafe;
 
     function setUp() public virtual {
-        vm.createSelectFork("https://arbitrum-one.public.blastapi.io");
+        string memory testChainId = vm.envString("TEST_CHAIN");
+
+        if (
+            keccak256(bytes(testChainId)) == keccak256(bytes("local"))
+        ) {} else {
+            ChainConfig memory chainConfig = getChainConfig(testChainId);
+            vm.createSelectFork(chainConfig.rpc);
+        }
+
         address[] memory assets = new address[](1);
         assets[0] = address(weETH);
 
@@ -67,13 +78,22 @@ contract UserSafeSetup is Test {
         swapper = new Swapper1InchV6(swapRouter1InchV6, assets);
         priceProvider = new PriceProvider(weEthWethOracle, ethUsdcOracle);
 
+        etherFiCashDebtManager = address(
+            new L2DebtManager(
+                address(weETH),
+                address(usdc),
+                etherFiCashMultisig
+            )
+        );
+
         address proxy = Upgrades.deployUUPSProxy(
             "CashDataProvider.sol:CashDataProvider",
             abi.encodeWithSelector(
-                // intiailize(address,uint64,address,address,address,address,address,address,address)
-                0x04dfc293,
+                // intiailize(address,uint64,address,address,address,address,address,address,address,address)
+                0xf86fac96,
                 owner,
-                withdrawalDelay,
+                delay,
+                etherFiWallet,
                 etherFiCashMultisig,
                 etherFiCashDebtManager,
                 address(usdc),
@@ -107,11 +127,11 @@ contract UserSafeSetup is Test {
         aliceSafe = UserSafe(
             factory.createUserSafe(
                 abi.encodeWithSelector(
-                    // initialize(bytes,address,uint256)
-                    0x80db4b91,
+                    // initialize(bytes,uint256, uint256)
+                    0x32b218ac,
                     aliceBytes,
-                    etherFiWallet,
-                    defaultSpendingLimit
+                    defaultSpendingLimit,
+                    collateralLimit
                 )
             )
         );
@@ -119,11 +139,11 @@ contract UserSafeSetup is Test {
         passkeyOwnerSafe = UserSafe(
             factory.createUserSafe(
                 abi.encodeWithSelector(
-                    // initialize(bytes,address,uint256)
-                    0x80db4b91,
+                    // initialize(bytes,uint256, uint256)
+                    0x32b218ac,
                     passkeyOwner,
-                    etherFiWallet,
-                    defaultSpendingLimit
+                    defaultSpendingLimit,
+                    collateralLimit
                 )
             )
         );

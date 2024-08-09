@@ -15,6 +15,14 @@ interface IL2DebtManager {
     // User functions
     // --------------
 
+    function depositCollateral(
+        address user,
+        address token,
+        uint256 amount
+    ) external;
+
+    function borrow(address token, uint256 amount) external;
+
     // Deposit of Collateral eETH from Users
     function depositEETH(address user, uint256 amount) external;
 

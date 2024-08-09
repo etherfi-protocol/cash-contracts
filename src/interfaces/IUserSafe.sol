@@ -43,13 +43,13 @@ interface IUserSafe {
     }
 
     event DepositFunds(address token, uint256 amount);
-    event ApprovalFunds(address token, address spender, uint256 amount);
     event WithdrawalRequested(
         address[] tokens,
         uint256[] amounts,
         address recipient,
         uint256 finalizeTimestamp
     );
+    event WithdrawalAmountUpdated(address token, uint256 amount);
     event WithdrawalCancelled(
         address[] tokens,
         uint256[] amounts,
@@ -67,9 +67,23 @@ interface IUserSafe {
         address outputToken,
         uint256 outputTokenSent
     );
-    event TransferCollateral(address token, uint256 amount);
-    event ResetSpendingLimit(uint8 spendingLimitType, uint256 limitInUsd);
-    event UpdateSpendingLimit(uint256 oldLimitInUsd, uint256 newLimitInUsd);
+    event AddCollateralToDebtManager(address token, uint256 amount);
+    event BorrowFromDebtManager(address token, uint256 amount);
+    event ResetSpendingLimit(
+        uint8 spendingLimitType,
+        uint256 limitInUsd,
+        uint256 startTime
+    );
+    event UpdateSpendingLimit(
+        uint256 oldLimitInUsd,
+        uint256 newLimitInUsd,
+        uint256 startTime
+    );
+    event SetCollateralLimit(
+        uint256 oldLimitInUsd,
+        uint256 newLimitInUsd,
+        uint256 startTime
+    );
     event IsRecoveryActiveSet(bool isActive);
     event UserSafeRecovered(
         OwnerLib.OwnerObject oldOwner,
@@ -87,11 +101,13 @@ interface IUserSafe {
     error InvalidNonce();
     error TransferAmountGreaterThanReceived();
     error ExceededSpendingLimit();
+    error ExceededCollateralLimit();
     error InvalidSpendingLimitType();
     error UnsupportedToken();
     error RecoveryNotActive();
     error InvalidSignatureIndex();
     error SignatureIndicesCannotBeSame();
+    error AmountCannotBeZero();
 
     /**
      * @notice Function to fetch the owner bytes for the User Safe.
@@ -177,14 +193,44 @@ interface IUserSafe {
     function spendingLimit() external view returns (SpendingLimitData memory);
 
     /**
+     * @notice Function to get the incoming spending limit for the user.
+     * @return SpendingLimitData struct.
+     * @return start time for incoming spending limit.
+     */
+    function incomingSpendingLimit()
+        external
+        view
+        returns (SpendingLimitData memory, uint256);
+
+    /**
      * @notice Function to get the current applicable spending limit.
-     * @notice This function gives renewed limit as well based on if the renewal timestamp is in the past.
+     * @notice This function gives incoming spending limit if it is set and its start time is in the past.
+     * @notice This function gives renewed limit based on if the renewal timestamp is in the past.
      * @return Current applicable spending limit
      */
     function applicableSpendingLimit()
         external
         view
         returns (SpendingLimitData memory);
+
+    /**
+     * @notice Function to get the collateral limit.
+     * @return Collateral limit
+     */
+    function collateralLimit() external view returns (uint256);
+
+    /**
+     * @notice Function to get the incoming collateral limit.
+     * @return Incoming collateral limit
+     */
+    function incomingCollateralLimit() external view returns (uint256, uint256);
+
+    /**
+     * @notice Function to get the current applicable collateral limit.
+     * @notice This function gives incoming collateral limit if it is set and its start time is in the past.
+     * @return Current applicable collateral limit
+     */
+    function applicableCollateralLimit() external view returns (uint256);
 
     /**
      * @notice Function to set the owner of the contract.
@@ -222,6 +268,23 @@ interface IUserSafe {
      */
     function resetSpendingLimitWithPermit(
         uint8 spendingLimitType,
+        uint256 limitInUsd,
+        bytes calldata signature
+    ) external;
+
+    /**
+     * @notice Function to set the collateral limit.
+     * @dev Can only be called by the owner if it is an Ethereum address.
+     * @param limitInUsd Collateral limit in USD with 6 decimals.
+     */
+    function setCollateralLimit(uint256 limitInUsd) external;
+
+    /**
+     * @notice Function to set the collateral limit with permit.
+     * @param limitInUsd Collateral limit in USD with 6 decimals.
+     * @param signature Must be a valid signature from the user.
+     */
+    function setCollateralLimitWithPermit(
         uint256 limitInUsd,
         bytes calldata signature
     ) external;
@@ -267,27 +330,6 @@ interface IUserSafe {
         bytes32 r,
         bytes32 s,
         uint8 v
-    ) external;
-
-    /**
-     * @notice Function to approve spendings of funds from this contract.
-     * @param token Address of the token.
-     * @param spender Address of the spender.
-     * @param amount Amount of tokens to grant approval for.
-     */
-    function approve(address token, address spender, uint256 amount) external;
-    /**
-     * @notice Function to approve spendings of funds with permit from this contract.
-     * @param token Address of the token.
-     * @param spender Address of the spender.
-     * @param amount Amount of tokens to grant approval for.
-     * @param signature Must be a valid signature from the user.
-     */
-    function approveWithPermit(
-        address token,
-        address spender,
-        uint256 amount,
-        bytes calldata signature
     ) external;
 
     /**
@@ -354,7 +396,7 @@ interface IUserSafe {
 
     /**
      * @notice Function to transfer tokens from the User Safe to EtherFiCash Safe.
-     * @dev Can only be called by the EtherFiCash Safe.
+     * @dev Can only be called by the EtherFi Cash Wallet.
      * @dev Can only transfer supported tokens.
      * @param token Address of the token to transfer.
      * @param amount Amount of tokens to transfer.
@@ -362,17 +404,33 @@ interface IUserSafe {
     function transfer(address token, uint256 amount) external;
 
     /**
-     * @notice Function to transfer funds from the User Safe to EtherFiCash Debt Manager.
-     * @dev Can only be called by the EtherFiCash Debt Manager.
+     * @notice Function to add collateral to EtherFiCash Debt Manager.
+     * @dev Can only be called by the EtherFi Cash Wallet.
      * @dev Can only transfer supported tokens.
      * @param token Address of token to transfer.
      * @param amount Amount of tokens to transfer.
      */
-    function transferFundsToDebtManager(address token, uint256 amount) external;
+    function addCollateral(address token, uint256 amount) external;
+
+    /**
+     * @notice Function to add collateral to and borrow funds from EtherFiCash Debt Manager.
+     * @dev Can only be called by the EtherFi Cash Wallet.
+     * @dev Can only transfer supported tokens.
+     * @param collateralToken Address of the collateral token.
+     * @param collateralAmount Amount of the collateral token.
+     * @param borrowToken Address of the borrow token.
+     * @param borrowAmount Amount of the borrow token.
+     */
+    function addCollateralAndBorrow(
+        address collateralToken,
+        uint256 collateralAmount,
+        address borrowToken,
+        uint256 borrowAmount
+    ) external;
 
     /**
      * @notice Function to swap funds to output token and transfer it to EtherFiCash Safe.
-     * @dev Can only be called by the EtherFiCash Safe.
+     * @dev Can only be called by the EtherFi Cash Wallet.
      * @dev Can only swap to a supported token.
      * @param inputTokenToSwap Address of input token to swap.
      * @param outputToken Address of the output token of the swap.

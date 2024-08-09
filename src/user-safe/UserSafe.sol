@@ -7,6 +7,7 @@ import {ICashDataProvider} from "../interfaces/ICashDataProvider.sol";
 import {SignatureUtils} from "../libraries/SignatureUtils.sol";
 import {ISwapper} from "../interfaces/ISwapper.sol";
 import {IPriceProvider} from "../interfaces/IPriceProvider.sol";
+import {IL2DebtManager} from "../interfaces/IL2DebtManager.sol";
 import {Initializable} from "openzeppelin-contracts-upgradeable/contracts/proxy/utils/Initializable.sol";
 import {IUserSafe} from "../interfaces/IUserSafe.sol";
 import {UserSafeRecovery} from "./UserSafeRecovery.sol";
@@ -25,15 +26,14 @@ contract UserSafe is IUserSafe, Initializable, UserSafeRecovery {
 
     bytes32 public constant REQUEST_WITHDRAWAL_METHOD =
         keccak256("requestWithdrawal");
-    bytes32 public constant APPROVE_METHOD = keccak256("approve");
     bytes32 public constant RESET_SPENDING_LIMIT_METHOD =
         keccak256("resetSpendingLimit");
     bytes32 public constant UPDATE_SPENDING_LIMIT_METHOD =
         keccak256("updateSpendingLimit");
+    bytes32 public constant SET_COLLATERAL_LIMIT_METHOD =
+        keccak256("setCollateralLimit");
     bytes32 public constant SET_OWNER_METHOD = keccak256("setOwner");
 
-    // Owner: if ethAddr -> abi.encode(owner), if passkey -> abi.encode(x,y)
-    bytes private _ownerBytes;
     // Address of the USDC token
     address private immutable _usdc;
     // Address of the weETH token
@@ -45,8 +45,8 @@ contract UserSafe is IUserSafe, Initializable, UserSafeRecovery {
     // Address of the swapper
     ISwapper private immutable _swapper;
 
-    // Address of etherFi wallet
-    address private _etherFiWallet;
+    // Owner: if ethAddr -> abi.encode(owner), if passkey -> abi.encode(x,y)
+    bytes private _ownerBytes;
     // Withdrawal requests pending with the contract
     WithdrawalRequest private _pendingWithdrawalRequest;
     // Funds blocked for withdrawal
@@ -55,6 +55,17 @@ contract UserSafe is IUserSafe, Initializable, UserSafeRecovery {
     uint256 private _nonce;
     // Current spending limit
     SpendingLimitData private _spendingLimit;
+    // Collateral limit
+    uint256 private _collateralLimit;
+
+    // Incoming spending limit -> we want a delay between spending limit changes so we can deduct funds in between to settle account
+    SpendingLimitData private _incomingSpendingLimit;
+    // Incoming spending limit start timestamp
+    uint256 _incomingSpendingLimitStartTime;
+    // Incoming collateral limit -> we want a delay between collateral limit changes so we can deduct funds in between to settle account
+    uint256 private _incomingCollateralLimit;
+    // Incoming collateral limit start timestamp
+    uint256 private _incomingCollateralLimitStartTime;
 
     constructor(
         address __cashDataProvider,
@@ -76,15 +87,23 @@ contract UserSafe is IUserSafe, Initializable, UserSafeRecovery {
 
     function initialize(
         bytes calldata __owner,
-        address __etherFiWallet,
-        uint256 __defaultSpendingLimit
+        uint256 __defaultSpendingLimit,
+        uint256 __collateralLimit
     ) external initializer {
         _ownerBytes = __owner;
-        _etherFiWallet = __etherFiWallet;
-        _resetSpendingLimit(
-            uint8(SpendingLimitTypes.Monthly),
-            __defaultSpendingLimit
-        );
+
+        _spendingLimit = SpendingLimitData({
+            spendingLimitType: SpendingLimitTypes(SpendingLimitTypes.Monthly),
+            renewalTimestamp: _getSpendingLimitRenewalTimestamp(
+                uint64(block.timestamp),
+                SpendingLimitTypes(SpendingLimitTypes.Monthly)
+            ),
+            spendingLimit: __defaultSpendingLimit,
+            usedUpAmount: 0
+        });
+
+        _collateralLimit = __collateralLimit;
+
         __UserSafeRecovery_init();
     }
 
@@ -190,12 +209,28 @@ contract UserSafe is IUserSafe, Initializable, UserSafeRecovery {
     /**
      * @inheritdoc IUserSafe
      */
+    function incomingSpendingLimit()
+        external
+        view
+        returns (SpendingLimitData memory, uint256)
+    {
+        return (_incomingSpendingLimit, _incomingSpendingLimitStartTime);
+    }
+
+    /**
+     * @inheritdoc IUserSafe
+     */
     function applicableSpendingLimit()
         external
         view
         returns (SpendingLimitData memory)
     {
-        SpendingLimitData memory _applicableSpendingLimit = _spendingLimit;
+        SpendingLimitData memory _applicableSpendingLimit;
+        if (
+            _incomingSpendingLimitStartTime != 0 &&
+            block.timestamp > _incomingSpendingLimitStartTime
+        ) _applicableSpendingLimit = _incomingSpendingLimit;
+        else _applicableSpendingLimit = _spendingLimit;
 
         // If spending limit needs to be renewed, then renew it
         if (block.timestamp > _applicableSpendingLimit.renewalTimestamp) {
@@ -208,6 +243,36 @@ contract UserSafe is IUserSafe, Initializable, UserSafeRecovery {
         }
 
         return _applicableSpendingLimit;
+    }
+
+    /**
+     * @inheritdoc IUserSafe
+     */
+    function collateralLimit() external view returns (uint256) {
+        return _collateralLimit;
+    }
+
+    /**
+     * @inheritdoc IUserSafe
+     */
+    function incomingCollateralLimit()
+        external
+        view
+        returns (uint256, uint256)
+    {
+        return (_incomingCollateralLimit, _incomingCollateralLimitStartTime);
+    }
+
+    /**
+     * @inheritdoc IUserSafe
+     */
+    function applicableCollateralLimit() external view returns (uint256) {
+        if (
+            _incomingCollateralLimitStartTime > 0 &&
+            block.timestamp > _incomingCollateralLimitStartTime
+        ) return _incomingCollateralLimit;
+
+        return _collateralLimit;
     }
 
     /**
@@ -302,6 +367,34 @@ contract UserSafe is IUserSafe, Initializable, UserSafeRecovery {
     /**
      * @inheritdoc IUserSafe
      */
+    function setCollateralLimit(uint256 limitInUsd) external onlyOwner {
+        _setCollateralLimit(limitInUsd);
+    }
+
+    /**
+     * @inheritdoc IUserSafe
+     */
+    function setCollateralLimitWithPermit(
+        uint256 limitInUsd,
+        bytes calldata signature
+    ) external incrementNonce {
+        bytes32 msgHash = keccak256(
+            abi.encode(
+                SET_COLLATERAL_LIMIT_METHOD,
+                block.chainid,
+                address(this),
+                _nonce,
+                limitInUsd
+            )
+        );
+
+        msgHash.verifySig(owner(), signature);
+        _setCollateralLimit(limitInUsd);
+    }
+
+    /**
+     * @inheritdoc IUserSafe
+     */
     function receiveFunds(address token, uint256 amount) external {
         IERC20(token).safeTransferFrom(msg.sender, address(this), amount);
         emit DepositFunds(token, amount);
@@ -333,42 +426,6 @@ contract UserSafe is IUserSafe, Initializable, UserSafeRecovery {
 
         IERC20(token).safeTransferFrom(fundsOwner, address(this), amount);
         emit DepositFunds(token, amount);
-    }
-
-    /**
-     * @inheritdoc IUserSafe
-     */
-    function approve(
-        address token,
-        address spender,
-        uint256 amount
-    ) external onlyOwner {
-        _approve(token, spender, amount);
-    }
-
-    /**
-     * @inheritdoc IUserSafe
-     */
-    function approveWithPermit(
-        address token,
-        address spender,
-        uint256 amount,
-        bytes calldata signature
-    ) external incrementNonce {
-        bytes32 msgHash = keccak256(
-            abi.encode(
-                APPROVE_METHOD,
-                block.chainid,
-                address(this),
-                _nonce,
-                token,
-                spender,
-                amount
-            )
-        );
-
-        msgHash.verifySig(owner(), signature);
-        _approve(token, spender, amount);
     }
 
     /**
@@ -465,40 +522,15 @@ contract UserSafe is IUserSafe, Initializable, UserSafeRecovery {
         uint256 amount
     ) external onlyEtherFiWallet {
         if (token != _usdc) revert UnsupportedToken();
-        _checkSpendingLimit(token, amount);
 
-        if (
-            amount + blockedFundsForWithdrawal[token] >
-            IERC20(token).balanceOf(address(this))
-        ) revert InsufficientBalance();
+        _checkSpendingLimit(token, amount);
+        _updateWithdrawalRequestIfNecessary(token, amount);
 
         IERC20(token).safeTransfer(
             _cashDataProvider.etherFiCashMultiSig(),
             amount
         );
         emit TransferForSpending(token, amount);
-    }
-
-    /**
-     * @inheritdoc IUserSafe
-     */
-    function transferFundsToDebtManager(
-        address token,
-        uint256 amount
-    ) external onlyEtherFiWallet {
-        if (token != _weETH) revert UnsupportedToken();
-        _checkSpendingLimit(token, amount);
-
-        if (
-            amount + blockedFundsForWithdrawal[token] >
-            IERC20(token).balanceOf(address(this))
-        ) revert InsufficientBalance();
-
-        IERC20(token).safeTransfer(
-            _cashDataProvider.etherFiCashDebtManager(),
-            amount
-        );
-        emit TransferCollateral(token, amount);
     }
 
     /**
@@ -516,11 +548,10 @@ contract UserSafe is IUserSafe, Initializable, UserSafeRecovery {
             revert UnsupportedToken();
 
         _checkSpendingLimit(outputToken, outputAmountToTransfer);
-
-        if (
-            inputAmountToSwap + blockedFundsForWithdrawal[_weETH] >
-            IERC20(_weETH).balanceOf(address(this))
-        ) revert InsufficientBalance();
+        _updateWithdrawalRequestIfNecessary(
+            inputTokenToSwap,
+            inputAmountToSwap
+        );
 
         uint256 returnAmount = _swapFunds(
             inputTokenToSwap,
@@ -544,6 +575,31 @@ contract UserSafe is IUserSafe, Initializable, UserSafeRecovery {
             outputToken,
             outputAmountToTransfer
         );
+    }
+
+    /**
+     * @inheritdoc IUserSafe
+     */
+    function addCollateral(
+        address token,
+        uint256 amount
+    ) external onlyEtherFiWallet {
+        address debtManager = _cashDataProvider.etherFiCashDebtManager();
+        _addCollateral(debtManager, token, amount);
+    }
+
+    /**
+     * @inheritdoc IUserSafe
+     */
+    function addCollateralAndBorrow(
+        address collateralToken,
+        uint256 collateralAmount,
+        address borrowToken,
+        uint256 borrowAmount
+    ) external onlyEtherFiWallet {
+        address debtManager = _cashDataProvider.etherFiCashDebtManager();
+        _addCollateral(debtManager, collateralToken, collateralAmount);
+        _borrow(debtManager, borrowToken, borrowAmount);
     }
 
     function _getSpendingLimitRenewalTimestamp(
@@ -586,22 +642,53 @@ contract UserSafe is IUserSafe, Initializable, UserSafeRecovery {
         uint8 spendingLimitType,
         uint256 limitInUsd
     ) internal {
-        _spendingLimit = SpendingLimitData({
+        _incomingSpendingLimitStartTime =
+            block.timestamp +
+            _cashDataProvider.delay();
+
+        _incomingSpendingLimit = SpendingLimitData({
             spendingLimitType: SpendingLimitTypes(spendingLimitType),
             renewalTimestamp: _getSpendingLimitRenewalTimestamp(
-                uint64(block.timestamp),
+                uint64(_incomingSpendingLimitStartTime),
                 SpendingLimitTypes(spendingLimitType)
             ),
             spendingLimit: limitInUsd,
             usedUpAmount: 0
         });
 
-        emit ResetSpendingLimit(spendingLimitType, limitInUsd);
+        emit ResetSpendingLimit(
+            spendingLimitType,
+            limitInUsd,
+            _incomingSpendingLimitStartTime
+        );
     }
 
     function _updateSpendingLimit(uint256 limitInUsd) internal {
-        emit UpdateSpendingLimit(_spendingLimit.spendingLimit, limitInUsd);
-        _spendingLimit.spendingLimit = limitInUsd;
+        _incomingSpendingLimit = _spendingLimit;
+        _incomingSpendingLimit.spendingLimit = limitInUsd;
+
+        _incomingSpendingLimitStartTime =
+            block.timestamp +
+            _cashDataProvider.delay();
+
+        emit UpdateSpendingLimit(
+            _spendingLimit.spendingLimit,
+            limitInUsd,
+            _incomingSpendingLimitStartTime
+        );
+    }
+
+    function _setCollateralLimit(uint256 limitInUsd) internal {
+        _incomingCollateralLimitStartTime =
+            block.timestamp +
+            _cashDataProvider.delay();
+        _incomingCollateralLimit = limitInUsd;
+
+        emit SetCollateralLimit(
+            _collateralLimit,
+            limitInUsd,
+            _incomingCollateralLimitStartTime
+        );
     }
 
     function _requestWithdrawal(
@@ -617,6 +704,7 @@ contract UserSafe is IUserSafe, Initializable, UserSafeRecovery {
         for (uint256 i = 0; i < len; ) {
             if (IERC20(tokens[i]).balanceOf(address(this)) < amounts[i])
                 revert InsufficientBalance();
+
             blockedFundsForWithdrawal[tokens[i]] = amounts[i];
 
             unchecked {
@@ -624,8 +712,7 @@ contract UserSafe is IUserSafe, Initializable, UserSafeRecovery {
             }
         }
 
-        uint96 finalTime = uint96(block.timestamp) +
-            _cashDataProvider.withdrawalDelay();
+        uint96 finalTime = uint96(block.timestamp) + _cashDataProvider.delay();
 
         _pendingWithdrawalRequest = WithdrawalRequest({
             tokens: tokens,
@@ -660,17 +747,21 @@ contract UserSafe is IUserSafe, Initializable, UserSafeRecovery {
         }
     }
 
-    function _approve(address token, address spender, uint256 amount) internal {
-        IERC20(token).approve(spender, amount);
-        emit ApprovalFunds(token, spender, amount);
-    }
-
     function _setOwner(bytes calldata __owner) internal override {
         emit SetOwner(_ownerBytes.getOwnerObject(), __owner.getOwnerObject());
         _ownerBytes = __owner;
     }
 
     function _checkSpendingLimit(address token, uint256 amount) internal {
+        if (
+            _incomingSpendingLimitStartTime != 0 &&
+            block.timestamp > _incomingSpendingLimitStartTime
+        ) {
+            _spendingLimit = _incomingSpendingLimit;
+            delete _incomingSpendingLimit;
+            delete _incomingSpendingLimitStartTime;
+        }
+
         // If spending limit needs to be renewed, then renew it
         if (block.timestamp > _spendingLimit.renewalTimestamp) {
             _spendingLimit.usedUpAmount = 0;
@@ -693,12 +784,88 @@ contract UserSafe is IUserSafe, Initializable, UserSafeRecovery {
         _spendingLimit.usedUpAmount += amount;
     }
 
+    function _checkCollateralLimit(
+        address debtManager,
+        address token,
+        uint256 amountToAdd
+    ) internal {
+        if (
+            _incomingCollateralLimitStartTime != 0 &&
+            block.timestamp > _incomingCollateralLimitStartTime
+        ) {
+            _collateralLimit = _incomingCollateralLimit;
+            delete _incomingCollateralLimit;
+            delete _incomingCollateralLimitStartTime;
+        }
+
+        uint256 currentCollateral = IL2DebtManager(debtManager).collateralOf(
+            address(this)
+        );
+
+        // in current case, token can be either weETH or USDC only
+        if (token == _weETH) {
+            uint256 price = _priceProvider.getWeEthUsdPrice();
+            // amount * price with 6 decimals / 1 ether will convert the weETH amount to USD amount with 6 decimals
+            amountToAdd = (amountToAdd * price) / 1 ether;
+        }
+
+        if (currentCollateral + amountToAdd > _collateralLimit)
+            revert ExceededCollateralLimit();
+    }
+
     function _incrementNonce() private {
         _nonce++;
     }
 
+    function _addCollateral(
+        address debtManager,
+        address token,
+        uint256 amount
+    ) internal {
+        if (token != _weETH) revert UnsupportedToken();
+
+        _checkCollateralLimit(debtManager, token, amount);
+        _updateWithdrawalRequestIfNecessary(token, amount);
+
+        IERC20(token).forceApprove(debtManager, amount);
+        IL2DebtManager(debtManager).depositCollateral(
+            address(this),
+            token,
+            amount
+        );
+
+        emit AddCollateralToDebtManager(token, amount);
+    }
+
+    function _borrow(
+        address debtManager,
+        address token,
+        uint256 amount
+    ) internal {
+        if (token != _usdc) revert UnsupportedToken();
+        _checkSpendingLimit(token, amount);
+
+        IL2DebtManager(debtManager).borrow(token, amount);
+        emit BorrowFromDebtManager(token, amount);
+    }
+
+    function _updateWithdrawalRequestIfNecessary(
+        address token,
+        uint256 amount
+    ) internal {
+        uint256 balance = IERC20(token).balanceOf(address(this));
+
+        if (amount > balance) revert InsufficientBalance();
+
+        if (amount + blockedFundsForWithdrawal[token] > balance) {
+            blockedFundsForWithdrawal[token] = balance - amount;
+            emit WithdrawalAmountUpdated(token, balance - amount);
+        }
+    }
+
     function _onlyEtherFiWallet() private view {
-        if (msg.sender != _etherFiWallet) revert UnauthorizedCall();
+        if (msg.sender != _cashDataProvider.etherFiWallet())
+            revert UnauthorizedCall();
     }
 
     modifier onlyEtherFiWallet() {

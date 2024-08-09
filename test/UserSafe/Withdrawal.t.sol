@@ -23,8 +23,7 @@ contract UserSafeWithdrawalTest is UserSafeSetup {
         usdc.transfer(address(aliceSafe), amounts[0]);
         weETH.transfer(address(aliceSafe), amounts[1]);
 
-        uint256 finalizeTime = block.timestamp +
-            cashDataProvider.withdrawalDelay();
+        uint256 finalizeTime = block.timestamp + cashDataProvider.delay();
 
         vm.expectEmit(true, true, true, true);
         emit IUserSafe.WithdrawalRequested(
@@ -83,8 +82,7 @@ contract UserSafeWithdrawalTest is UserSafeSetup {
         weETH.transfer(address(aliceSafe), amounts[1]);
         vm.stopPrank();
 
-        uint256 finalizeTime = block.timestamp +
-            cashDataProvider.withdrawalDelay();
+        uint256 finalizeTime = block.timestamp + cashDataProvider.delay();
         uint256 nonce = aliceSafe.nonce() + 1;
 
         bytes32 msgHash = keccak256(
@@ -156,8 +154,7 @@ contract UserSafeWithdrawalTest is UserSafeSetup {
         usdc.transfer(address(aliceSafe), amounts[0]);
         weETH.transfer(address(aliceSafe), amounts[1]);
 
-        uint256 finalizeTime = block.timestamp +
-            cashDataProvider.withdrawalDelay();
+        uint256 finalizeTime = block.timestamp + cashDataProvider.delay();
         aliceSafe.requestWithdrawal(tokens, amounts, recipient);
 
         uint256 recipientUsdcBalBefore = usdc.balanceOf(recipient);
@@ -192,8 +189,7 @@ contract UserSafeWithdrawalTest is UserSafeSetup {
         usdc.transfer(address(aliceSafe), amounts[0]);
         weETH.transfer(address(aliceSafe), amounts[1]);
 
-        uint256 finalizeTime = block.timestamp +
-            cashDataProvider.withdrawalDelay();
+        uint256 finalizeTime = block.timestamp + cashDataProvider.delay();
         aliceSafe.requestWithdrawal(tokens, amounts, recipient);
 
         vm.warp(finalizeTime - 1);
@@ -218,8 +214,7 @@ contract UserSafeWithdrawalTest is UserSafeSetup {
         usdc.transfer(address(aliceSafe), amounts[0]);
         weETH.transfer(address(aliceSafe), amounts[1]);
 
-        uint256 finalizeTime = block.timestamp +
-            cashDataProvider.withdrawalDelay();
+        uint256 finalizeTime = block.timestamp + cashDataProvider.delay();
 
         vm.expectEmit(true, true, true, true);
         emit IUserSafe.WithdrawalRequested(
@@ -295,7 +290,7 @@ contract UserSafeWithdrawalTest is UserSafeSetup {
         vm.stopPrank();
     }
 
-    function test_CannotTransferIfAmountIsBlockedByWithdrawal() public {
+    function test_CanTransferEvenIfAmountIsBlockedByWithdrawal() public {
         address[] memory tokens = new address[](1);
         tokens[0] = address(usdc);
 
@@ -304,13 +299,19 @@ contract UserSafeWithdrawalTest is UserSafeSetup {
 
         address recipient = notOwner;
 
+        uint256 amountToTransfer = 1;
+
         vm.startPrank(alice);
         usdc.transfer(address(aliceSafe), amounts[0]);
         aliceSafe.requestWithdrawal(tokens, amounts, recipient);
         vm.stopPrank();
 
         vm.prank(etherFiWallet);
-        vm.expectRevert(IUserSafe.InsufficientBalance.selector);
-        aliceSafe.transfer(address(usdc), 1);
+        aliceSafe.transfer(address(usdc), amountToTransfer);
+
+        IUserSafe.WithdrawalData memory withdrawalData = aliceSafe
+            .pendingWithdrawalRequest();
+        assertEq(withdrawalData.tokens[0], address(usdc));
+        assertEq(withdrawalData.amounts[0], amounts[0] - amountToTransfer);
     }
 }

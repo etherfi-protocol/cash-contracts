@@ -16,8 +16,10 @@ contract CashDataProvider is
     UUPSUpgradeable,
     OwnableUpgradeable
 {
-    // Withdrawal delay
-    uint64 private _withdrawalDelay;
+    // Delay for timelock
+    uint64 private _delay;
+    // Address of the Cash Wallet
+    address private _etherFiWallet;
     // Address of the Cash MultiSig
     address private _etherFiCashMultiSig;
     // Address of the Cash Debt Manager
@@ -35,7 +37,8 @@ contract CashDataProvider is
 
     function intiailize(
         address __owner,
-        uint64 __withdrawalDelay,
+        uint64 __delay,
+        address __etherFiWallet,
         address __etherFiCashMultiSig,
         address __etherFiCashDebtManager,
         address __usdc,
@@ -45,7 +48,8 @@ contract CashDataProvider is
         address __etherFiRecoverySafe
     ) external initializer {
         __Ownable_init(__owner);
-        _withdrawalDelay = __withdrawalDelay;
+        _delay = __delay;
+        _etherFiWallet = __etherFiWallet;
         _etherFiCashMultiSig = __etherFiCashMultiSig;
         _etherFiCashDebtManager = __etherFiCashDebtManager;
         _usdc = __usdc;
@@ -62,8 +66,15 @@ contract CashDataProvider is
     /**
      * @inheritdoc ICashDataProvider
      */
-    function withdrawalDelay() external view returns (uint64) {
-        return _withdrawalDelay;
+    function delay() external view returns (uint64) {
+        return _delay;
+    }
+
+    /**
+     * @inheritdoc ICashDataProvider
+     */
+    function etherFiWallet() external view returns (address) {
+        return _etherFiWallet;
     }
 
     /**
@@ -118,10 +129,20 @@ contract CashDataProvider is
     /**
      * @inheritdoc ICashDataProvider
      */
-    function setWithdrawalDelay(uint64 delay) external onlyOwner {
-        if (delay == 0) revert InvalidValue();
-        emit WithdrawalDelayUpdated(_withdrawalDelay, delay);
-        _withdrawalDelay = delay;
+    function setDelay(uint64 __delay) external onlyOwner {
+        if (__delay == 0) revert InvalidValue();
+        emit DelayUpdated(_delay, __delay);
+        _delay = __delay;
+    }
+
+    /**
+     * @inheritdoc ICashDataProvider
+     */
+    function setEtherFiWallet(address wallet) external onlyOwner {
+        if (wallet == address(0)) revert InvalidValue();
+
+        emit EtherFiWalletUpdated(_etherFiWallet, wallet);
+        _etherFiWallet = wallet;
     }
 
     /**

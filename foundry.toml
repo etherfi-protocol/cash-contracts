@@ -10,6 +10,20 @@ evm_version = "shanghai"
 ast = true
 build_info = true
 extra_output = ["storageLayout"]
+gas_reports = ["*"]
+
+[profile.zksync]
+src = 'src'
+libs = ['lib']
+fallback_oz = true
+is_system = false
+mode = "3"
+cbor_metadata = true
+ffi = true
+ast = true
+build_info = true
+extra_output = ["storageLayout"]
+gas_reports = ["*"]
 
 
 # See more config options https://github.com/foundry-rs/foundry/blob/master/crates/config/README.md#all-options

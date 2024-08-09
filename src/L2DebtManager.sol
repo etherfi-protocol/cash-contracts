@@ -8,6 +8,8 @@ import "./interfaces/IL2DebtManager.sol";
 
 // Consider directly inheriting AAVA pool or routing relevant calls to AAVA pool
 contract L2DebtManager is IL2DebtManager {
+    using SafeERC20 for IERC20;
+
     mapping(address => uint256) private _collaterals;
     mapping(address => uint256) private _borrowings;
 
@@ -24,8 +26,16 @@ contract L2DebtManager is IL2DebtManager {
     uint256 private eEthPriceInUSDC; // todo: replace it with Oracle
 
     event SuppliedUSDC(uint256 amount);
-    event DepositedCollateral(address indexed user, uint256 amount);
-    event Borrowed(address indexed user, uint256 borrowUsdcAmount);
+    event DepositedCollateral(
+        address indexed user,
+        address indexed token,
+        uint256 amount
+    );
+    event Borrowed(
+        address indexed user,
+        address indexed token,
+        uint256 borrowUsdcAmount
+    );
     event RepaidWithUSDC(address indexed user, uint256 repaidUsdcDebtAmount);
     event RepaidWithEETH(
         address indexed user,
@@ -51,13 +61,47 @@ contract L2DebtManager is IL2DebtManager {
         emit SuppliedUSDC(amount);
     }
 
+    function depositCollateral(
+        address user,
+        address token,
+        uint256 amount
+    ) external {
+        IERC20(token).safeTransferFrom(msg.sender, address(this), amount);
+        _collaterals[user] += amount;
+        totalCollateralAmount += amount;
+
+        emit DepositedCollateral(user, token, amount);
+    }
+
+    /// Users borrow funds for payment using the deposited collateral eETH
+    /// - the user's borriwng amount is incremented by the exact `amount`
+    /// - the total borrowing amount is incremented by the exact `amount`
+    /// - the token is transferred to the `etherFiCashSafe`
+    function borrow(address token, uint256 amount) external {
+        _borrowings[msg.sender] += amount;
+        totalBorrowingAmount += amount;
+
+        require(
+            debtRatioOf(msg.sender) <= liquidationThreshold,
+            "NOT_ENOUGH_COLLATERAL"
+        );
+        require(
+            IERC20(token).balanceOf(address(this)) >= amount,
+            "INSUFFICIENT_LIQUIDITY"
+        );
+
+        IERC20(token).safeTransfer(etherFiCashSafe, amount);
+
+        emit Borrowed(msg.sender, token, amount);
+    }
+
     function depositEETH(address user, uint256 amount) external {
         _collaterals[user] += amount;
         totalCollateralAmount += amount;
 
-        SafeERC20.safeTransferFrom(eETH, msg.sender, address(this), amount); // use safeTransferFrom
+        eETH.safeTransferFrom(msg.sender, address(this), amount); // use safeTransferFrom
 
-        emit DepositedCollateral(user, amount);
+        emit DepositedCollateral(user, address(eETH), amount);
     }
 
     /// Users borrow USDC for payment using the deposited collateral eETH
@@ -79,7 +123,7 @@ contract L2DebtManager is IL2DebtManager {
 
         SafeERC20.safeTransfer(USDC, etherFiCashSafe, borrowUsdcAmount);
 
-        emit Borrowed(msg.sender, borrowUsdcAmount);
+        emit Borrowed(msg.sender, address(USDC), borrowUsdcAmount);
     }
 
     /// Users repay the borrowed USDC in USDC

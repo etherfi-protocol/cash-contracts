@@ -31,7 +31,8 @@ contract UserSafeFactoryTest is Test {
     CashDataProvider cashDataProvider;
 
     uint256 defaultSpendingLimit = 10000e6;
-    uint64 withdrawalDelay = 10;
+    uint256 collateralLimit = 10000e6;
+    uint64 delay = 10;
     address etherFiCashMultisig = makeAddr("multisig");
     address etherFiCashDebtManager = makeAddr("debtManager");
     address etherFiWallet = makeAddr("etherFiWallet");
@@ -60,10 +61,11 @@ contract UserSafeFactoryTest is Test {
         address proxy = Upgrades.deployUUPSProxy(
             "CashDataProvider.sol:CashDataProvider",
             abi.encodeWithSelector(
-                // intiailize(address,uint64,address,address,address,address,address,address,address)
-                0x04dfc293,
+                // intiailize(address,uint64,address,address,address,address,address,address,address,address)
+                0xf86fac96,
                 owner,
-                withdrawalDelay,
+                delay,
+                etherFiWallet,
                 etherFiCashMultisig,
                 etherFiCashDebtManager,
                 address(usdc),
@@ -92,11 +94,11 @@ contract UserSafeFactoryTest is Test {
         aliceSafe = UserSafe(
             factory.createUserSafe(
                 abi.encodeWithSelector(
-                    // initialize(bytes,address,uint256)
-                    0x80db4b91,
+                    // initialize(bytes,uint256, uint256)
+                    0x32b218ac,
                     aliceBytes,
-                    etherFiWallet,
-                    defaultSpendingLimit
+                    defaultSpendingLimit,
+                    collateralLimit
                 )
             )
         );
@@ -104,11 +106,11 @@ contract UserSafeFactoryTest is Test {
         bobSafe = UserSafe(
             factory.createUserSafe(
                 abi.encodeWithSelector(
-                    // initialize(bytes,address,uint256)
-                    0x80db4b91,
+                    // initialize(bytes,uint256, uint256)
+                    0x32b218ac,
                     bobBytes,
-                    etherFiWallet,
-                    defaultSpendingLimit
+                    defaultSpendingLimit,
+                    collateralLimit
                 )
             )
         );

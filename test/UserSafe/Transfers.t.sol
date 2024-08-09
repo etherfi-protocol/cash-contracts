@@ -42,12 +42,13 @@ contract UserSafeTransfersTest is UserSafeSetup {
         vm.prank(alice);
         aliceSafe.updateSpendingLimit(amount);
 
+        vm.warp(block.timestamp + delay + 1);
         vm.prank(etherFiWallet);
         vm.expectRevert(IUserSafe.InsufficientBalance.selector);
         aliceSafe.transfer(address(usdc), amount);
     }
 
-    function test_OnlyCashMultiSigCanTransferForSpending() public {
+    function test_OnlyCashWalletCanTransferForSpending() public {
         uint256 amount = 1000e6;
         vm.prank(notOwner);
         vm.expectRevert(IUserSafe.UnauthorizedCall.selector);
@@ -110,6 +111,7 @@ contract UserSafeTransfersTest is UserSafeSetup {
             100000e6
         );
 
+        vm.warp(block.timestamp + delay + 1);
         uint256 newAmountUsdcToSend = 10000e6;
         vm.prank(etherFiWallet);
         vm.expectRevert(IUserSafe.TransferAmountGreaterThanReceived.selector);
@@ -129,6 +131,7 @@ contract UserSafeTransfersTest is UserSafeSetup {
             1000e6
         );
 
+        vm.warp(block.timestamp + delay + 1);
         uint256 newInputAmt = 5 ether;
         newAmountUsdcToSend = aliceSafe.spendingLimit().spendingLimit + 1;
         vm.prank(etherFiWallet);
@@ -157,7 +160,7 @@ contract UserSafeTransfersTest is UserSafeSetup {
         );
     }
 
-    function test_TransferFundsToDebtManager() public {
+    function test_AddCollateralToDebtManager() public {
         uint256 amount = 1 ether;
 
         uint256 debtManagerWeEthBalanceBefore = weETH.balanceOf(
@@ -166,8 +169,8 @@ contract UserSafeTransfersTest is UserSafeSetup {
 
         vm.prank(etherFiWallet);
         vm.expectEmit(true, true, true, true);
-        emit IUserSafe.TransferCollateral(address(weETH), amount);
-        aliceSafe.transferFundsToDebtManager(address(weETH), amount);
+        emit IUserSafe.AddCollateralToDebtManager(address(weETH), amount);
+        aliceSafe.addCollateral(address(weETH), amount);
 
         uint256 debtManagerWeEthBalanceAfter = weETH.balanceOf(
             etherFiCashDebtManager
@@ -183,34 +186,23 @@ contract UserSafeTransfersTest is UserSafeSetup {
         );
     }
 
-    function test_CannotTransferFundsToDebtManagerIfSpendingLimitIsBreached()
-        public
-    {
-        uint256 amount = 10 ether;
-
-        vm.prank(etherFiWallet);
-        vm.expectRevert(IUserSafe.ExceededSpendingLimit.selector);
-        aliceSafe.transferFundsToDebtManager(address(weETH), amount);
-    }
-
-    function test_OnlyDebtManagerCanTransferFundsForCollateral() public {
+    function test_OnlyCashWalletCanTransferFundsForCollateral() public {
         uint256 amount = 1 ether;
 
         vm.prank(notOwner);
         vm.expectRevert(IUserSafe.UnauthorizedCall.selector);
-        aliceSafe.transferFundsToDebtManager(address(weETH), amount);
+        aliceSafe.addCollateral(address(weETH), amount);
     }
 
-    function test_CannotTransferFundsToDebtManagerIfBalanceIsInsufficient()
-        public
-    {
+    function test_CannotAddCollateralIfBalanceIsInsufficient() public {
         uint256 amount = aliceSafeWeETHBalanceBefore + 1;
         vm.prank(alice);
-        aliceSafe.updateSpendingLimit(aliceSafeWeETHBalanceBefore + 1);
+        aliceSafe.setCollateralLimit(amount);
 
+        vm.warp(block.timestamp + delay + 1);
         vm.prank(etherFiWallet);
         vm.expectRevert(IUserSafe.InsufficientBalance.selector);
-        aliceSafe.transferFundsToDebtManager(address(weETH), amount);
+        aliceSafe.addCollateral(address(weETH), amount);
     }
 
     function test_CannotTransferUnsupportedTokensForSpending() public {
@@ -245,7 +237,7 @@ contract UserSafeTransfersTest is UserSafeSetup {
         uint256 amount = 1 ether;
         vm.prank(etherFiWallet);
         vm.expectRevert(IUserSafe.UnsupportedToken.selector);
-        aliceSafe.transferFundsToDebtManager(unsupportedToken, amount);
+        aliceSafe.addCollateral(unsupportedToken, amount);
     }
 
     function getQuoteOneInch(
@@ -268,3 +260,7 @@ contract UserSafeTransfersTest is UserSafeSetup {
         return vm.ffi(inputs);
     }
 }
+
+// [FAIL. Reason: Error != expected error:  != 0xf4d678b8] test_CannotAddCollateralToDebtManagerIfBalanceIsInsufficient() (gas: 163916)
+// [FAIL. Reason: Error != expected error:  != 0xf4d678b8] test_CannotSwapAndTransferIfBalanceIsInsufficient() (gas: 62839)
+// [FAIL. Reason: Error != expected error: 0x8749623e != 0xf4d678b8] test_CannotTransferForSpendingWhenBalanceIsInsufficient() (gas: 121608)
