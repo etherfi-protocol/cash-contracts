@@ -76,7 +76,7 @@ abstract contract UserSafeRecovery is IUserSafe {
 
     function _setIsRecoveryActiveWithPermit(
         bool isActive,
-        uint256 userNonce,
+        uint256 _nonce,
         bytes calldata signature
     ) internal {
         bytes32 msgHash = keccak256(
@@ -84,8 +84,8 @@ abstract contract UserSafeRecovery is IUserSafe {
                 SET_IS_RECOVERY_ACTIVE_METHOD,
                 block.chainid,
                 address(this),
-                isActive,
-                userNonce
+                _nonce,
+                isActive
             )
         );
 
@@ -94,17 +94,17 @@ abstract contract UserSafeRecovery is IUserSafe {
     }
 
     function _recoverUserSafe(
-        uint256 userNonce,
+        uint256 _nonce,
         Signature[2] calldata signatures,
-        address[] calldata tokensToPull
+        bytes calldata newOwner
     ) internal {
         bytes32 msgHash = keccak256(
             abi.encode(
                 RECOVERY_METHOD,
                 block.chainid,
                 address(this),
-                tokensToPull,
-                userNonce
+                _nonce,
+                newOwner
             )
         );
 
@@ -121,30 +121,10 @@ abstract contract UserSafeRecovery is IUserSafe {
             signatures[1].signature
         );
 
-        uint256 len = tokensToPull.length;
-        FundsDetails[] memory fundsDetails = new FundsDetails[](len);
-        uint256 numTokens = 0;
-        for (uint256 i = 0; i < len; ) {
-            uint256 bal = IERC20(tokensToPull[i]).balanceOf(address(this));
-            if (bal > 0) {
-                fundsDetails[numTokens] = FundsDetails({
-                    token: tokensToPull[i],
-                    amount: bal
-                });
-                numTokens++;
-                IERC20(tokensToPull[i]).safeTransfer(_etherFiRecoverySafe, bal);
-            }
+        OwnerLib.OwnerObject memory oldOwner = this.owner();
+        _setOwner(newOwner);
 
-            unchecked {
-                ++i;
-            }
-        }
-
-        assembly {
-            mstore(fundsDetails, numTokens)
-        }
-
-        emit UserSafeRecovered(this.owner(), fundsDetails);
+        emit UserSafeRecovered(oldOwner, this.owner());
     }
 
     function _getRecoveryOwner(
@@ -159,6 +139,8 @@ abstract contract UserSafeRecovery is IUserSafe {
     function _onlyWhenRecoveryActive() private view {
         if (!_isRecoveryActive) revert RecoveryNotActive();
     }
+
+    function _setOwner(bytes calldata __owner) internal virtual;
 
     modifier onlyWhenRecoveryActive() {
         _onlyWhenRecoveryActive();

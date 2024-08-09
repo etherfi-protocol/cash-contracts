@@ -107,9 +107,9 @@ contract UserSafeSpendingLimitTest is UserSafeSetup {
                 aliceSafe.RESET_SPENDING_LIMIT_METHOD(),
                 block.chainid,
                 address(aliceSafe),
+                nonce,
                 spendingLimitType,
-                spendingLimitInUsd,
-                nonce
+                spendingLimitInUsd
             )
         );
 
@@ -128,7 +128,6 @@ contract UserSafeSpendingLimitTest is UserSafeSetup {
         aliceSafe.resetSpendingLimitWithPermit(
             spendingLimitType,
             spendingLimitInUsd,
-            nonce,
             signature
         );
 
@@ -201,8 +200,8 @@ contract UserSafeSpendingLimitTest is UserSafeSetup {
                 aliceSafe.UPDATE_SPENDING_LIMIT_METHOD(),
                 block.chainid,
                 address(aliceSafe),
-                spendingLimitInUsd,
-                nonce
+                nonce,
+                spendingLimitInUsd
             )
         );
 
@@ -213,11 +212,7 @@ contract UserSafeSpendingLimitTest is UserSafeSetup {
         bytes memory signature = abi.encodePacked(r, s, v);
 
         vm.prank(notOwner);
-        aliceSafe.updateSpendingLimitWithPermit(
-            spendingLimitInUsd,
-            nonce,
-            signature
-        );
+        aliceSafe.updateSpendingLimitWithPermit(spendingLimitInUsd, signature);
 
         UserSafe.SpendingLimitData memory spendingLimitAfter = aliceSafe
             .spendingLimit();

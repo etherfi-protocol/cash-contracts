@@ -92,10 +92,10 @@ contract UserSafeWithdrawalTest is UserSafeSetup {
                 aliceSafe.REQUEST_WITHDRAWAL_METHOD(),
                 block.chainid,
                 address(aliceSafe),
+                nonce,
                 tokens,
                 amounts,
-                recipient,
-                nonce
+                recipient
             )
         );
 
@@ -123,7 +123,6 @@ contract UserSafeWithdrawalTest is UserSafeSetup {
             tokens,
             amounts,
             recipient,
-            nonce,
             signature
         );
 

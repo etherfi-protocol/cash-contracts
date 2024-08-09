@@ -53,8 +53,8 @@ contract UserSafeOwnerTest is UserSafeSetup {
                 aliceSafe.SET_OWNER_METHOD(),
                 block.chainid,
                 address(aliceSafe),
-                newOwnerBytes,
-                nonce
+                nonce,
+                newOwnerBytes
             )
         );
 
@@ -65,7 +65,7 @@ contract UserSafeOwnerTest is UserSafeSetup {
 
         bytes memory signature = abi.encodePacked(r, s, v);
         vm.prank(notOwner);
-        aliceSafe.setOwnerWithPermit(newOwnerBytes, nonce, signature);
+        aliceSafe.setOwnerWithPermit(newOwnerBytes, signature);
 
         assertEq(aliceSafe.owner().ethAddr, newOwner);
         assertEq(aliceSafe.owner().x, 0);

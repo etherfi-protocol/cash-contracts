@@ -35,10 +35,10 @@ contract UserSafeApproveTest is UserSafeSetup {
                 aliceSafe.APPROVE_METHOD(),
                 block.chainid,
                 address(aliceSafe),
+                nonce,
                 token,
                 spender,
-                amount,
-                nonce
+                amount
             )
         );
 
@@ -53,7 +53,7 @@ contract UserSafeApproveTest is UserSafeSetup {
         assertEq(approvalBefore, 0);
 
         vm.prank(notOwner);
-        aliceSafe.approveWithPermit(token, spender, amount, nonce, signature);
+        aliceSafe.approveWithPermit(token, spender, amount, signature);
 
         uint256 approvalAfter = usdc.allowance(address(aliceSafe), notOwner);
         assertEq(approvalAfter, amount);

@@ -72,8 +72,8 @@ interface IUserSafe {
     event UpdateSpendingLimit(uint256 oldLimitInUsd, uint256 newLimitInUsd);
     event IsRecoveryActiveSet(bool isActive);
     event UserSafeRecovered(
-        OwnerLib.OwnerObject owner,
-        FundsDetails[] fundsDetails
+        OwnerLib.OwnerObject oldOwner,
+        OwnerLib.OwnerObject newOwner
     );
     event SetOwner(
         OwnerLib.OwnerObject oldOwner,
@@ -197,12 +197,10 @@ interface IUserSafe {
     /**
      * @notice Function to set the owner of the contract.
      * @param __owner Address of the new owner
-     * @param userNonce Nonce for this call. Must be equal to current nonce.
      * @param signature Must be a valid signature from the user.
      */
     function setOwnerWithPermit(
         bytes calldata __owner,
-        uint256 userNonce,
         bytes calldata signature
     ) external;
 
@@ -220,13 +218,11 @@ interface IUserSafe {
      * @notice Function to set the spending limit with permit.
      * @param spendingLimitType Type of spending limit.
      * @param limitInUsd Spending limit in USD with 6 decimals.
-     * @param userNonce Nonce for this call. Must be equal to current nonce.
      * @param signature Must be a valid signature from the user.
      */
     function resetSpendingLimitWithPermit(
         uint8 spendingLimitType,
         uint256 limitInUsd,
-        uint256 userNonce,
         bytes calldata signature
     ) external;
 
@@ -239,12 +235,10 @@ interface IUserSafe {
     /**
      * @notice Function to set the spending limit with permit.
      * @param limitInUsd Spending limit in USD with 6 decimals.
-     * @param userNonce Nonce for this call. Must be equal to current nonce.
      * @param signature Must be a valid signature from the user.
      */
     function updateSpendingLimitWithPermit(
         uint256 limitInUsd,
-        uint256 userNonce,
         bytes calldata signature
     ) external;
 
@@ -287,14 +281,12 @@ interface IUserSafe {
      * @param token Address of the token.
      * @param spender Address of the spender.
      * @param amount Amount of tokens to grant approval for.
-     * @param userNonce Nonce for this call. Must be equal to current nonce.
      * @param signature Must be a valid signature from the user.
      */
     function approveWithPermit(
         address token,
         address spender,
         uint256 amount,
-        uint256 userNonce,
         bytes calldata signature
     ) external;
 
@@ -317,14 +309,12 @@ interface IUserSafe {
      * @param tokens Address of the tokens to withdraw.
      * @param amounts Amount of the tokens to withdraw.
      * @param recipient Address of the recipient of funds.
-     * @param userNonce Nonce for this call. Must be equal to current nonce.
      * @param signature Must be a valid signature from the user.
      */
     function requestWithdrawalWithPermit(
         address[] calldata tokens,
         uint256[] calldata amounts,
         address recipient,
-        uint256 userNonce,
         bytes calldata signature
     ) external;
 
@@ -340,14 +330,12 @@ interface IUserSafe {
      * @notice Can only be recovered if atleast 2 of the three recovery signers sign the transaction.
      * @notice The three recovery signers are: owner of the safe, ether fi signer, third party signer.
      * @notice On recovery, funds are sent to the etherFiRecoverySafe contract which can be distributed to the user.
-     * @param userNonce Nonce for this call. Must be equal to current nonce.
      * @param signatures Array of the signature struct containing any 2 out of 3 signers' signatures.
-     * @param tokensToPull Array of the toen addresses to be recovered.
+     * @param newOwner Owner bytes for new owner. If ethAddr, abi.encode(addr) and if passkey, abi.encode(x,y).
      */
     function recoverUserSafe(
-        uint256 userNonce,
-        Signature[2] calldata signatures,
-        address[] calldata tokensToPull
+        bytes calldata newOwner,
+        Signature[2] calldata signatures
     ) external;
 
     /**
@@ -357,12 +345,10 @@ interface IUserSafe {
 
     /**
      * @notice Function to set _isRecoveryActive boolean with permit.
-     * @param userNonce Nonce for this call. Must be equal to current nonce.
      * @param signature Must be a valid signature from the user.
      */
     function setIsRecoveryActiveWithPermit(
         bool isRecoveryActive,
-        uint256 userNonce,
         bytes calldata signature
     ) external;
 
