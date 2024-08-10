@@ -5,7 +5,6 @@ import {Script, console} from "forge-std/Script.sol";
 
 import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 
-
 import "../../src/preorder/PreOrder.sol";
 
 struct Proxy {
@@ -34,28 +33,16 @@ contract DeployPreOrder is Script {
         // Deploy the implementation contract
 
         // Configuring the tiers
-        PreOrder.TierConfig memory whales = PreOrder.TierConfig({
-            costWei: 10 ether,
-            maxSupply: 200
-        });
-        PreOrder.TierConfig memory chads = PreOrder.TierConfig({
-            costWei: 1 ether,
-            maxSupply: 2000
-        });
-        PreOrder.TierConfig memory wojak = PreOrder.TierConfig({
-            costWei: 0.1 ether,
-            maxSupply: 20_000
-        }); 
-        PreOrder.TierConfig memory pepe = PreOrder.TierConfig({
-            costWei: 0.01 ether,
-            maxSupply: 200_000
-        });
+        PreOrder.TierConfig memory whales = PreOrder.TierConfig({costWei: 10 ether, maxSupply: 200});
+        PreOrder.TierConfig memory chads = PreOrder.TierConfig({costWei: 1 ether, maxSupply: 2000});
+        PreOrder.TierConfig memory wojak = PreOrder.TierConfig({costWei: 0.1 ether, maxSupply: 20_000});
+        PreOrder.TierConfig memory pepe = PreOrder.TierConfig({costWei: 0.01 ether, maxSupply: 200_000});
 
         // TODO: Add more tiers when the tiers are offically set
         PreOrder.TierConfig[] memory tiers = new PreOrder.TierConfig[](4);
         tiers[0] = whales;
         tiers[1] = chads;
-        tiers[2]= wojak;
+        tiers[2] = wojak;
         tiers[3] = pepe;
 
         // Deploy the implementation contract
@@ -63,14 +50,7 @@ contract DeployPreOrder is Script {
         PreOrderAddresses.proxy = address(new ERC1967Proxy(PreOrderAddresses.implementation, ""));
 
         PreOrder preOrder = PreOrder(payable(PreOrderAddresses.proxy));
-        preOrder.initialize(
-            deployerAddress,
-            GnosisSafe,
-            deployerAddress,
-            eEthToken,
-            baseURI,
-            tiers
-        );
+        preOrder.initialize(deployerAddress, GnosisSafe, deployerAddress, eEthToken, baseURI, tiers);
         vm.stopBroadcast();
 
         console.log("PreOrder implementation deployed at: ", PreOrderAddresses.implementation);

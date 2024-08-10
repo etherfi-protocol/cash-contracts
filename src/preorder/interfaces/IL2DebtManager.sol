@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-
 interface IL2DebtManager {
     // --------------
     // Admin functions
@@ -21,7 +20,7 @@ interface IL2DebtManager {
     // Deposit of Collateral eETH from Users
     function depositEETH(address user, uint256 amount) external;
 
-    // Debt and collateral 
+    // Debt and collateral
     function collateralOf(address user) external view returns (uint256);
     function borrowingOf(address user) external view returns (uint256);
     function debtRatioOf(address user) external view returns (uint256);

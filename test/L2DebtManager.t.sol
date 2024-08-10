@@ -7,15 +7,14 @@ import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
 import {L2DebtManager} from "../src/L2DebtManager.sol";
 
-
 contract USDC is ERC20 {
     constructor(string memory name, string memory symbol) ERC20(name, symbol) {
         _mint(msg.sender, 1000000 * 10 ** decimals());
     }
 
-    function decimals() public view override virtual returns (uint8) {
+    function decimals() public view virtual override returns (uint8) {
         return 6;
-    } 
+    }
 }
 
 contract EETH is ERC20 {
@@ -23,14 +22,12 @@ contract EETH is ERC20 {
         _mint(msg.sender, 1000000 * 10 ** decimals());
     }
 
-    function decimals() public view override virtual returns (uint8) {
+    function decimals() public view virtual override returns (uint8) {
         return 18;
-    } 
+    }
 }
 
-
 contract L2DebtManagerTest is Test {
-    
     ERC20 public eEth;
     ERC20 public usdc;
 
@@ -197,6 +194,4 @@ contract L2DebtManagerTest is Test {
         vm.expectRevert("NOT_ENOUGH_COLLATERAL");
         l2DebtManager.borrowUSDC(borrowAmount);
     }
-
-    
 }

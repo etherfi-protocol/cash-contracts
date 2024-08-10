@@ -6,9 +6,9 @@ import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 import "./interfaces/IL2DebtManager.sol";
 
-
 // Consider directly inheriting AAVA pool or routing relevant calls to AAVA pool
 contract L2DebtManager is IL2DebtManager {
+    using SafeERC20 for IERC20;
 
     mapping(address => uint256) private _collaterals;
     mapping(address => uint256) private _borrowings;
@@ -25,13 +25,29 @@ contract L2DebtManager is IL2DebtManager {
 
     uint256 private eEthPriceInUSDC; // todo: replace it with Oracle
 
-
     event SuppliedUSDC(uint256 amount);
-    event DepositedCollateral(address indexed user, uint256 amount);
-    event Borrowed(address indexed user, uint256 borrowUsdcAmount);
+    event DepositedCollateral(
+        address indexed user,
+        address indexed token,
+        uint256 amount
+    );
+    event Borrowed(
+        address indexed user,
+        address indexed token,
+        uint256 borrowUsdcAmount
+    );
     event RepaidWithUSDC(address indexed user, uint256 repaidUsdcDebtAmount);
-    event RepaidWithEETH(address indexed user, uint256 repaidUsdcDebtAmount, uint256 repaidCollateralEEthAmount);
-    event Liquidated(address indexed user, uint256 beforeCollateralAmount, uint256 afterCollateralAmount, uint256 beforeDebtAmount);
+    event RepaidWithEETH(
+        address indexed user,
+        uint256 repaidUsdcDebtAmount,
+        uint256 repaidCollateralEEthAmount
+    );
+    event Liquidated(
+        address indexed user,
+        uint256 beforeCollateralAmount,
+        uint256 afterCollateralAmount,
+        uint256 beforeDebtAmount
+    );
 
     constructor(address _eETH, address _USDC, address _etherFiCashSafe) {
         eETH = IERC20(_eETH);
@@ -45,13 +61,47 @@ contract L2DebtManager is IL2DebtManager {
         emit SuppliedUSDC(amount);
     }
 
+    function depositCollateral(
+        address user,
+        address token,
+        uint256 amount
+    ) external {
+        IERC20(token).safeTransferFrom(msg.sender, address(this), amount);
+        _collaterals[user] += amount;
+        totalCollateralAmount += amount;
+
+        emit DepositedCollateral(user, token, amount);
+    }
+
+    /// Users borrow funds for payment using the deposited collateral eETH
+    /// - the user's borriwng amount is incremented by the exact `amount`
+    /// - the total borrowing amount is incremented by the exact `amount`
+    /// - the token is transferred to the `etherFiCashSafe`
+    function borrow(address token, uint256 amount) external {
+        _borrowings[msg.sender] += amount;
+        totalBorrowingAmount += amount;
+
+        require(
+            debtRatioOf(msg.sender) <= liquidationThreshold,
+            "NOT_ENOUGH_COLLATERAL"
+        );
+        require(
+            IERC20(token).balanceOf(address(this)) >= amount,
+            "INSUFFICIENT_LIQUIDITY"
+        );
+
+        IERC20(token).safeTransfer(etherFiCashSafe, amount);
+
+        emit Borrowed(msg.sender, token, amount);
+    }
+
     function depositEETH(address user, uint256 amount) external {
         _collaterals[user] += amount;
         totalCollateralAmount += amount;
 
-        SafeERC20.safeTransferFrom(eETH, msg.sender, address(this), amount); // use safeTransferFrom
+        eETH.safeTransferFrom(msg.sender, address(this), amount); // use safeTransferFrom
 
-        emit DepositedCollateral(user, amount);
+        emit DepositedCollateral(user, address(eETH), amount);
     }
 
     /// Users borrow USDC for payment using the deposited collateral eETH
@@ -62,12 +112,18 @@ contract L2DebtManager is IL2DebtManager {
         _borrowings[msg.sender] += borrowUsdcAmount;
         totalBorrowingAmount += borrowUsdcAmount;
 
-        require(debtRatioOf(msg.sender) <= liquidationThreshold, "NOT_ENOUGH_COLLATERAL");
-        require(USDC.balanceOf(address(this)) >= borrowUsdcAmount, "INSUFFICIENT_LIQUIDITY");
+        require(
+            debtRatioOf(msg.sender) <= liquidationThreshold,
+            "NOT_ENOUGH_COLLATERAL"
+        );
+        require(
+            USDC.balanceOf(address(this)) >= borrowUsdcAmount,
+            "INSUFFICIENT_LIQUIDITY"
+        );
 
         SafeERC20.safeTransfer(USDC, etherFiCashSafe, borrowUsdcAmount);
 
-        emit Borrowed(msg.sender, borrowUsdcAmount);
+        emit Borrowed(msg.sender, address(USDC), borrowUsdcAmount);
     }
 
     /// Users repay the borrowed USDC in USDC
@@ -75,7 +131,12 @@ contract L2DebtManager is IL2DebtManager {
         _borrowings[msg.sender] -= repayUsdcAmount;
         totalBorrowingAmount -= repayUsdcAmount;
 
-        SafeERC20.safeTransferFrom(USDC, msg.sender, address(this), repayUsdcAmount);
+        SafeERC20.safeTransferFrom(
+            USDC,
+            msg.sender,
+            address(this),
+            repayUsdcAmount
+        );
 
         emit RepaidWithUSDC(msg.sender, repayUsdcAmount);
     }
@@ -96,7 +157,12 @@ contract L2DebtManager is IL2DebtManager {
         uint256 beforeCollateralAmount = _collaterals[user];
         _repayWithEEthCollateral(user, beforeDebtAmount); // force to repay the entire debt using the collateral
 
-        emit Liquidated(user, beforeCollateralAmount, _collaterals[user], beforeDebtAmount);
+        emit Liquidated(
+            user,
+            beforeCollateralAmount,
+            _collaterals[user],
+            beforeDebtAmount
+        );
     }
 
     // View functions
@@ -125,11 +191,17 @@ contract L2DebtManager is IL2DebtManager {
         return (debtValue * 1e4) / collateralValue; // result in basis points
     }
 
-    function remainingBorrowingCapacityInUSDC(address user) public view returns (uint256) {
+    function remainingBorrowingCapacityInUSDC(
+        address user
+    ) public view returns (uint256) {
         uint256 eEthPriceInUSDC = getEEthPriceInUsdc();
         uint256 collateralValue = (_collaterals[user] * eEthPriceInUSDC) / 1e18;
-        uint256 maxBorrowingAmount = collateralValue * liquidationThreshold / 1e4;
-        return maxBorrowingAmount > _borrowings[user] ? maxBorrowingAmount - _borrowings[user] : 0;
+        uint256 maxBorrowingAmount = (collateralValue * liquidationThreshold) /
+            1e4;
+        return
+            maxBorrowingAmount > _borrowings[user]
+                ? maxBorrowingAmount - _borrowings[user]
+                : 0;
     }
 
     function liquidEEthAmount() public view returns (uint256) {
@@ -146,20 +218,27 @@ contract L2DebtManager is IL2DebtManager {
         return eEthPriceInUSDC;
     }
 
-    function convertEETHtoUSDC(uint256 eethAmount) private view returns (uint256) {
+    function convertEETHtoUSDC(
+        uint256 eethAmount
+    ) private view returns (uint256) {
         uint256 eEthPriceInUSDC = getEEthPriceInUsdc();
-        return eethAmount * eEthPriceInUSDC / 1e18;
+        return (eethAmount * eEthPriceInUSDC) / 1e18;
     }
 
-    function getCollateralAmountForDebt(uint256 debtUsdcAmount) public view returns (uint256) {
+    function getCollateralAmountForDebt(
+        uint256 debtUsdcAmount
+    ) public view returns (uint256) {
         uint256 eEthPriceInUSDC = getEEthPriceInUsdc();
-        return debtUsdcAmount * 1e18 / eEthPriceInUSDC;
+        return (debtUsdcAmount * 1e18) / eEthPriceInUSDC;
     }
 
     // Internal functions
 
     // Use the deposited collateral to pay the debt
-    function _repayWithEEthCollateral(address user, uint256 repayDebtAmount) internal returns (uint256 collateralAmount) {
+    function _repayWithEEthCollateral(
+        address user,
+        uint256 repayDebtAmount
+    ) internal returns (uint256 collateralAmount) {
         collateralAmount = getCollateralAmountForDebt(repayDebtAmount);
 
         _borrowings[user] -= repayDebtAmount;
@@ -167,7 +246,7 @@ contract L2DebtManager is IL2DebtManager {
 
         totalBorrowingAmount -= repayDebtAmount;
         totalCollateralAmount -= collateralAmount;
-        
+
         emit RepaidWithEETH(user, repayDebtAmount, collateralAmount);
     }
 

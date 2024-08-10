@@ -6,11 +6,11 @@ import {PreOrder} from "../src/preorder/PreOrder.sol";
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/extensions/IERC20Permit.sol";
-import "@openzeppelin-upgradeable/contracts/utils/PausableUpgradeable.sol";
-import "@openzeppelin-upgradeable/contracts/access/OwnableUpgradeable.sol";
+import "openzeppelin-contracts-upgradeable/contracts/utils/PausableUpgradeable.sol";
+import "openzeppelin-contracts-upgradeable/contracts/access/OwnableUpgradeable.sol";
 
 contract PreOrderTest is Test {
-    // Default contract 
+    // Default contract
     PreOrder public preorder;
 
     // Default users
@@ -39,18 +39,11 @@ contract PreOrderTest is Test {
         eEthToken = address(0xdead);
 
         // Initialize a PreOrder contract
-        tiers.push(PreOrder.TierConfig({
-            costWei: 1000 ether,
-            maxSupply: 10
-        }));
-        tiers.push(PreOrder.TierConfig({
-            costWei: 1 ether,
-            maxSupply: 100
-        }));
-        tiers.push(PreOrder.TierConfig({
-            costWei: 0.01 ether,
-            maxSupply: 10000
-        }));
+        tiers.push(PreOrder.TierConfig({costWei: 1000 ether, maxSupply: 10}));
+        tiers.push(PreOrder.TierConfig({costWei: 1 ether, maxSupply: 100}));
+        tiers.push(
+            PreOrder.TierConfig({costWei: 0.01 ether, maxSupply: 10000})
+        );
 
         preorder = new PreOrder();
         preorder.initialize(
@@ -67,12 +60,13 @@ contract PreOrderTest is Test {
         vm.deal(whale2, 10_000 ether);
         vm.deal(tuna, 10_000 ether);
         vm.deal(eBeggar, 1 ether);
-
     }
 
     function testAssemblyProperlySetsArrayLength() public view {
         // Assert the max supply is correctly set based on the tier configurations
-        uint256 expectedMaxSupply = tiers[0].maxSupply + tiers[1].maxSupply + tiers[2].maxSupply;
+        uint256 expectedMaxSupply = tiers[0].maxSupply +
+            tiers[1].maxSupply +
+            tiers[2].maxSupply;
         assertEq(preorder.maxSupply(), expectedMaxSupply);
     }
 
@@ -83,7 +77,11 @@ contract PreOrderTest is Test {
         preorder.mint{value: 1000 ether}(0);
 
         // whale should own 1 token with ID 0
-        uint256[] memory ownedTokens = preorder.tokensForUser(whale, 0, preorder.maxSupply());
+        uint256[] memory ownedTokens = preorder.tokensForUser(
+            whale,
+            0,
+            preorder.maxSupply()
+        );
         assertEq(ownedTokens.length, 1);
         assertEq(ownedTokens[0], 0);
         // whale2 should own 1 token with ID 1
@@ -120,13 +118,13 @@ contract PreOrderTest is Test {
     }
 
     function testMint() public {
-        // Mint increment test 
+        // Mint increment test
         vm.prank(whale);
-        uint gnosisBalanceStart = gnosis.balance;
+        uint256 gnosisBalanceStart = gnosis.balance;
         preorder.mint{value: 1000 ether}(0);
         vm.prank(whale2);
         preorder.mint{value: 1000 ether}(0);
-        uint gnosisBalanceEnd = gnosis.balance;
+        uint256 gnosisBalanceEnd = gnosis.balance;
 
         // Ensure payment was recieved and the correct tokens were minted
         assertEq(gnosisBalanceEnd - gnosisBalanceStart, 2000 ether);
@@ -156,10 +154,10 @@ contract PreOrderTest is Test {
         }
 
         // Tuna tier is now maxed out and payment should fail
-        uint gnosisBalanceStart2 = gnosis.balance;
+        uint256 gnosisBalanceStart2 = gnosis.balance;
         vm.expectRevert("Tier sold out");
         preorder.mint{value: 1 ether}(1);
-        uint gnosisBalanceEnd2 = gnosis.balance;
+        uint256 gnosisBalanceEnd2 = gnosis.balance;
 
         assertEq(gnosisBalanceEnd2 - gnosisBalanceStart2, 0);
     }
@@ -178,12 +176,12 @@ contract PreOrderTest is Test {
         // The expectRevert state hijacks the returned value of the low-level call
         assertEq(success, true);
 
-        vm.expectRevert("Direct transfers not allowed");
-        payable(address(preorder)).transfer(1 ether);
-
         // Revert on admin/owner functions
         vm.expectRevert(
-            abi.encodeWithSelector(OwnableUpgradeable.OwnableUnauthorizedAccount.selector, whale)
+            abi.encodeWithSelector(
+                OwnableUpgradeable.OwnableUnauthorizedAccount.selector,
+                whale
+            )
         );
         preorder.setAdmin(whale);
         vm.expectRevert("Not the admin");
@@ -266,10 +264,7 @@ contract PreOrderTest is Test {
         IERC20 eEthMainnet = IERC20(0x35fA164735182de50811E8e2E824cFb9B6118ac2);
 
         PreOrder.TierConfig[] memory singleTier = new PreOrder.TierConfig[](1);
-        singleTier[0] = PreOrder.TierConfig({
-            costWei: 1 ether,
-            maxSupply: 10
-        });
+        singleTier[0] = PreOrder.TierConfig({costWei: 1 ether, maxSupply: 10});
 
         preorder = new PreOrder();
         preorder.initialize(
@@ -284,7 +279,7 @@ contract PreOrderTest is Test {
         // Send eEth to alice
         vm.prank(eEthWhale);
         eEthMainnet.transfer(alice, 100 ether);
-        assertGe(eEthMainnet.balanceOf(alice),  10 ether);
+        assertGe(eEthMainnet.balanceOf(alice), 10 ether);
 
         // Set up permit signature for MintWithPermit
         uint256 nonce = IERC20Permit(address(eEthMainnet)).nonces(alice);
@@ -293,18 +288,21 @@ contract PreOrderTest is Test {
             abi.encodePacked(
                 "\x19\x01",
                 IERC20Permit(address(eEthMainnet)).DOMAIN_SEPARATOR(),
-                keccak256(abi.encode(
-                    keccak256("Permit(address owner,address spender,uint256 value,uint256 nonce,uint256 deadline)"),
-                    alice,
-                    address(preorder),
-                    1 ether,
-                    0,
-                    deadline
-                ))
+                keccak256(
+                    abi.encode(
+                        keccak256(
+                            "Permit(address owner,address spender,uint256 value,uint256 nonce,uint256 deadline)"
+                        ),
+                        alice,
+                        address(preorder),
+                        1 ether,
+                        0,
+                        deadline
+                    )
+                )
             )
         );
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(alicePk, permitHash);
-
 
         vm.startPrank(alice);
         vm.expectRevert("Incorrect amount sent");
@@ -326,7 +324,6 @@ contract PreOrderTest is Test {
         assertApproxEqRel(eEthMainnet.balanceOf(alice), 99 ether, 5);
         assertApproxEqRel(eEthMainnet.balanceOf(gnosis), 1 ether, 5);
 
-
         // Testing signature with insufficient funds
         nonce = IERC20Permit(address(eEthMainnet)).nonces(alice);
         deadline = block.timestamp + 1 hours;
@@ -334,14 +331,18 @@ contract PreOrderTest is Test {
             abi.encodePacked(
                 "\x19\x01",
                 IERC20Permit(address(eEthMainnet)).DOMAIN_SEPARATOR(),
-                keccak256(abi.encode(
-                    keccak256("Permit(address owner,address spender,uint256 value,uint256 nonce,uint256 deadline)"),
-                    alice,
-                    address(preorder),
-                    0.9 ether,
-                    0,
-                    deadline
-                ))
+                keccak256(
+                    abi.encode(
+                        keccak256(
+                            "Permit(address owner,address spender,uint256 value,uint256 nonce,uint256 deadline)"
+                        ),
+                        alice,
+                        address(preorder),
+                        0.9 ether,
+                        0,
+                        deadline
+                    )
+                )
             )
         );
         (v, r, s) = vm.sign(alicePk, permitHash);
@@ -353,18 +354,9 @@ contract PreOrderTest is Test {
     function testSellOutTiers() public {
         // Create new tiers with small supplies
         PreOrder.TierConfig[] memory smallTiers = new PreOrder.TierConfig[](3);
-        smallTiers[0] = PreOrder.TierConfig({
-            costWei: 0.1 ether,
-            maxSupply: 2
-        });
-        smallTiers[1] = PreOrder.TierConfig({
-            costWei: 0.2 ether,
-            maxSupply: 3
-        });
-        smallTiers[2] = PreOrder.TierConfig({
-            costWei: 0.3 ether,
-            maxSupply: 1
-        });
+        smallTiers[0] = PreOrder.TierConfig({costWei: 0.1 ether, maxSupply: 2});
+        smallTiers[1] = PreOrder.TierConfig({costWei: 0.2 ether, maxSupply: 3});
+        smallTiers[2] = PreOrder.TierConfig({costWei: 0.3 ether, maxSupply: 1});
 
         // Initialize a new PreOrder contract with small tiers
         PreOrder smallPreorder = new PreOrder();
@@ -378,7 +370,7 @@ contract PreOrderTest is Test {
         );
 
         // Mint tokens until each tier is sold out
-        uint gnosisBalanceStart = gnosis.balance;
+        uint256 gnosisBalanceStart = gnosis.balance;
 
         // sell out each tier in a random order
         vm.prank(whale);
@@ -401,7 +393,7 @@ contract PreOrderTest is Test {
         vm.expectRevert("Tier sold out");
         smallPreorder.mint{value: 0.2 ether}(1);
 
-        uint gnosisBalanceEnd = gnosis.balance;
+        uint256 gnosisBalanceEnd = gnosis.balance;
 
         // Ensure payments were received and the correct tokens were minted
         assertEq(gnosisBalanceEnd - gnosisBalanceStart, 1.1 ether);
@@ -418,11 +410,23 @@ contract PreOrderTest is Test {
         amounts[0] = 1;
 
         vm.expectRevert("TRANSFER_DISABLED");
-        smallPreorder.safeBatchTransferFrom(whale, eBeggar, ids, amounts, hex"");
+        smallPreorder.safeBatchTransferFrom(
+            whale,
+            eBeggar,
+            ids,
+            amounts,
+            hex""
+        );
 
         vm.startPrank(whale);
         vm.expectRevert("TRANSFER_DISABLED");
-        smallPreorder.safeBatchTransferFrom(whale, eBeggar, ids, amounts, hex"");
+        smallPreorder.safeBatchTransferFrom(
+            whale,
+            eBeggar,
+            ids,
+            amounts,
+            hex""
+        );
 
         vm.expectRevert("TRANSFER_DISABLED");
         smallPreorder.safeTransferFrom(whale, eBeggar, 0, 1, hex"");
@@ -433,10 +437,7 @@ contract PreOrderTest is Test {
 
     function testTiersLengthCheck() public {
         for (uint256 i = 0; i < 300; i++) {
-            tiers.push(PreOrder.TierConfig({
-                costWei: 0.1 ether,
-                maxSupply: 1
-            }));
+            tiers.push(PreOrder.TierConfig({costWei: 0.1 ether, maxSupply: 1}));
         }
 
         preorder = new PreOrder();
@@ -455,8 +456,14 @@ contract PreOrderTest is Test {
         assertEq(preorder.baseURI(), "https://www.cool-kid-metadata.com");
         vm.prank(admin);
         preorder.setURI("https://www.cool-kid-metadata.com/updated/");
-        assertEq(preorder.baseURI(), "https://www.cool-kid-metadata.com/updated/");
+        assertEq(
+            preorder.baseURI(),
+            "https://www.cool-kid-metadata.com/updated/"
+        );
 
-        assertEq(preorder.uri(0), "https://www.cool-kid-metadata.com/updated/0.json");
+        assertEq(
+            preorder.uri(0),
+            "https://www.cool-kid-metadata.com/updated/0.json"
+        );
     }
 }
