@@ -642,6 +642,8 @@ contract UserSafe is IUserSafe, Initializable, UserSafeRecovery {
         uint8 spendingLimitType,
         uint256 limitInUsd
     ) internal {
+        _currentSpendingLimit();
+
         _incomingSpendingLimitStartTime =
             block.timestamp +
             _cashDataProvider.delay();
@@ -664,6 +666,8 @@ contract UserSafe is IUserSafe, Initializable, UserSafeRecovery {
     }
 
     function _updateSpendingLimit(uint256 limitInUsd) internal {
+        _currentSpendingLimit();
+
         _incomingSpendingLimit = _spendingLimit;
         _incomingSpendingLimit.spendingLimit = limitInUsd;
 
@@ -679,6 +683,8 @@ contract UserSafe is IUserSafe, Initializable, UserSafeRecovery {
     }
 
     function _setCollateralLimit(uint256 limitInUsd) internal {
+        _currentCollateralLimit();
+
         _incomingCollateralLimitStartTime =
             block.timestamp +
             _cashDataProvider.delay();
@@ -753,14 +759,7 @@ contract UserSafe is IUserSafe, Initializable, UserSafeRecovery {
     }
 
     function _checkSpendingLimit(address token, uint256 amount) internal {
-        if (
-            _incomingSpendingLimitStartTime != 0 &&
-            block.timestamp > _incomingSpendingLimitStartTime
-        ) {
-            _spendingLimit = _incomingSpendingLimit;
-            delete _incomingSpendingLimit;
-            delete _incomingSpendingLimitStartTime;
-        }
+        _currentSpendingLimit();
 
         // If spending limit needs to be renewed, then renew it
         if (block.timestamp > _spendingLimit.renewalTimestamp) {
@@ -789,14 +788,7 @@ contract UserSafe is IUserSafe, Initializable, UserSafeRecovery {
         address token,
         uint256 amountToAdd
     ) internal {
-        if (
-            _incomingCollateralLimitStartTime != 0 &&
-            block.timestamp > _incomingCollateralLimitStartTime
-        ) {
-            _collateralLimit = _incomingCollateralLimit;
-            delete _incomingCollateralLimit;
-            delete _incomingCollateralLimitStartTime;
-        }
+        _currentCollateralLimit();
 
         uint256 currentCollateral = IL2DebtManager(debtManager).collateralOf(
             address(this)
@@ -860,6 +852,28 @@ contract UserSafe is IUserSafe, Initializable, UserSafeRecovery {
         if (amount + blockedFundsForWithdrawal[token] > balance) {
             blockedFundsForWithdrawal[token] = balance - amount;
             emit WithdrawalAmountUpdated(token, balance - amount);
+        }
+    }
+
+    function _currentSpendingLimit() internal {
+        if (
+            _incomingSpendingLimitStartTime != 0 &&
+            block.timestamp > _incomingSpendingLimitStartTime
+        ) {
+            _spendingLimit = _incomingSpendingLimit;
+            delete _incomingSpendingLimit;
+            delete _incomingSpendingLimitStartTime;
+        }
+    }
+
+    function _currentCollateralLimit() internal {
+        if (
+            _incomingCollateralLimitStartTime != 0 &&
+            block.timestamp > _incomingCollateralLimitStartTime
+        ) {
+            _collateralLimit = _incomingCollateralLimit;
+            delete _incomingCollateralLimit;
+            delete _incomingCollateralLimitStartTime;
         }
     }
 

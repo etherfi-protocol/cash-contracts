@@ -29,10 +29,8 @@ contract EtherFiCashAaveV3Adapter {
     IPoolDataProvider public immutable aaveV3PoolDataProvider;
     // Referral code for AaveV3
     uint16 public immutable aaveV3ReferralCode;
-    // Interest rate mode
+    // Interest rate mode -> Stable: 1, variable: 2
     uint256 public immutable interestRateMode;
-    // Health factor limit
-    // uint256 public immutable healthFactorThreshold;
 
     event AaveV3Process(
         address assetToSupply,
@@ -41,12 +39,17 @@ contract EtherFiCashAaveV3Adapter {
         uint256 amountToBorrow
     );
 
+    error InvalidRateMode();
+
     constructor(
         address _aaveV3Pool,
         address _aaveV3PoolDataProvider,
         uint16 _aaveV3ReferralCode,
         uint256 _interestRateMode
     ) {
+        if (interestRateMode != 1 && interestRateMode != 2)
+            revert InvalidRateMode();
+
         aaveV3Pool = IPool(_aaveV3Pool);
         aaveV3PoolDataProvider = IPoolDataProvider(_aaveV3PoolDataProvider);
         aaveV3ReferralCode = _aaveV3ReferralCode;
@@ -162,13 +165,5 @@ contract EtherFiCashAaveV3Adapter {
             token,
             address(this)
         );
-    }
-
-    // gets the `ltv` and `liquidationThreshold` of the pool
-    // gets the `borrowCap` and `supplyCap` of the pool
-    function getPoolLiquidationData(
-        address token
-    ) public view returns (DataTypes.ReserveConfigurationMap memory) {
-        return aaveV3Pool.getConfiguration(token);
     }
 }
