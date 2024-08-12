@@ -31,8 +31,6 @@ contract UserSafeSetup is Utils {
     uint256 thirdPartyRecoverySignerPk;
     address thirdPartyRecoverySigner;
 
-    address etherFiRecoverySafe = makeAddr("etherFiRecoverySafe");
-
     UserSafeFactory factory;
     UserSafe impl;
 
@@ -112,8 +110,8 @@ contract UserSafeSetup is Utils {
         address proxy = Upgrades.deployUUPSProxy(
             "CashDataProvider.sol:CashDataProvider",
             abi.encodeWithSelector(
-                // intiailize(address,uint64,address,address,address,address,address,address,address,address)
-                0xf86fac96,
+                // intiailize(address,uint64,address,address,address,address,address,address,address)
+                0x04dfc293,
                 owner,
                 delay,
                 etherFiWallet,
@@ -122,8 +120,7 @@ contract UserSafeSetup is Utils {
                 address(usdc),
                 address(weETH),
                 address(priceProvider),
-                address(swapper),
-                etherFiRecoverySafe
+                address(swapper)
             )
         );
         cashDataProvider = CashDataProvider(proxy);

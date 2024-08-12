@@ -7,7 +7,6 @@ import {UserSafeSetup} from "./UserSafeSetup.sol";
 contract UserSafeDeployTest is UserSafeSetup {
     function test_Deploy() public view {
         assertEq(aliceSafe.owner().ethAddr, alice);
-        assertEq(aliceSafe.etherFiRecoverySafe(), etherFiRecoverySafe);
         assertEq(aliceSafe.recoverySigners()[0].ethAddr, alice);
         assertEq(aliceSafe.recoverySigners()[1].ethAddr, etherFiRecoverySigner);
         assertEq(
@@ -20,7 +19,6 @@ contract UserSafeDeployTest is UserSafeSetup {
             passkeyOwner
         );
 
-        assertEq(passkeyOwnerSafe.etherFiRecoverySafe(), etherFiRecoverySafe);
         assertEq(
             abi.encode(
                 passkeyOwnerSafe.recoverySigners()[0].x,

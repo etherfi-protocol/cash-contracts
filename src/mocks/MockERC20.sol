@@ -11,13 +11,11 @@ contract MockERC20 is ERC20 {
         uint8 _decimals
     ) ERC20(_name, _symbol) {
         __decimals = _decimals;
+
+        _mint(msg.sender, 100000000 ether);
     }
 
     function decimals() public view override returns (uint8) {
         return __decimals;
-    }
-
-    function mint(address account, uint256 amount) external {
-        _mint(account, amount);
     }
 }

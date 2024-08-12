@@ -6,6 +6,8 @@ import {SafeERC20, IERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeE
 contract MockSwapper {
     using SafeERC20 for IERC20;
 
+    error InvalidMinToAssetAmount();
+
     /**
      * @notice Strategist swaps assets sitting in the contract of the `assetHolder`.
      * @param _fromAsset The token address of the asset being sold by the vault.
@@ -21,6 +23,8 @@ contract MockSwapper {
         uint256 _minToAssetAmount,
         bytes calldata _data
     ) external returns (uint256 toAssetAmount) {
+        // more than a million usdc we wont support on test
+        if (_minToAssetAmount > 1e12) revert InvalidMinToAssetAmount();
         IERC20(_toAsset).safeTransfer(msg.sender, _minToAssetAmount);
         return _minToAssetAmount;
     }

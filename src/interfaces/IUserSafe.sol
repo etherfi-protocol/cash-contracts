@@ -108,6 +108,7 @@ interface IUserSafe {
     error InvalidSignatureIndex();
     error SignatureIndicesCannotBeSame();
     error AmountCannotBeZero();
+    error RecoverySignersCannotBeSame();
 
     /**
      * @notice Function to fetch the owner bytes for the User Safe.
@@ -170,12 +171,6 @@ interface IUserSafe {
      * @notice Function to fetch whether the recovery is active.
      */
     function isRecoveryActive() external view returns (bool);
-
-    /**
-     * @notice Function to fetch the contract address of the EtherFi Recovery safe.
-     * @return contract address of the EtherFi Recovery safe.
-     */
-    function etherFiRecoverySafe() external view returns (address);
 
     /**
      * @notice Function to fetch the recovery signers.

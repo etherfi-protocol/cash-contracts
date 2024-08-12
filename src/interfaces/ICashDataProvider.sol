@@ -69,12 +69,6 @@ interface ICashDataProvider {
     function swapper() external view returns (address);
 
     /**
-     * @notice Function to fetch the address of the EtherFi Recovery Safe contract
-     * @return EtherFi Recovery Safe contract
-     */
-    function etherFiRecoverySafe() external view returns (address);
-
-    /**
      * @notice Function to set the timelock delay for tokens from User Safe
      * @dev Can only be called by the owner of the contract
      * @param delay Timelock delay in seconds
@@ -129,11 +123,4 @@ interface ICashDataProvider {
      * @param swapper Swapper contract address
      */
     function setSwapper(address swapper) external;
-
-    /**
-     * @notice Function to set the address of the EtherFi Recovery Safe
-     * @dev Can only be called by the owner of the Safe
-     * @param recoverySafe EtherFi Recovery Safe contract address
-     */
-    function setEtherFiRecoverySafe(address recoverySafe) external;
 }

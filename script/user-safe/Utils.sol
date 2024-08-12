@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import {Test} from "forge-std/Test.sol";
+import {Script} from "forge-std/Script.sol";
 import {stdJson} from "forge-std/StdJson.sol";
 
 struct ChainConfig {
@@ -13,7 +13,7 @@ struct ChainConfig {
     address swapRouter1InchV6;
 }
 
-contract Utils is Test {
+contract Utils is Script {
     function getChainConfig(
         string memory chainId
     ) internal view returns (ChainConfig memory) {
@@ -64,6 +64,27 @@ contract Utils is Test {
                 ethUsdcOracle: ethUsdcOracle,
                 swapRouter1InchV6: swapRouter1InchV6
             });
+    }
+
+    function readDeploymentFile() internal view returns (string memory) {
+        string memory dir = string.concat(vm.projectRoot(), "/deployments/");
+        string memory chainDir = string.concat(vm.toString(block.chainid), "/");
+        string memory file = string.concat("deployments", ".json");
+        return vm.readFile(string.concat(dir, chainDir, file));
+    }
+
+    function writeDeploymentFile(string memory output) internal {
+        string memory dir = string.concat(vm.projectRoot(), "/deployments/");
+        string memory chainDir = string.concat(vm.toString(block.chainid), "/");
+        string memory file = string.concat("deployments", ".json");
+        vm.writeJson(output, string.concat(dir, chainDir, file));
+    }
+
+    function writeUserSafeDeploymentFile(string memory output) internal {
+        string memory dir = string.concat(vm.projectRoot(), "/deployments/");
+        string memory chainDir = string.concat(vm.toString(block.chainid), "/");
+        string memory file = string.concat("safe", ".json");
+        vm.writeJson(output, string.concat(dir, chainDir, file));
     }
 
     function isFork(string memory chainId) internal pure returns (bool) {

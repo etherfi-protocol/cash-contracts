@@ -71,13 +71,7 @@ contract UserSafe is IUserSafe, Initializable, UserSafeRecovery {
         address __cashDataProvider,
         address __etherFiRecoverySigner,
         address __thirdPartyRecoverySigner
-    )
-        UserSafeRecovery(
-            __cashDataProvider,
-            __etherFiRecoverySigner,
-            __thirdPartyRecoverySigner
-        )
-    {
+    ) UserSafeRecovery(__etherFiRecoverySigner, __thirdPartyRecoverySigner) {
         _cashDataProvider = ICashDataProvider(__cashDataProvider);
         _usdc = _cashDataProvider.usdc();
         _weETH = _cashDataProvider.weETH();
