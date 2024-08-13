@@ -11,6 +11,8 @@ struct ChainConfig {
     address weEthWethOracle;
     address ethUsdcOracle;
     address swapRouter1InchV6;
+    address aaveV3Pool;
+    address aaveV3PoolDataProvider;
 }
 
 contract Utils is Test {
@@ -55,6 +57,16 @@ contract Utils is Test {
             string.concat(".", chainId, ".", "swapRouter1InchV6")
         );
 
+        address aaveV3Pool = stdJson.readAddress(
+            inputJson,
+            string.concat(".", chainId, ".", "aaveV3Pool")
+        );
+
+        address aaveV3PoolDataProvider = stdJson.readAddress(
+            inputJson,
+            string.concat(".", chainId, ".", "aaveV3PoolDataProvider")
+        );
+
         return
             ChainConfig({
                 rpc: rpc,
@@ -62,7 +74,9 @@ contract Utils is Test {
                 weETH: weETH,
                 weEthWethOracle: weEthWethOracle,
                 ethUsdcOracle: ethUsdcOracle,
-                swapRouter1InchV6: swapRouter1InchV6
+                swapRouter1InchV6: swapRouter1InchV6,
+                aaveV3Pool: aaveV3Pool,
+                aaveV3PoolDataProvider: aaveV3PoolDataProvider
             });
     }
 

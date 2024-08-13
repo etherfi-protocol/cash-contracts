@@ -12,6 +12,7 @@ import {MockSwapper} from "../../src/mocks/MockSwapper.sol";
 import {L2DebtManager} from "../../src/L2DebtManager.sol";
 import {CashDataProvider} from "../../src/utils/CashDataProvider.sol";
 import {Utils, ChainConfig} from "./Utils.sol";
+import {MockAaveAdapter} from "../../src/mocks/MockAaveAdapter.sol";
 
 contract DeployUserSafeSetup is Utils {
     MockERC20 usdc;
@@ -22,6 +23,7 @@ contract DeployUserSafeSetup is Utils {
     UserSafeFactory userSafeFactory;
     L2DebtManager debtManager;
     CashDataProvider cashDataProvider;
+    MockAaveAdapter aaveAdapter;
     address etherFiCashMultisig;
     address etherFiWallet;
     address owner;
@@ -46,13 +48,16 @@ contract DeployUserSafeSetup is Utils {
         weETH = MockERC20(deployErc20("Wrapped eETH", "weETH", 18));
         priceProvider = new MockPriceProvider(2500e6);
         swapper = new MockSwapper();
+        aaveAdapter = new MockAaveAdapter();
 
         usdc.transfer(address(swapper), 1000 ether);
 
         debtManager = new L2DebtManager(
             address(weETH),
             address(usdc),
-            etherFiCashMultisig
+            etherFiCashMultisig,
+            address(priceProvider),
+            address(aaveAdapter)
         );
 
         address proxy = Upgrades.deployUUPSProxy(

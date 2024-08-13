@@ -16,6 +16,10 @@ import {Utils, ChainConfig} from "../Utils.sol";
 import {MockERC20} from "../../src/mocks/MockERC20.sol";
 import {MockPriceProvider} from "../../src/mocks/MockPriceProvider.sol";
 import {MockSwapper} from "../../src/mocks/MockSwapper.sol";
+import {IPool} from "@aave/interfaces/IPool.sol";
+import {IPoolDataProvider} from "@aave/interfaces/IPoolDataProvider.sol";
+import {IEtherFiCashAaveV3Adapter, EtherFiCashAaveV3Adapter} from "../../src/adapters/aave-v3/EtherFiCashAaveV3Adapter.sol";
+import {MockAaveAdapter} from "../../src/mocks/MockAaveAdapter.sol";
 
 contract UserSafeSetup is Utils {
     using OwnerLib for address;
@@ -57,22 +61,22 @@ contract UserSafeSetup is Utils {
     bytes aliceBytes;
     UserSafe aliceSafe;
 
-    uint256 passkeyPrivateKey =
-        uint256(
-            0x03d99692017473e2d631945a812607b23269d85721e0f370b8d3e7d29a874fd2
-        );
-    bytes passkeyOwner =
-        hex"1c05286fe694493eae33312f2d2e0d0abeda8db76238b7a204be1fb87f54ce4228fef61ef4ac300f631657635c28e59bfb2fe71bce1634c81c65642042f6dc4d";
-    UserSafe passkeyOwnerSafe;
+    IEtherFiCashAaveV3Adapter aaveV3Adapter;
+
+    IPool aavePool;
+    IPoolDataProvider aaveV3PoolDataProvider;
+    // Interest rate mode -> Stable: 1, variable: 2
+    uint256 interestRateMode = 2;
+    uint16 aaveReferralCode = 0;
 
     function setUp() public virtual {
         chainId = vm.envString("TEST_CHAIN");
 
         vm.startPrank(owner);
 
-        if (!isFork(chainId)) {
-            emit log_named_string("Testing on ChainID", chainId);
+        emit log_named_string("Testing on ChainID", chainId);
 
+        if (!isFork(chainId)) {
             usdc = ERC20(address(new MockERC20("usdc", "usdc", 6)));
             weETH = ERC20(address(new MockERC20("weETH", "weETH", 18)));
 
@@ -80,9 +84,8 @@ contract UserSafeSetup is Utils {
             priceProvider = PriceProvider(
                 address(new MockPriceProvider(mockWeETHPriceInUsd))
             );
+            aaveV3Adapter = IEtherFiCashAaveV3Adapter(new MockAaveAdapter());
         } else {
-            emit log_named_string("Testing on ChainID", chainId);
-
             ChainConfig memory chainConfig = getChainConfig(chainId);
             vm.createSelectFork(chainConfig.rpc);
 
@@ -97,13 +100,29 @@ contract UserSafeSetup is Utils {
 
             swapper = new Swapper1InchV6(swapRouter1InchV6, assets);
             priceProvider = new PriceProvider(weEthWethOracle, ethUsdcOracle);
+
+            aavePool = IPool(chainConfig.aaveV3Pool);
+            aaveV3PoolDataProvider = IPoolDataProvider(
+                chainConfig.aaveV3PoolDataProvider
+            );
+
+            aaveV3Adapter = IEtherFiCashAaveV3Adapter(
+                new EtherFiCashAaveV3Adapter(
+                    address(aavePool),
+                    address(aaveV3PoolDataProvider),
+                    aaveReferralCode,
+                    interestRateMode
+                )
+            );
         }
 
         etherFiCashDebtManager = address(
             new L2DebtManager(
                 address(weETH),
                 address(usdc),
-                etherFiCashMultisig
+                address(etherFiCashMultisig),
+                address(priceProvider),
+                address(aaveV3Adapter)
             )
         );
 
@@ -150,18 +169,6 @@ contract UserSafeSetup is Utils {
                     // initialize(bytes,uint256, uint256)
                     0x32b218ac,
                     aliceBytes,
-                    defaultSpendingLimit,
-                    collateralLimit
-                )
-            )
-        );
-
-        passkeyOwnerSafe = UserSafe(
-            factory.createUserSafe(
-                abi.encodeWithSelector(
-                    // initialize(bytes,uint256, uint256)
-                    0x32b218ac,
-                    passkeyOwner,
                     defaultSpendingLimit,
                     collateralLimit
                 )

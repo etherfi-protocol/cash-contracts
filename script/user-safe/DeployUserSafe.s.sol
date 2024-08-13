@@ -7,8 +7,8 @@ import {UserSafe} from "../../src/user-safe/UserSafe.sol";
 import {stdJson} from "forge-std/StdJson.sol";
 
 contract DeployUserSafe is Utils {
-    address owner;
-    uint256 ownerKey;
+    // address owner;
+    // uint256 ownerKey;
     UserSafeFactory userSafeFactory;
     UserSafe ownerSafe;
     uint256 defaultSpendingLimit = 10000e6;
@@ -17,10 +17,12 @@ contract DeployUserSafe is Utils {
     function run() public {
         // Pulling deployer info from the environment
         uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
+        address deployer = vm.addr(deployerPrivateKey);
+
         // Start broadcast with deployer as the signer
         vm.startBroadcast(deployerPrivateKey);
 
-        (owner, ownerKey) = makeAddrAndKey("owner");
+        // (owner, ownerKey) = makeAddrAndKey("owner");
 
         string memory deployments = readDeploymentFile();
 
@@ -34,9 +36,9 @@ contract DeployUserSafe is Utils {
         ownerSafe = UserSafe(
             userSafeFactory.createUserSafe(
                 abi.encodeWithSelector(
-                    // initialize(bytes,uint256, uint256)
+                    // initialize(bytes,uint256,uint256)
                     0x32b218ac,
-                    abi.encode(owner),
+                    abi.encode(deployer),
                     defaultSpendingLimit,
                     collateralLimit
                 )
@@ -46,8 +48,7 @@ contract DeployUserSafe is Utils {
         string memory parentObject = "parent object";
         string memory deployedAddresses = "addresses";
 
-        vm.serializeUint(deployedAddresses, "ownerPK", ownerKey);
-        vm.serializeAddress(deployedAddresses, "owner", address(owner));
+        vm.serializeAddress(deployedAddresses, "owner", deployer);
         string memory addressOutput = vm.serializeAddress(
             deployedAddresses,
             "safe",

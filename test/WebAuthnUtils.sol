@@ -21,7 +21,7 @@ library WebAuthnUtils {
             abi.encodePacked(
                 '{"type":"webauthn.get","challenge":"',
                 challengeb64url,
-                '","origin":"https://sign.coinbase.com","crossOrigin":false}'
+                '","origin":"https://cash.ether.fi","crossOrigin":false}'
             )
         );
 

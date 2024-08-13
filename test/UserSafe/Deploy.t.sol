@@ -14,27 +14,6 @@ contract UserSafeDeployTest is UserSafeSetup {
             thirdPartyRecoverySigner
         );
 
-        assertEq(
-            abi.encode(passkeyOwnerSafe.owner().x, passkeyOwnerSafe.owner().y),
-            passkeyOwner
-        );
-
-        assertEq(
-            abi.encode(
-                passkeyOwnerSafe.recoverySigners()[0].x,
-                passkeyOwnerSafe.recoverySigners()[0].y
-            ),
-            passkeyOwner
-        );
-        assertEq(
-            passkeyOwnerSafe.recoverySigners()[1].ethAddr,
-            etherFiRecoverySigner
-        );
-        assertEq(
-            passkeyOwnerSafe.recoverySigners()[2].ethAddr,
-            thirdPartyRecoverySigner
-        );
-
         UserSafe.SpendingLimitData memory spendingLimit = aliceSafe
             .spendingLimit();
         assertEq(spendingLimit.spendingLimit, defaultSpendingLimit);

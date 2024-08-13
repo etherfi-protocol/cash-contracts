@@ -42,29 +42,29 @@ interface IUserSafe {
         uint256 usedUpAmount; // in USD with 6 decimals
     }
 
-    event DepositFunds(address token, uint256 amount);
+    event DepositFunds(address indexed token, uint256 amount);
     event WithdrawalRequested(
         address[] tokens,
         uint256[] amounts,
-        address recipient,
+        address indexed recipient,
         uint256 finalizeTimestamp
     );
-    event WithdrawalAmountUpdated(address token, uint256 amount);
+    event WithdrawalAmountUpdated(address indexed token, uint256 amount);
     event WithdrawalCancelled(
         address[] tokens,
         uint256[] amounts,
-        address recipient
+        address indexed recipient
     );
     event WithdrawalProcessed(
         address[] tokens,
         uint256[] amounts,
-        address recipient
+        address indexed recipient
     );
-    event TransferForSpending(address token, uint256 amount);
+    event TransferForSpending(address indexed token, uint256 amount);
     event SwapTransferForSpending(
-        address inputToken,
+        address indexed inputToken,
         uint256 inputAmount,
-        address outputToken,
+        address indexed outputToken,
         uint256 outputTokenSent
     );
     event AddCollateralToDebtManager(address token, uint256 amount);
