@@ -3,15 +3,25 @@ pragma solidity ^0.8.24;
 
 import {SafeERC20, IERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {ICashDataProvider} from "./interfaces/ICashDataProvider.sol";
-import {OwnableUpgradeable} from "openzeppelin-contracts-upgradeable/contracts/access/OwnableUpgradeable.sol";
+import {AccessControlUpgradeable} from "openzeppelin-contracts-upgradeable/contracts/access/AccessControlUpgradeable.sol";
 import {UUPSUpgradeable, Initializable} from "openzeppelin-contracts-upgradeable/contracts/proxy/utils/UUPSUpgradeable.sol";
 import {IL2DebtManager} from "./interfaces/IL2DebtManager.sol";
 import {IPriceProvider} from "./interfaces/IPriceProvider.sol";
 import {IEtherFiCashAaveV3Adapter} from "./interfaces/IEtherFiCashAaveV3Adapter.sol";
 
-// Consider directly inheriting AAVA pool or routing relevant calls to AAVA pool
-contract L2DebtManager is UUPSUpgradeable, OwnableUpgradeable {
+/**
+ * @title L2 Debt Manager
+ * @author @seongyun-ko @shivam-ef
+ * @notice Contract to manage lending and borrowing for Cash protocol
+ */
+contract L2DebtManager is
+    IL2DebtManager,
+    UUPSUpgradeable,
+    AccessControlUpgradeable
+{
     using SafeERC20 for IERC20;
+
+    bytes32 public constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
 
     IERC20 public immutable weETH;
     IERC20 public immutable usdc;
@@ -19,43 +29,13 @@ contract L2DebtManager is UUPSUpgradeable, OwnableUpgradeable {
     IPriceProvider public immutable priceProvider;
     address public immutable aaveV3Adapter;
 
-    mapping(address => uint256) private _collaterals;
-    mapping(address => uint256) private _borrowings;
+    mapping(address user => mapping(address token => uint256 amount))
+        private _userCollateral;
+    mapping(address user => uint256 borrowing) private _userBorrowings;
 
-    uint256 public totalCollateralAmount;
-    uint256 public totalBorrowingAmount;
-
-    uint256 public liquidationThreshold;
-
-    event SuppliedUSDC(uint256 amount);
-    event DepositedCollateral(
-        address indexed user,
-        address indexed token,
-        uint256 amount
-    );
-    event Borrowed(
-        address indexed user,
-        address indexed token,
-        uint256 borrowUsdcAmount
-    );
-    event RepaidWithUSDC(address indexed user, uint256 repaidUsdcDebtAmount);
-    event RepaidWithEETH(
-        address indexed user,
-        uint256 repaidUsdcDebtAmount,
-        uint256 repaidCollateralEEthAmount
-    );
-    event Liquidated(
-        address indexed user,
-        uint256 beforeCollateralAmount,
-        uint256 afterCollateralAmount,
-        uint256 beforeDebtAmount
-    );
-
-    error UnsupportedCollateralToken();
-    error InsufficientCollateral();
-    error InsufficientLiquidity();
-    error InvalidRepayToken();
-    error CannotLiquidateYet();
+    mapping(address token => uint256 amount) private _totalCollateralAmounts;
+    uint256 private _totalBorrowingAmount;
+    uint256 private _liquidationThreshold;
 
     constructor(
         address _weETH,
@@ -72,39 +52,218 @@ contract L2DebtManager is UUPSUpgradeable, OwnableUpgradeable {
     }
 
     function initialize(address __owner) external initializer {
-        __Ownable_init(__owner);
+        __AccessControl_init();
+        _grantRole(DEFAULT_ADMIN_ROLE, __owner);
+        _grantRole(ADMIN_ROLE, __owner);
     }
 
-    // function supply(address token, uint256 amount) external {
-    //     if (token != usdc && token != weETH) revert InvalidToken();
-    //     SafeERC20.safeTransferFrom(usdc, msg.sender, address(this), amount);
-
-    //     emit SuppliedUSDC(amount);
-    // }
-
-    function depositCollateral(
+    /**
+     * @inheritdoc IL2DebtManager
+     */
+    function getUserCollateralForToken(
         address user,
-        address token,
-        uint256 amount
-    ) external {
+        address token
+    ) external view returns (uint256, uint256) {
+        if (token != address(weETH)) revert InvalidCollateralToken();
+        uint256 collateralTokenAmt = _userCollateral[user][token];
+        uint256 collateralAmtInUsd = convertCollateralTokenToUsdc(
+            address(weETH),
+            collateralTokenAmt
+        );
+
+        return (collateralTokenAmt, collateralAmtInUsd);
+    }
+
+    /**
+     * @inheritdoc IL2DebtManager
+     */
+    function liquidationThreshold() external view returns (uint256) {
+        return _liquidationThreshold;
+    }
+
+    /**
+     * @inheritdoc IL2DebtManager
+     */
+    function totalBorrowingAmount() external view returns (uint256) {
+        return _totalBorrowingAmount;
+    }
+
+    /**
+     * @inheritdoc IL2DebtManager
+     */
+    function totalCollateralAmounts()
+        external
+        view
+        returns (Collateral[] memory, uint256)
+    {
+        Collateral[] memory collaterals = new Collateral[](1);
+        collaterals[0] = Collateral({
+            token: address(weETH),
+            amount: _totalCollateralAmounts[address(weETH)]
+        });
+
+        uint256 totalCollateralInUsd = convertCollateralTokenToUsdc(
+            address(weETH),
+            collaterals[0].amount
+        );
+
+        return (collaterals, totalCollateralInUsd);
+    }
+
+    /**
+     * @inheritdoc IL2DebtManager
+     */
+    function liquidatable(address user) public view returns (bool) {
+        return debtRatioOf(user) > _liquidationThreshold;
+    }
+
+    /**
+     * @inheritdoc IL2DebtManager
+     */
+    function collateralOf(
+        address user
+    ) public view returns (Collateral[] memory, uint256) {
+        Collateral[] memory collaterals = new Collateral[](1);
+        collaterals[0] = Collateral({
+            token: address(weETH),
+            amount: _userCollateral[user][address(weETH)]
+        });
+
+        uint256 totalCollateralInUsd = convertCollateralTokenToUsdc(
+            address(weETH),
+            collaterals[0].amount
+        );
+
+        return (collaterals, totalCollateralInUsd);
+    }
+
+    /**
+     * @inheritdoc IL2DebtManager
+     */
+    function borrowingOf(address user) public view returns (uint256) {
+        return _userBorrowings[user];
+    }
+
+    /**
+     * @inheritdoc IL2DebtManager
+     */
+    function debtRatioOf(address user) public view returns (uint256) {
+        uint256 debtValue = _userBorrowings[user];
+        uint256 collateralValue = getCollateralValueInUsdc(user);
+        if (collateralValue == 0) revert ZeroCollateralValue();
+
+        return (debtValue * 1e4) / collateralValue; // result in basis points
+    }
+
+    /**
+     * @inheritdoc IL2DebtManager
+     */
+    function remainingBorrowingCapacityInUSDC(
+        address user
+    ) public view returns (uint256) {
+        uint256 maxBorrowingAmount = (getCollateralValueInUsdc(user) *
+            _liquidationThreshold) / 1e4;
+
+        return
+            maxBorrowingAmount > _userBorrowings[user]
+                ? maxBorrowingAmount - _userBorrowings[user]
+                : 0;
+    }
+
+    /**
+     * @inheritdoc IL2DebtManager
+     */
+    function liquidWeEthAmount() public view returns (uint256) {
+        return
+            weETH.balanceOf(address(this)) -
+            _totalCollateralAmounts[address(weETH)];
+    }
+
+    /**
+     * @inheritdoc IL2DebtManager
+     */
+    function liquidUsdcAmount() public view returns (uint256) {
+        return usdc.balanceOf(address(this)) - _totalBorrowingAmount;
+    }
+
+    /**
+     * @inheritdoc IL2DebtManager
+     */
+    function convertUsdcToCollateralToken(
+        address collateralToken,
+        uint256 debtUsdcAmount
+    ) public view returns (uint256) {
+        if (collateralToken != address(weETH)) revert InvalidCollateralToken();
+        return (debtUsdcAmount * 1e18) / priceProvider.getWeEthUsdPrice();
+    }
+
+    /**
+     * @inheritdoc IL2DebtManager
+     */
+    function convertCollateralTokenToUsdc(
+        address collateralToken,
+        uint256 collateralAmount
+    ) public view returns (uint256) {
+        if (collateralToken != address(weETH)) revert InvalidCollateralToken();
+        return (collateralAmount * priceProvider.getWeEthUsdPrice()) / 1e18;
+    }
+
+    /**
+     * @inheritdoc IL2DebtManager
+     */
+    function getCollateralValueInUsdc(
+        address user
+    ) public view returns (uint256) {
+        return
+            (_userCollateral[user][address(weETH)] *
+                priceProvider.getWeEthUsdPrice()) / 1e18;
+    }
+
+    /**
+     * @inheritdoc IL2DebtManager
+     */
+    function collateralTokens()
+        external
+        view
+        returns (address[] memory tokens)
+    {
+        tokens = new address[](1);
+        tokens[0] = address(weETH);
+    }
+
+    /**
+     * @inheritdoc IL2DebtManager
+     */
+    function setLiquidationThreshold(
+        uint256 newThreshold
+    ) external onlyRole(ADMIN_ROLE) {
+        emit LiquidationThresholdUpdated(_liquidationThreshold, newThreshold);
+        _liquidationThreshold = newThreshold;
+    }
+
+    /**
+     * @inheritdoc IL2DebtManager
+     */
+    function depositCollateral(address token, uint256 amount) external {
         if (token != address(weETH)) revert UnsupportedCollateralToken();
 
         IERC20(token).safeTransferFrom(msg.sender, address(this), amount);
-        _collaterals[user] += amount;
-        totalCollateralAmount += amount;
+        _totalCollateralAmounts[token] += amount;
+        _userCollateral[msg.sender][token] += amount;
 
-        emit DepositedCollateral(user, token, amount);
+        emit DepositedCollateral(msg.sender, token, amount);
     }
 
-    /// Users borrow funds for payment using the deposited collateral eETH
-    /// - the user's borriwng amount is incremented by the exact `amount`
-    /// - the total borrowing amount is incremented by the exact `amount`
-    /// - the token is transferred to the `etherFiCashSafe`
+    /**
+     * @inheritdoc IL2DebtManager
+     */
     function borrow(address token, uint256 amount) external {
-        _borrowings[msg.sender] += amount;
-        totalBorrowingAmount += amount;
+        if (token != address(usdc)) revert InvalidBorrowToken();
 
-        if (debtRatioOf(msg.sender) > liquidationThreshold)
+        _userBorrowings[msg.sender] += amount;
+        _totalBorrowingAmount += amount;
+
+        if (debtRatioOf(msg.sender) > _liquidationThreshold)
             revert InsufficientCollateral();
 
         if (IERC20(token).balanceOf(address(this)) < amount)
@@ -115,120 +274,118 @@ contract L2DebtManager is UUPSUpgradeable, OwnableUpgradeable {
         emit Borrowed(msg.sender, token, amount);
     }
 
+    /**
+     * @inheritdoc IL2DebtManager
+     */
     function repay(address token, uint256 amount) external {
         if (token == address(usdc)) _repayWithUSDC(msg.sender, amount);
         else if (token == address(weETH)) _repayWithWeEth(msg.sender, amount);
         else revert InvalidRepayToken();
     }
 
-    /// Users repay the borrowed USDC in USDC
-    function _repayWithUSDC(address user, uint256 repayUsdcAmount) internal {
-        _borrowings[user] -= repayUsdcAmount;
-        totalBorrowingAmount -= repayUsdcAmount;
-
-        IERC20(usdc).safeTransferFrom(user, address(this), repayUsdcAmount);
-
-        emit RepaidWithUSDC(user, repayUsdcAmount);
-    }
-
     // https://docs.aave.com/faq/liquidations
-    /// Liquidate the user's debt by repaying the entire debt using the collateral
-    /// @dev do we need to add penalty?
-    function liquidate(address user) external {
+    /**
+     * @inheritdoc IL2DebtManager
+     */
+    function liquidate(address user) external onlyRole(ADMIN_ROLE) {
         if (!liquidatable(user)) revert CannotLiquidateYet();
 
-        uint256 beforeDebtAmount = _borrowings[user];
-        uint256 beforeCollateralAmount = _collaterals[user];
+        uint256 beforeDebtAmount = _userBorrowings[user];
+        uint256 beforeCollateralAmount = _userCollateral[user][address(weETH)];
         _repayWithWeEth(user, beforeDebtAmount); // force to repay the entire debt using the collateral
 
         emit Liquidated(
             user,
             beforeCollateralAmount,
-            _collaterals[user],
+            _userCollateral[user][address(weETH)],
             beforeDebtAmount
         );
     }
 
-    // View functions
-    function liquidatable(address user) public view returns (bool) {
-        return debtRatioOf(user) > liquidationThreshold;
+    /**
+     * @inheritdoc IL2DebtManager
+     */
+    function fundManagementOperation(
+        uint8 marketOperationType,
+        bytes calldata data
+    ) external onlyRole(ADMIN_ROLE) {
+        if (marketOperationType == uint8(MarketOperationType.Supply)) {
+            (address token, uint256 amount) = abi.decode(
+                data,
+                (address, uint256)
+            );
+            _supplyOnAave(token, amount);
+        } else if (marketOperationType == uint8(MarketOperationType.Borrow)) {
+            (address token, uint256 amount) = abi.decode(
+                data,
+                (address, uint256)
+            );
+            _borrowFromAave(token, amount);
+        } else if (marketOperationType == uint8(MarketOperationType.Repay)) {
+            (address token, uint256 amount) = abi.decode(
+                data,
+                (address, uint256)
+            );
+            _repayOnAave(token, amount);
+        } else if (marketOperationType == uint8(MarketOperationType.Withdraw)) {
+            (address token, uint256 amount) = abi.decode(
+                data,
+                (address, uint256)
+            );
+            _withdrawFromAave(token, amount);
+        } else if (
+            marketOperationType == uint8(MarketOperationType.SupplyAndBorrow)
+        ) {
+            (
+                address tokenToSupply,
+                uint256 amountToSupply,
+                address tokenToBorrow,
+                uint256 amountToBorrow
+            ) = abi.decode(data, (address, uint256, address, uint256));
+            _supplyAndBorrowOnAave(
+                tokenToSupply,
+                amountToSupply,
+                tokenToBorrow,
+                amountToBorrow
+            );
+        } else revert InvalidMarketOperationType();
     }
 
-    function collateralOf(address user) public view returns (uint256) {
-        return _collaterals[user];
+    /// Users repay the borrowed USDC in USDC
+    function _repayWithUSDC(address user, uint256 repayDebtAmount) internal {
+        if (_userBorrowings[user] < repayDebtAmount)
+            revert CannotPayMoreThanDebtIncurred();
+
+        usdc.safeTransferFrom(user, address(this), repayDebtAmount);
+        _userBorrowings[user] -= repayDebtAmount;
+        _totalBorrowingAmount -= repayDebtAmount;
+
+        emit RepaidWithUSDC(user, repayDebtAmount);
     }
-
-    function borrowingOf(address user) public view returns (uint256) {
-        return _borrowings[user];
-    }
-
-    /// Debt ratio is calculated as the ratio of the debt to the collateral value in USDC
-    // it returns the ratio in basis points (1e4)
-    function debtRatioOf(address user) public view returns (uint256) {
-        uint256 debtValue = _borrowings[user];
-        uint256 collateralValue = (_collaterals[user] *
-            priceProvider.getWeEthUsdPrice()) / 1e18; // adjust for eETH's 18 decimals
-
-        require(collateralValue > 0, "ZERO_COLLATERAL_VALUE");
-
-        return (debtValue * 1e4) / collateralValue; // result in basis points
-    }
-
-    function remainingBorrowingCapacityInUSDC(
-        address user
-    ) public view returns (uint256) {
-        uint256 collateralValue = (_collaterals[user] *
-            priceProvider.getWeEthUsdPrice()) / 1e18;
-        uint256 maxBorrowingAmount = (collateralValue * liquidationThreshold) /
-            1e4;
-        return
-            maxBorrowingAmount > _borrowings[user]
-                ? maxBorrowingAmount - _borrowings[user]
-                : 0;
-    }
-
-    function liquidEEthAmount() public view returns (uint256) {
-        return IERC20(usdc).balanceOf(address(this)) - totalCollateralAmount;
-    }
-
-    function liquidUsdcAmount() public view returns (uint256) {
-        return IERC20(usdc).balanceOf(address(this)) - totalBorrowingAmount;
-    }
-
-    function convertWeEthtoUSDC(
-        uint256 eethAmount
-    ) private view returns (uint256) {
-        return (eethAmount * priceProvider.getWeEthUsdPrice()) / 1e18;
-    }
-
-    function getCollateralAmountForDebt(
-        uint256 debtUsdcAmount
-    ) public view returns (uint256) {
-        return (debtUsdcAmount * 1e18) / priceProvider.getWeEthUsdPrice();
-    }
-
-    // Internal functions
 
     // Use the deposited collateral to pay the debt
-    function _repayWithWeEth(
-        address user,
-        uint256 repayDebtAmount
-    ) internal returns (uint256 collateralAmount) {
-        collateralAmount = getCollateralAmountForDebt(repayDebtAmount);
+    function _repayWithWeEth(address user, uint256 repayDebtAmount) internal {
+        uint256 collateralAmountForDebt = convertUsdcToCollateralToken(
+            address(weETH),
+            repayDebtAmount
+        );
 
-        _borrowings[user] -= repayDebtAmount;
-        _collaterals[user] -= collateralAmount;
+        if (_userBorrowings[user] < repayDebtAmount)
+            revert CannotPayMoreThanDebtIncurred();
 
-        totalBorrowingAmount -= repayDebtAmount;
-        totalCollateralAmount -= collateralAmount;
+        if (_userCollateral[user][address(weETH)] < collateralAmountForDebt)
+            revert InsufficientCollateralToRepay();
 
-        emit RepaidWithEETH(user, repayDebtAmount, collateralAmount);
-    }
+        _userBorrowings[user] -= repayDebtAmount;
+        _userCollateral[user][address(weETH)] -= collateralAmountForDebt;
 
-    // Setters
+        _totalBorrowingAmount -= repayDebtAmount;
+        _totalCollateralAmounts[address(weETH)] -= collateralAmountForDebt;
 
-    function setLiquidationThreshold(uint256 newThreshold) external onlyOwner {
-        liquidationThreshold = newThreshold;
+        if (debtRatioOf(user) > _liquidationThreshold)
+            revert InsufficientCollateral();
+
+        emit RepaidWithWeEth(user, repayDebtAmount, collateralAmountForDebt);
     }
 
     function _supplyAndBorrowOnAave(
@@ -293,12 +450,6 @@ contract L2DebtManager is UUPSUpgradeable, OwnableUpgradeable {
         );
     }
 
-    /**
-     * @dev internal method that fecilitates the extenral calls from SmartAccount
-     * @dev similar to execute() of Executor.sol
-     * @param target destination address contract/non-contract
-     * @param data function singature of destination
-     */
     function _delegateCall(
         address target,
         bytes memory data
@@ -340,5 +491,5 @@ contract L2DebtManager is UUPSUpgradeable, OwnableUpgradeable {
 
     function _authorizeUpgrade(
         address newImplementation
-    ) internal override onlyOwner {}
+    ) internal override onlyRole(DEFAULT_ADMIN_ROLE) {}
 }

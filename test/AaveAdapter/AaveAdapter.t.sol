@@ -5,10 +5,10 @@ import {Test} from "forge-std/Test.sol";
 import {IPool} from "@aave/interfaces/IPool.sol";
 import {IPoolDataProvider} from "@aave/interfaces/IPoolDataProvider.sol";
 import {SafeERC20, IERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import {MockERC20} from "../src/mocks/MockERC20.sol";
-import {Utils, ChainConfig} from "./Utils.sol";
-import {IEtherFiCashAaveV3Adapter, EtherFiCashAaveV3Adapter} from "../src/adapters/aave-v3/EtherFiCashAaveV3Adapter.sol";
-import {MockAaveAdapter} from "../src/mocks/MockAaveAdapter.sol";
+import {MockERC20} from "../../src/mocks/MockERC20.sol";
+import {Utils, ChainConfig} from "../Utils.sol";
+import {IEtherFiCashAaveV3Adapter, EtherFiCashAaveV3Adapter} from "../../src/adapters/aave-v3/EtherFiCashAaveV3Adapter.sol";
+import {MockAaveAdapter} from "../../src/mocks/MockAaveAdapter.sol";
 
 contract AaveAdapterTest is Utils {
     using SafeERC20 for IERC20;

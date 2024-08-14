@@ -784,9 +784,8 @@ contract UserSafe is IUserSafe, Initializable, UserSafeRecovery {
     ) internal {
         _currentCollateralLimit();
 
-        uint256 currentCollateral = IL2DebtManager(debtManager).collateralOf(
-            address(this)
-        );
+        uint256 currentCollateral = IL2DebtManager(debtManager)
+            .getCollateralValueInUsdc(address(this));
 
         // in current case, token can be either weETH or USDC only
         if (token == _weETH) {
@@ -814,11 +813,7 @@ contract UserSafe is IUserSafe, Initializable, UserSafeRecovery {
         _updateWithdrawalRequestIfNecessary(token, amount);
 
         IERC20(token).forceApprove(debtManager, amount);
-        IL2DebtManager(debtManager).depositCollateral(
-            address(this),
-            token,
-            amount
-        );
+        IL2DebtManager(debtManager).depositCollateral(token, amount);
 
         emit AddCollateralToDebtManager(token, amount);
     }
