@@ -19,6 +19,8 @@ contract DebtManagerSetup is Utils {
 
     address owner = makeAddr("owner");
     address notOwner = makeAddr("notOwner");
+    address alice = makeAddr("alice");
+
     IEtherFiCashAaveV3Adapter aaveV3Adapter;
 
     IPool aavePool;
@@ -36,8 +38,9 @@ contract DebtManagerSetup is Utils {
     PriceProvider priceProvider;
     L2DebtManager debtManager;
     uint256 mockWeETHPriceInUsd = 3000e6;
+    uint256 liquidationThreshold = 60e18; // 60%
 
-    function setUp() public {
+    function setUp() public virtual {
         chainId = vm.envString("TEST_CHAIN");
 
         vm.startPrank(owner);
@@ -78,9 +81,6 @@ contract DebtManagerSetup is Utils {
                     interestRateMode
                 )
             );
-
-            deal(address(usdc), owner, 1 ether);
-            deal(address(weETH), owner, 1000 ether);
         }
 
         address impl = address(
@@ -98,8 +98,9 @@ contract DebtManagerSetup is Utils {
                 impl,
                 abi.encodeWithSelector(
                     // intiailize(address)
-                    0xc4d66de8,
-                    owner
+                    0xcd6dc687,
+                    owner,
+                    liquidationThreshold
                 )
             )
         );

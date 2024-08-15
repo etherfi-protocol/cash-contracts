@@ -24,5 +24,6 @@ contract DebtManagerDeployTest is DebtManagerSetup {
             debtManager.hasRole(debtManager.ADMIN_ROLE(), notOwner),
             false
         );
+        assertEq(debtManager.liquidationThreshold(), liquidationThreshold);
     }
 }

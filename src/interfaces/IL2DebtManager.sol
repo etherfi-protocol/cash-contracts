@@ -44,12 +44,11 @@ interface IL2DebtManager {
     );
 
     error UnsupportedCollateralToken();
+    error UnsupportedRepayToken();
+    error UnsupportedBorrowToken();
     error InsufficientCollateral();
     error InsufficientCollateralToRepay();
     error InsufficientLiquidity();
-    error InvalidCollateralToken();
-    error InvalidRepayToken();
-    error InvalidBorrowToken();
     error CannotLiquidateYet();
     error ZeroCollateralValue();
     error CannotPayMoreThanDebtIncurred();

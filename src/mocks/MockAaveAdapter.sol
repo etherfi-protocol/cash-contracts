@@ -4,7 +4,7 @@ pragma solidity ^0.8.24;
 import {SafeERC20, IERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IEtherFiCashAaveV3Adapter} from "../interfaces/IEtherFiCashAaveV3Adapter.sol";
 
-contract MockAaveAdapter is IEtherFiCashAaveV3Adapter {
+contract MockAave {
     using SafeERC20 for IERC20;
 
     uint256 totalCollateral;
@@ -14,44 +14,27 @@ contract MockAaveAdapter is IEtherFiCashAaveV3Adapter {
     uint256 ltv;
     uint256 healthFactor;
 
-    function process(
-        address assetToSupply,
-        uint256 amountToSupply,
-        address assetToBorrow,
-        uint256 amountToBorrow
-    ) external override {
-        totalCollateral += amountToSupply;
-        totalDebt += amountToBorrow;
-
-        emit AaveV3Process(
-            assetToSupply,
-            amountToSupply,
-            assetToBorrow,
-            amountToBorrow
-        );
-    }
-
-    function supply(address asset, uint256 amount) external override {
+    function supply(address asset, uint256 amount) external {
         totalCollateral += amount;
     }
 
-    function borrow(address asset, uint256 amount) external override {
+    function borrow(address asset, uint256 amount) external {
         totalDebt += amount;
     }
 
-    function repay(address asset, uint256 amount) external override {
+    function repay(address asset, uint256 amount) external {
         totalDebt -= amount;
     }
 
-    function withdraw(address asset, uint256 amount) external override {
+    function withdraw(address asset, uint256 amount) external {
         totalCollateral -= amount;
     }
 
     function getAccountData(
         address user
-    ) external view override returns (AaveAccountData memory) {
+    ) external view returns (IEtherFiCashAaveV3Adapter.AaveAccountData memory) {
         return
-            AaveAccountData({
+            IEtherFiCashAaveV3Adapter.AaveAccountData({
                 totalCollateralBase: totalCollateral,
                 totalDebtBase: totalDebt,
                 availableBorrowsBase: availableBorrowsBase,
@@ -64,14 +47,76 @@ contract MockAaveAdapter is IEtherFiCashAaveV3Adapter {
     function getDebt(
         address user,
         address token
-    ) external view override returns (uint256 debt) {
+    ) external view returns (uint256 debt) {
         return totalDebt;
     }
 
     function getCollateralBalance(
         address user,
         address token
-    ) external view override returns (uint256 balance) {
+    ) external view returns (uint256 balance) {
         return totalCollateral;
+    }
+}
+
+contract MockAaveAdapter is IEtherFiCashAaveV3Adapter {
+    using SafeERC20 for IERC20;
+    MockAave public immutable aave;
+
+    constructor() {
+        aave = new MockAave();
+    }
+
+    function process(
+        address assetToSupply,
+        uint256 amountToSupply,
+        address assetToBorrow,
+        uint256 amountToBorrow
+    ) external {
+        aave.supply(assetToSupply, amountToSupply);
+        aave.borrow(assetToBorrow, amountToBorrow);
+
+        emit AaveV3Process(
+            assetToSupply,
+            amountToSupply,
+            assetToBorrow,
+            amountToBorrow
+        );
+    }
+
+    function supply(address asset, uint256 amount) external {
+        aave.supply(asset, amount);
+    }
+
+    function borrow(address asset, uint256 amount) external {
+        aave.borrow(asset, amount);
+    }
+
+    function repay(address asset, uint256 amount) external {
+        aave.repay(asset, amount);
+    }
+
+    function withdraw(address asset, uint256 amount) external {
+        aave.withdraw(asset, amount);
+    }
+
+    function getAccountData(
+        address user
+    ) external view returns (AaveAccountData memory) {
+        return aave.getAccountData(user);
+    }
+
+    function getDebt(
+        address user,
+        address token
+    ) external view returns (uint256 debt) {
+        return aave.getDebt(user, token);
+    }
+
+    function getCollateralBalance(
+        address user,
+        address token
+    ) external view returns (uint256 balance) {
+        return aave.getCollateralBalance(user, token);
     }
 }

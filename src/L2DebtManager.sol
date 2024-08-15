@@ -35,6 +35,7 @@ contract L2DebtManager is
 
     mapping(address token => uint256 amount) private _totalCollateralAmounts;
     uint256 private _totalBorrowingAmount;
+    // Has 18 decimals
     uint256 private _liquidationThreshold;
 
     constructor(
@@ -51,10 +52,15 @@ contract L2DebtManager is
         aaveV3Adapter = _aaveV3Adapter;
     }
 
-    function initialize(address __owner) external initializer {
+    function initialize(
+        address __owner,
+        uint256 __liquidationThreshold
+    ) external initializer {
         __AccessControl_init();
         _grantRole(DEFAULT_ADMIN_ROLE, __owner);
         _grantRole(ADMIN_ROLE, __owner);
+
+        _liquidationThreshold = __liquidationThreshold;
     }
 
     /**
@@ -64,7 +70,7 @@ contract L2DebtManager is
         address user,
         address token
     ) external view returns (uint256, uint256) {
-        if (token != address(weETH)) revert InvalidCollateralToken();
+        if (token != address(weETH)) revert UnsupportedCollateralToken();
         uint256 collateralTokenAmt = _userCollateral[user][token];
         uint256 collateralAmtInUsd = convertCollateralTokenToUsdc(
             address(weETH),
@@ -152,7 +158,7 @@ contract L2DebtManager is
         uint256 collateralValue = getCollateralValueInUsdc(user);
         if (collateralValue == 0) revert ZeroCollateralValue();
 
-        return (debtValue * 1e4) / collateralValue; // result in basis points
+        return (debtValue * 1e20) / collateralValue; // result in basis points
     }
 
     /**
@@ -162,7 +168,7 @@ contract L2DebtManager is
         address user
     ) public view returns (uint256) {
         uint256 maxBorrowingAmount = (getCollateralValueInUsdc(user) *
-            _liquidationThreshold) / 1e4;
+            _liquidationThreshold) / 1e20;
 
         return
             maxBorrowingAmount > _userBorrowings[user]
@@ -193,7 +199,8 @@ contract L2DebtManager is
         address collateralToken,
         uint256 debtUsdcAmount
     ) public view returns (uint256) {
-        if (collateralToken != address(weETH)) revert InvalidCollateralToken();
+        if (collateralToken != address(weETH))
+            revert UnsupportedCollateralToken();
         return (debtUsdcAmount * 1e18) / priceProvider.getWeEthUsdPrice();
     }
 
@@ -204,7 +211,8 @@ contract L2DebtManager is
         address collateralToken,
         uint256 collateralAmount
     ) public view returns (uint256) {
-        if (collateralToken != address(weETH)) revert InvalidCollateralToken();
+        if (collateralToken != address(weETH))
+            revert UnsupportedCollateralToken();
         return (collateralAmount * priceProvider.getWeEthUsdPrice()) / 1e18;
     }
 
@@ -258,7 +266,7 @@ contract L2DebtManager is
      * @inheritdoc IL2DebtManager
      */
     function borrow(address token, uint256 amount) external {
-        if (token != address(usdc)) revert InvalidBorrowToken();
+        if (token != address(usdc)) revert UnsupportedBorrowToken();
 
         _userBorrowings[msg.sender] += amount;
         _totalBorrowingAmount += amount;
@@ -277,10 +285,14 @@ contract L2DebtManager is
     /**
      * @inheritdoc IL2DebtManager
      */
-    function repay(address token, uint256 amount) external {
-        if (token == address(usdc)) _repayWithUSDC(msg.sender, amount);
-        else if (token == address(weETH)) _repayWithWeEth(msg.sender, amount);
-        else revert InvalidRepayToken();
+    function repay(address token, uint256 repayDebtAmt) external {
+        if (_userBorrowings[msg.sender] < repayDebtAmt)
+            revert CannotPayMoreThanDebtIncurred();
+
+        if (token == address(usdc)) _repayWithUSDC(msg.sender, repayDebtAmt);
+        else if (token == address(weETH))
+            _repayWithWeEth(msg.sender, repayDebtAmt);
+        else revert UnsupportedRepayToken();
     }
 
     // https://docs.aave.com/faq/liquidations
@@ -353,9 +365,6 @@ contract L2DebtManager is
 
     /// Users repay the borrowed USDC in USDC
     function _repayWithUSDC(address user, uint256 repayDebtAmount) internal {
-        if (_userBorrowings[user] < repayDebtAmount)
-            revert CannotPayMoreThanDebtIncurred();
-
         usdc.safeTransferFrom(user, address(this), repayDebtAmount);
         _userBorrowings[user] -= repayDebtAmount;
         _totalBorrowingAmount -= repayDebtAmount;
@@ -369,9 +378,6 @@ contract L2DebtManager is
             address(weETH),
             repayDebtAmount
         );
-
-        if (_userBorrowings[user] < repayDebtAmount)
-            revert CannotPayMoreThanDebtIncurred();
 
         if (_userCollateral[user][address(weETH)] < collateralAmountForDebt)
             revert InsufficientCollateralToRepay();
