@@ -89,14 +89,17 @@ contract DebtManagerRepayTest is DebtManagerSetup {
         vm.startPrank(alice);
         usdc.forceApprove(address(debtManager), 0);
 
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                IERC20Errors.ERC20InsufficientAllowance.selector,
-                address(debtManager),
-                0,
-                1
-            )
-        );
+        if (!isFork(chainId))
+            vm.expectRevert(
+                abi.encodeWithSelector(
+                    IERC20Errors.ERC20InsufficientAllowance.selector,
+                    address(debtManager),
+                    0,
+                    1
+                )
+            );
+        else vm.expectRevert("ERC20: transfer amount exceeds allowance");
+
         debtManager.repay(alice, address(usdc), 1);
         vm.stopPrank();
     }
@@ -106,14 +109,17 @@ contract DebtManagerRepayTest is DebtManagerSetup {
 
         vm.startPrank(alice);
         usdc.forceApprove(address(debtManager), 1);
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                IERC20Errors.ERC20InsufficientBalance.selector,
-                alice,
-                0,
-                1
-            )
-        );
+
+        if (!isFork(chainId))
+            vm.expectRevert(
+                abi.encodeWithSelector(
+                    IERC20Errors.ERC20InsufficientBalance.selector,
+                    alice,
+                    0,
+                    1
+                )
+            );
+        else vm.expectRevert("ERC20: transfer amount exceeds balance");
         debtManager.repay(alice, address(usdc), 1);
         vm.stopPrank();
     }

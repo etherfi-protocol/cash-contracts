@@ -87,29 +87,42 @@ contract DebtManagerCollateralTest is DebtManagerSetup {
     }
 
     function test_CannotDepositCollateralIfAllownaceIsInsufficient() public {
+        deal(address(weETH), notOwner, 2);
+
+        vm.startPrank(notOwner);
         weETH.forceApprove(address(debtManager), 1);
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                IERC20Errors.ERC20InsufficientAllowance.selector,
-                address(debtManager),
-                1,
-                2
-            )
-        );
+
+        if (!isFork(chainId))
+            vm.expectRevert(
+                abi.encodeWithSelector(
+                    IERC20Errors.ERC20InsufficientAllowance.selector,
+                    address(debtManager),
+                    1,
+                    2
+                )
+            );
+        else vm.expectRevert("ERC20: transfer amount exceeds allowance");
+
         debtManager.depositCollateral(address(weETH), 2);
+
+        vm.stopPrank();
     }
 
     function test_CannotDepositCollateralIfBalanceIsInsufficient() public {
         vm.startPrank(notOwner);
         weETH.safeIncreaseAllowance(address(debtManager), 1);
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                IERC20Errors.ERC20InsufficientBalance.selector,
-                notOwner,
-                0,
-                1
-            )
-        );
+
+        if (!isFork(chainId))
+            vm.expectRevert(
+                abi.encodeWithSelector(
+                    IERC20Errors.ERC20InsufficientBalance.selector,
+                    notOwner,
+                    0,
+                    1
+                )
+            );
+        else vm.expectRevert("ERC20: transfer amount exceeds balance");
+
         debtManager.depositCollateral(address(weETH), 1);
         vm.stopPrank();
     }

@@ -15,12 +15,13 @@ contract IntegrationTest is IntegrationTestSetup {
             deal(address(usdc), address(etherFiCashDebtManager), 1 ether);
         } else {
             /// If it is mainnet, supply 0.01 weETH and borrow 1 USDC from Aave
-            deal(address(weETH), address(owner), 0.01 ether);
+            deal(address(weETH), address(etherFiCashDebtManager), 0.01 ether);
             vm.startPrank(owner);
             etherFiCashDebtManager.fundManagementOperation(
                 uint8(IL2DebtManager.MarketOperationType.SupplyAndBorrow),
                 abi.encode(address(weETH), 0.01 ether, address(usdc), 1e6)
             );
+            vm.stopPrank();
         }
     }
 
