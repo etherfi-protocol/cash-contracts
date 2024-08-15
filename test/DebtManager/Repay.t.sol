@@ -46,7 +46,7 @@ contract DebtManagerRepayTest is DebtManagerSetup {
 
         vm.startPrank(alice);
         usdc.forceApprove(address(debtManager), repayAmt);
-        debtManager.repay(address(usdc), repayAmt);
+        debtManager.repay(alice, address(usdc), repayAmt);
         vm.stopPrank();
 
         uint256 debtAmtAfter = debtManager.borrowingOf(alice);
@@ -63,7 +63,7 @@ contract DebtManagerRepayTest is DebtManagerSetup {
         uint256 repayAmt = debtAmtBefore;
 
         vm.startPrank(alice);
-        debtManager.repay(address(weETH), repayAmt);
+        debtManager.repay(alice, address(weETH), repayAmt);
         vm.stopPrank();
 
         uint256 debtAmtAfter = debtManager.borrowingOf(alice);
@@ -78,10 +78,10 @@ contract DebtManagerRepayTest is DebtManagerSetup {
 
         vm.startPrank(alice);
         vm.expectRevert(IL2DebtManager.CannotPayMoreThanDebtIncurred.selector);
-        debtManager.repay(address(weETH), totalDebt + 1);
+        debtManager.repay(alice, address(weETH), totalDebt + 1);
 
         vm.expectRevert(IL2DebtManager.CannotPayMoreThanDebtIncurred.selector);
-        debtManager.repay(address(usdc), totalDebt + 1);
+        debtManager.repay(alice, address(usdc), totalDebt + 1);
         vm.stopPrank();
     }
 
@@ -97,7 +97,7 @@ contract DebtManagerRepayTest is DebtManagerSetup {
                 1
             )
         );
-        debtManager.repay(address(usdc), 1);
+        debtManager.repay(alice, address(usdc), 1);
         vm.stopPrank();
     }
 
@@ -114,7 +114,7 @@ contract DebtManagerRepayTest is DebtManagerSetup {
                 1
             )
         );
-        debtManager.repay(address(usdc), 1);
+        debtManager.repay(alice, address(usdc), 1);
         vm.stopPrank();
     }
 
@@ -130,7 +130,7 @@ contract DebtManagerRepayTest is DebtManagerSetup {
 
         vm.startPrank(alice);
         vm.expectRevert(IL2DebtManager.InsufficientCollateralToRepay.selector);
-        debtManager.repay(address(weETH), totalDebt);
+        debtManager.repay(alice, address(weETH), totalDebt);
         vm.stopPrank();
     }
 
@@ -142,7 +142,30 @@ contract DebtManagerRepayTest is DebtManagerSetup {
 
         vm.startPrank(alice);
         vm.expectRevert(IL2DebtManager.InsufficientCollateral.selector);
-        debtManager.repay(address(weETH), repayDebt);
+        debtManager.repay(alice, address(weETH), repayDebt);
+        vm.stopPrank();
+    }
+
+    function test_CanRepayForOtherUser() public {
+        uint256 debtAmtBefore = debtManager.borrowingOf(alice);
+        assertGt(debtAmtBefore, 0);
+
+        uint256 repayAmt = debtAmtBefore;
+
+        vm.startPrank(notOwner);
+        deal(address(usdc), notOwner, repayAmt);
+        usdc.forceApprove(address(debtManager), repayAmt);
+        debtManager.repay(alice, address(usdc), repayAmt);
+        vm.stopPrank();
+
+        uint256 debtAmtAfter = debtManager.borrowingOf(alice);
+        assertEq(debtAmtBefore - debtAmtAfter, repayAmt);
+    }
+
+    function test_CanRepayForOtherUserWithCollateral() public {
+        vm.startPrank(notOwner);
+        vm.expectRevert(IL2DebtManager.OnlyUserCanRepayWithCollateral.selector);
+        debtManager.repay(alice, address(weETH), 1);
         vm.stopPrank();
     }
 }

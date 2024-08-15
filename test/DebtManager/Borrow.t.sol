@@ -54,7 +54,7 @@ contract DebtManagerBorrowTest is DebtManagerSetup {
         debtManager.borrow(address(usdc), borrowAmt);
         vm.stopPrank();
 
-        uint256 expectedDebtRatio = (borrowAmt * 1e18) / collateralValueInUsdc;
+        uint256 expectedDebtRatio = (borrowAmt * 1e20) / collateralValueInUsdc;
 
         uint256 totalBorrowingAmountAfter = debtManager.totalBorrowingAmount();
         assertEq(totalBorrowingAmountAfter, borrowAmt);

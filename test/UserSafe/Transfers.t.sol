@@ -3,7 +3,7 @@ pragma solidity ^0.8.24;
 
 import {IUserSafe, OwnerLib, UserSafe} from "../../src/user-safe/UserSafe.sol";
 import {MessageHashUtils} from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
-import {ERC20, UserSafeSetup} from "./UserSafeSetup.sol";
+import {ERC20, UserSafeSetup} from "./UserSafeSetup.t.sol";
 
 contract UserSafeTransfersTest is UserSafeSetup {
     uint256 aliceSafeUsdcBalanceBefore;

@@ -3,7 +3,7 @@ pragma solidity ^0.8.24;
 
 import {IUserSafe, OwnerLib, WebAuthn, UserSafe} from "../../src/user-safe/UserSafe.sol";
 import {MessageHashUtils} from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
-import {UserSafeSetup} from "./UserSafeSetup.sol";
+import {UserSafeSetup} from "./UserSafeSetup.t.sol";
 import {WebAuthnInfo, WebAuthnUtils} from "../WebAuthnUtils.sol";
 import {console} from "forge-std/console.sol";
 

@@ -3,7 +3,7 @@ pragma solidity ^0.8.24;
 
 import {IUserSafe, OwnerLib, UserSafe} from "../../src/user-safe/UserSafe.sol";
 import {MessageHashUtils} from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
-import {UserSafeSetup} from "./UserSafeSetup.sol";
+import {UserSafeSetup} from "./UserSafeSetup.t.sol";
 
 contract UserSafeCollateralLimitTest is UserSafeSetup {
     using MessageHashUtils for bytes32;
@@ -83,7 +83,7 @@ contract UserSafeCollateralLimitTest is UserSafeSetup {
         assertEq(newCollateralLimit, collateralLimitAfterDelay);
     }
 
-    function test_CannotAddMoreCollateralThanSpendingLimit() public {
+    function test_CannotAddMoreCollateralThanCollateralLimit() public {
         uint256 amount = 10 ether;
         deal(address(weETH), address(aliceSafe), amount);
 

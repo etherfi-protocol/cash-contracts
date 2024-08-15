@@ -285,14 +285,15 @@ contract L2DebtManager is
     /**
      * @inheritdoc IL2DebtManager
      */
-    function repay(address token, uint256 repayDebtAmt) external {
-        if (_userBorrowings[msg.sender] < repayDebtAmt)
+    function repay(address user, address token, uint256 repayDebtAmt) external {
+        if (_userBorrowings[user] < repayDebtAmt)
             revert CannotPayMoreThanDebtIncurred();
 
-        if (token == address(usdc)) _repayWithUSDC(msg.sender, repayDebtAmt);
-        else if (token == address(weETH))
-            _repayWithWeEth(msg.sender, repayDebtAmt);
-        else revert UnsupportedRepayToken();
+        if (token == address(usdc)) _repayWithUSDC(user, repayDebtAmt);
+        else if (token == address(weETH)) {
+            if (msg.sender != user) revert OnlyUserCanRepayWithCollateral();
+            _repayWithWeEth(user, repayDebtAmt);
+        } else revert UnsupportedRepayToken();
     }
 
     // https://docs.aave.com/faq/liquidations
@@ -365,11 +366,11 @@ contract L2DebtManager is
 
     /// Users repay the borrowed USDC in USDC
     function _repayWithUSDC(address user, uint256 repayDebtAmount) internal {
-        usdc.safeTransferFrom(user, address(this), repayDebtAmount);
+        usdc.safeTransferFrom(msg.sender, address(this), repayDebtAmount);
         _userBorrowings[user] -= repayDebtAmount;
         _totalBorrowingAmount -= repayDebtAmount;
 
-        emit RepaidWithUSDC(user, repayDebtAmount);
+        emit RepaidWithUSDC(user, msg.sender, repayDebtAmount);
     }
 
     // Use the deposited collateral to pay the debt

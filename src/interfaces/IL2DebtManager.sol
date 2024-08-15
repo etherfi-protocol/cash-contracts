@@ -26,7 +26,11 @@ interface IL2DebtManager {
         address indexed token,
         uint256 borrowUsdcAmount
     );
-    event RepaidWithUSDC(address indexed user, uint256 repaidUsdcDebtAmount);
+    event RepaidWithUSDC(
+        address indexed user,
+        address indexed payer,
+        uint256 repaidUsdcDebtAmount
+    );
     event RepaidWithWeEth(
         address indexed user,
         uint256 repaidUsdcDebtAmount,
@@ -53,6 +57,7 @@ interface IL2DebtManager {
     error ZeroCollateralValue();
     error CannotPayMoreThanDebtIncurred();
     error InvalidMarketOperationType();
+    error OnlyUserCanRepayWithCollateral();
 
     /**
      * @notice Function to deposit collateral into this contract.
@@ -71,10 +76,11 @@ interface IL2DebtManager {
 
     /**
      * @notice Function for users to repay the borrowed funds back to the debt manager.
+     * @param  user Address of the user safe for whom the payment is made.
      * @param  token Address of the token in which repayment is done.
      * @param  amount Amount of the token.
      */
-    function repay(address token, uint256 amount) external;
+    function repay(address user, address token, uint256 amount) external;
 
     // https://docs.aave.com/faq/liquidations
     /**

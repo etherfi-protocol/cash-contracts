@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import {UserSafeSetup} from "../UserSafe/UserSafeSetup.sol";
+import {UserSafeSetup} from "../UserSafe/UserSafeSetup.t.sol";
 import {console} from "forge-std/console.sol";
 
 contract PriceProviderTest is UserSafeSetup {

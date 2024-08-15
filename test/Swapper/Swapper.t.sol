@@ -2,7 +2,7 @@
 pragma solidity ^0.8.24;
 
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import {UserSafeSetup} from "../UserSafe/UserSafeSetup.sol";
+import {UserSafeSetup} from "../UserSafe/UserSafeSetup.t.sol";
 import {console} from "forge-std/console.sol";
 
 contract SwapperTest is UserSafeSetup {

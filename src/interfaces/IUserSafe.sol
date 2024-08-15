@@ -69,6 +69,7 @@ interface IUserSafe {
     );
     event AddCollateralToDebtManager(address token, uint256 amount);
     event BorrowFromDebtManager(address token, uint256 amount);
+    event RepayDebtManager(address token, uint256 debtAmount);
     event ResetSpendingLimit(
         uint8 spendingLimitType,
         uint256 limitInUsd,
@@ -422,6 +423,22 @@ interface IUserSafe {
         address borrowToken,
         uint256 borrowAmount
     ) external;
+
+    /**
+     * @notice Function to borrow funds from EtherFiCash Debt Manager.
+     * @dev Can only be called by the EtherFi Cash Wallet.
+     * @param token Address of token to borrow.
+     * @param amount Amount of tokens to borrow.
+     */
+    function borrow(address token, uint256 amount) external;
+
+    /**
+     * @notice Function to repay funds to EtherFiCash Debt Manager.
+     * @dev Can only be called by the EtherFi Cash Wallet.
+     * @param token Address of token to use for repayment. Can be USDC or the collateral tokens.
+     * @param debtAmountInUsdc Amount of debt to be repaid in USDC.
+     */
+    function repay(address token, uint256 debtAmountInUsdc) external;
 
     /**
      * @notice Function to swap funds to output token and transfer it to EtherFiCash Safe.

@@ -2,7 +2,7 @@
 pragma solidity ^0.8.24;
 
 import {IUserSafe, OwnerLib, UserSafe} from "../../src/user-safe/UserSafe.sol";
-import {UserSafeSetup} from "./UserSafeSetup.sol";
+import {UserSafeSetup} from "./UserSafeSetup.t.sol";
 
 contract UserSafeDeployTest is UserSafeSetup {
     function test_Deploy() public view {

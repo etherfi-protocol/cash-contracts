@@ -596,6 +596,25 @@ contract UserSafe is IUserSafe, Initializable, UserSafeRecovery {
         _borrow(debtManager, borrowToken, borrowAmount);
     }
 
+    /**
+     * @inheritdoc IUserSafe
+     */
+    function borrow(address token, uint256 amount) external onlyEtherFiWallet {
+        address debtManager = _cashDataProvider.etherFiCashDebtManager();
+        _borrow(debtManager, token, amount);
+    }
+
+    /**
+     * @inheritdoc IUserSafe
+     */
+    function repay(
+        address token,
+        uint256 debtAmountInUsdc
+    ) external onlyEtherFiWallet {
+        address debtManager = _cashDataProvider.etherFiCashDebtManager();
+        _repay(debtManager, token, debtAmountInUsdc);
+    }
+
     function _getSpendingLimitRenewalTimestamp(
         uint64 startTimestamp,
         SpendingLimitTypes spendingLimitType
@@ -828,6 +847,21 @@ contract UserSafe is IUserSafe, Initializable, UserSafeRecovery {
 
         IL2DebtManager(debtManager).borrow(token, amount);
         emit BorrowFromDebtManager(token, amount);
+    }
+
+    function _repay(
+        address debtManager,
+        address token,
+        uint256 debtAmount
+    ) internal {
+        if (token == _usdc) {
+            IERC20(_usdc).forceApprove(debtManager, debtAmount);
+            IL2DebtManager(debtManager).repay(address(this), token, debtAmount);
+            emit RepayDebtManager(token, debtAmount);
+        } else if (token == _weETH) {
+            IL2DebtManager(debtManager).repay(address(this), token, debtAmount);
+            emit RepayDebtManager(token, debtAmount);
+        } else revert UnsupportedToken();
     }
 
     function _updateWithdrawalRequestIfNecessary(

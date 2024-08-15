@@ -13,6 +13,7 @@ import {L2DebtManager} from "../../src/L2DebtManager.sol";
 import {CashDataProvider} from "../../src/utils/CashDataProvider.sol";
 import {Utils, ChainConfig} from "./Utils.sol";
 import {MockAaveAdapter} from "../../src/mocks/MockAaveAdapter.sol";
+import {UUPSProxy} from "../../src/UUPSProxy.sol";
 
 contract DeployUserSafeSetup is Utils {
     MockERC20 usdc;
@@ -28,6 +29,7 @@ contract DeployUserSafeSetup is Utils {
     address etherFiWallet;
     address owner;
     uint256 delay = 60;
+    uint256 liquidationThreshold = 60e18;
 
     // Shivam Metamask wallets
     address recoverySigner1 = 0x7fEd99d0aA90423de55e238Eb5F9416FF7Cc58eF;
@@ -52,15 +54,30 @@ contract DeployUserSafeSetup is Utils {
 
         usdc.transfer(address(swapper), 1000 ether);
 
-        debtManager = new L2DebtManager(
-            address(weETH),
-            address(usdc),
-            etherFiCashMultisig,
-            address(priceProvider),
-            address(aaveAdapter)
+        address debtManagerImpl = address(
+            new L2DebtManager(
+                address(weETH),
+                address(usdc),
+                etherFiCashMultisig,
+                address(priceProvider),
+                address(aaveAdapter)
+            )
         );
 
-        address proxy = Upgrades.deployUUPSProxy(
+        address debtManagerProxy = address(
+            new UUPSProxy(
+                debtManagerImpl,
+                abi.encodeWithSelector(
+                    // intiailize(address)
+                    0xcd6dc687,
+                    owner,
+                    liquidationThreshold
+                )
+            )
+        );
+        debtManager = L2DebtManager(debtManagerProxy);
+
+        address cashDataProviderProxy = Upgrades.deployUUPSProxy(
             "CashDataProvider.sol:CashDataProvider",
             abi.encodeWithSelector(
                 // intiailize(address,uint64,address,address,address,address,address,address,address)
@@ -76,7 +93,10 @@ contract DeployUserSafeSetup is Utils {
                 address(swapper)
             )
         );
-        cashDataProvider = CashDataProvider(proxy);
+        cashDataProvider = CashDataProvider(cashDataProviderProxy);
+        address cashDataProviderImpl = Upgrades.getImplementationAddress(
+            address(cashDataProvider)
+        );
 
         userSafeImpl = new UserSafe(
             address(cashDataProvider),
@@ -111,13 +131,23 @@ contract DeployUserSafeSetup is Utils {
         );
         vm.serializeAddress(
             deployedAddresses,
-            "debtManager",
+            "debtManagerProxy",
             address(debtManager)
         );
         vm.serializeAddress(
             deployedAddresses,
-            "cashDataProvider",
+            "debtManagerImpl",
+            address(debtManagerImpl)
+        );
+        vm.serializeAddress(
+            deployedAddresses,
+            "cashDataProviderProxy",
             address(cashDataProvider)
+        );
+        vm.serializeAddress(
+            deployedAddresses,
+            "cashDataProviderImpl",
+            address(cashDataProviderImpl)
         );
         vm.serializeAddress(
             deployedAddresses,
