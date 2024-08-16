@@ -609,10 +609,10 @@ contract UserSafe is IUserSafe, Initializable, UserSafeRecovery {
      */
     function repay(
         address token,
-        uint256 debtAmountInUsdc
+        uint256 repayDebtUsdcAmt
     ) external onlyEtherFiWallet {
         address debtManager = _cashDataProvider.etherFiCashDebtManager();
-        _repay(debtManager, token, debtAmountInUsdc);
+        _repay(debtManager, token, repayDebtUsdcAmt);
     }
 
     function _getSpendingLimitRenewalTimestamp(
@@ -852,15 +852,23 @@ contract UserSafe is IUserSafe, Initializable, UserSafeRecovery {
     function _repay(
         address debtManager,
         address token,
-        uint256 debtAmount
+        uint256 repayDebtUsdcAmt
     ) internal {
         if (token == _usdc) {
-            IERC20(_usdc).forceApprove(debtManager, debtAmount);
-            IL2DebtManager(debtManager).repay(address(this), token, debtAmount);
-            emit RepayDebtManager(token, debtAmount);
+            IERC20(_usdc).forceApprove(debtManager, repayDebtUsdcAmt);
+            IL2DebtManager(debtManager).repay(
+                address(this),
+                token,
+                repayDebtUsdcAmt
+            );
+            emit RepayDebtManager(token, repayDebtUsdcAmt);
         } else if (token == _weETH) {
-            IL2DebtManager(debtManager).repay(address(this), token, debtAmount);
-            emit RepayDebtManager(token, debtAmount);
+            IL2DebtManager(debtManager).repay(
+                address(this),
+                token,
+                repayDebtUsdcAmt
+            );
+            emit RepayDebtManager(token, repayDebtUsdcAmt);
         } else revert UnsupportedToken();
     }
 

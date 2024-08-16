@@ -10,7 +10,7 @@ interface IL2DebtManager {
         SupplyAndBorrow
     }
 
-    struct Collateral {
+    struct TokenData {
         address token;
         uint256 amount;
     }
@@ -31,21 +31,33 @@ interface IL2DebtManager {
         address indexed payer,
         uint256 repaidUsdcDebtAmount
     );
-    event RepaidWithWeEth(
+    event RepaidWithCollateralToken(
+        address indexed user,
+        address indexed payer,
+        address indexed collateralToken,
+        uint256 beforeCollateralAmount,
+        uint256 afterCollateralAmount,
+        uint256 repaidUsdcDebtAmount
+    );
+    event RepaidWithCollateral(
         address indexed user,
         uint256 repaidUsdcDebtAmount,
-        uint256 repaidCollateralEEthAmount
+        TokenData[] collateralUsed
     );
     event Liquidated(
         address indexed user,
-        uint256 beforeCollateralAmount,
-        uint256 afterCollateralAmount,
+        TokenData[] beforeCollateralAmount,
+        TokenData[] afterCollateralAmount,
         uint256 beforeDebtAmount
     );
     event LiquidationThresholdUpdated(
         uint256 oldThreshold,
         uint256 newThreshold
     );
+    event CollateralTokenAdded(address token);
+    event CollateralTokenRemoved(address token);
+    event BorrowTokenAdded(address token);
+    event BorrowTokenRemoved(address token);
 
     error UnsupportedCollateralToken();
     error UnsupportedRepayToken();
@@ -58,6 +70,65 @@ interface IL2DebtManager {
     error CannotPayMoreThanDebtIncurred();
     error InvalidMarketOperationType();
     error OnlyUserCanRepayWithCollateral();
+    error InvalidValue();
+    error AlreadyCollateralToken();
+    error AlreadyBorrowToken();
+    error NotACollateralToken();
+    error NoCollateralTokenLeft();
+    error NotABorrowToken();
+    error NoBorrowTokenLeft();
+
+    /**
+     * @notice Function to fetch the array of collateral tokens.
+     * @return Array of collateral tokens.
+     */
+    function getCollateralTokens() external view returns (address[] memory);
+
+    /**
+     * @notice Function to fetch the array of borrow tokens.
+     * @return Array of borrow tokens.
+     */
+    function getBorrowTokens() external view returns (address[] memory);
+
+    /**
+     * @notice Function to check whether a token is a collateral token.
+     * @return Boolean value suggesting if token is a collateral token.
+     */
+    function isCollateralToken(address token) external view returns (bool);
+
+    /**
+     * @notice Function to check whether a token is a borrow token.
+     * @return Boolean value suggesting if token is a borrow token.
+     */
+    function isBorrowToken(address token) external view returns (bool);
+
+    /**
+     * @notice Function to add support for a new collateral token.
+     * @dev Can only be called by an address with the ADMIN_ROLE.
+     * @param token Address of the token to be supported as collateral.
+     */
+    function supportCollateralToken(address token) external;
+
+    /**
+     * @notice Function to remove support for a collateral token.
+     * @dev Can only be called by an address with the ADMIN_ROLE.
+     * @param token Address of the token to be unsupported as collateral.
+     */
+    function unsupportCollateralToken(address token) external;
+
+    /**
+     * @notice Function to add support for a new borrow token.
+     * @dev Can only be called by an address with the ADMIN_ROLE.
+     * @param token Address of the token to be supported as borrow.
+     */
+    function supportBorrowToken(address token) external;
+
+    /**
+     * @notice Function to remove support for a borrow token.
+     * @dev Can only be called by an address with the ADMIN_ROLE.
+     * @param token Address of the token to be unsupported as borrow.
+     */
+    function unsupportBorrowToken(address token) external;
 
     /**
      * @notice Function to deposit collateral into this contract.
@@ -78,9 +149,23 @@ interface IL2DebtManager {
      * @notice Function for users to repay the borrowed funds back to the debt manager.
      * @param  user Address of the user safe for whom the payment is made.
      * @param  token Address of the token in which repayment is done.
-     * @param  amount Amount of the token.
+     * @param  repayDebtUsdcAmt Amount of debt to be repaid in USDC terms.
      */
-    function repay(address user, address token, uint256 amount) external;
+    function repay(
+        address user,
+        address token,
+        uint256 repayDebtUsdcAmt
+    ) external;
+
+    /**
+     * @notice Function for users to repay the borrowed funds back to the debt manager using all the collateral user has.
+     * @param  user Address of the user safe for whom the payment is made.
+     * @param  repayDebtUsdcAmt Amount of debt to be repaid in USDC terms.
+     */
+    function repayWithCollateral(
+        address user,
+        uint256 repayDebtUsdcAmt
+    ) external;
 
     // https://docs.aave.com/faq/liquidations
     /**
@@ -100,11 +185,11 @@ interface IL2DebtManager {
     /**
      * @notice Function to fetch the collateral amount for the user.
      * @param  user Address of the user.
-     * @return array of Collateral struct, total collateral amount in usdc.
+     * @return array of TokenData struct, total collateral amount in usdc.
      */
     function collateralOf(
         address user
-    ) external view returns (Collateral[] memory, uint256);
+    ) external view returns (TokenData[] memory, uint256);
 
     /**
      * @notice Function to fetch the borrowing amount of the user.
@@ -131,17 +216,21 @@ interface IL2DebtManager {
     ) external view returns (uint256);
 
     /**
-     * @notice Function to fetch the liquid weETH amount in the contract.
-     * @notice Calculated as the weETH balance of the contract minus the total collateral amount.
-     * @return Liquid weETH amount.
+     * @notice Function to fetch the liquid collateral amounts in the contract.
+     * @notice Calculated as the collateral balance of the contract minus the total collateral amount in a token.
+     * @return Liquid collateral amounts.
      */
-    function liquidWeEthAmount() external view returns (uint256);
+    function liquidCollateralAmounts()
+        external
+        view
+        returns (TokenData[] memory);
+
     /**
-     * @notice Function to fetch the liquid USDC amount in the contract.
-     * @notice Calculated as the USDC balance of the contract minus the total borrowing amount.
-     * @return Liquid weETH amount.
+     * @notice Function to fetch the liquid stable amount in the contract.
+     * @notice Calculated as the stable balances of the contract minus the total borrowing amount.
+     * @return Liquid stable amount.
      */
-    function liquidUsdcAmount() external view returns (uint256);
+    function liquidStableAmount() external view returns (uint256);
 
     /**
      * @notice Function to convert collateral token amount to equivalent USDC amount.
@@ -173,12 +262,6 @@ interface IL2DebtManager {
     function getCollateralValueInUsdc(
         address user
     ) external view returns (uint256);
-
-    /**
-     * @notice Function to fetch the supported collateral tokens.
-     * @return Array of addresses of supported collateral tokens.
-     */
-    function collateralTokens() external view returns (address[] memory);
 
     /**
      * @notice Function to set the liquidation threshold.
@@ -230,5 +313,20 @@ interface IL2DebtManager {
     function totalCollateralAmounts()
         external
         view
-        returns (Collateral[] memory, uint256);
+        returns (TokenData[] memory, uint256);
+
+    /**
+     * @notice Function to fetch the current state of collaterals and borrowings.
+     * @return totalCollaterals Array of collaterals in tuple(address token, uint256 amount) format.
+     * @return totalCollateralInUsdc Total collateral value in USDC.
+     * @return totalBorrowings Total borrowing value in USDC.
+     */
+    function getCurrentState()
+        external
+        view
+        returns (
+            TokenData[] memory totalCollaterals,
+            uint256 totalCollateralInUsdc,
+            uint256 totalBorrowings
+        );
 }
