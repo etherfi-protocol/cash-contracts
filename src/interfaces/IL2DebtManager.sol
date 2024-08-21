@@ -104,10 +104,10 @@ interface IL2DebtManager {
     error InsufficientLiquidityPleaseTryAgainLater();
 
     /**
-     * @notice Function to fetch the accumulated interest per debt token.
-     * @return accumulated interest per debt token
+     * @notice Function to fetch the debt interest index snapshot.
+     * @return debt interest index snapshot
      */
-    function accumulatedInterestPerDebtToken() external view returns (uint256);
+    function debtInterestIndexSnapshot() external view returns (uint256);
 
     /**
      * @notice Function to fetch the borrow APY per second with 18 decimals.

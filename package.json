@@ -1,9 +1,30 @@
 {
+  "name": "ether.fi Cash Smart Contracts",
+  "description": "This project powers the ether.fi Cash product, providing seamless debit and credit functionalities for users.",
+  "version": "v0.5",
+  "author": {
+    "name": "Shivam Agrawal",
+    "email": "shivam@ether.fi"
+  },
+  "contributors": [
+    {"name":"Seongyun Ko", "email": "seongyun@ether.fi"}
+  ],
   "dependencies": {
     "axios": "^1.7.3",
     "ethers": "^5.7.2"
   },
   "devDependencies": {
     "@types/node": "^22.1.0"
-  }
+  },
+  "scripts": {
+    "build": "forge build",
+    "test": "forge test",
+    "compile": "forge compile"
+  },
+  "keywords": [
+    "ether.fi",
+    "cash-contracts",
+    "ethfi",
+    "card"
+  ]
 }

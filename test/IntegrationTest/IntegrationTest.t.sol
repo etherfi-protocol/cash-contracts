@@ -212,4 +212,68 @@ contract IntegrationTest is IntegrationTestSetup {
 
         vm.stopPrank();
     }
+
+    function test_WithdrawCollateral() public {
+        uint256 supplyAmt = 0.01 ether;
+        uint256 borrowAmt = 1e6;
+
+        deal(address(weETH), address(aliceSafe), supplyAmt);
+
+        vm.startPrank(etherFiWallet);
+        aliceSafe.addCollateralAndBorrow(
+            address(weETH),
+            supplyAmt,
+            address(usdc),
+            borrowAmt
+        );
+
+        uint256 aliceSafeWeEthBalBefore = weETH.balanceOf(address(aliceSafe));
+
+        uint256 withdrawAmt = 0.001 ether;
+        aliceSafe.withdrawCollateralFromDebtManager(
+            address(weETH),
+            withdrawAmt
+        );
+
+        uint256 aliceSafeWeEthBalAfter = weETH.balanceOf(address(aliceSafe));
+
+        assertEq(aliceSafeWeEthBalAfter - aliceSafeWeEthBalBefore, withdrawAmt);
+    }
+
+    function test_CloseAccount() public {
+        uint256 supplyAmt = 0.01 ether;
+        uint256 borrowAmt = 1e6;
+
+        deal(address(weETH), address(aliceSafe), supplyAmt);
+
+        vm.startPrank(etherFiWallet);
+        aliceSafe.addCollateralAndBorrow(
+            address(weETH),
+            supplyAmt,
+            address(usdc),
+            borrowAmt
+        );
+
+        uint256 aliceSafeWeEthBalBefore = weETH.balanceOf(address(aliceSafe));
+        uint256 aliceSafeDebtBefore = etherFiCashDebtManager.borrowingOf(
+            address(aliceSafe)
+        );
+
+        aliceSafe.closeAccountWithDebtManager();
+
+        uint256 aliceSafeWeEthBalAfter = weETH.balanceOf(address(aliceSafe));
+        uint256 aliceSafeDebtAfter = etherFiCashDebtManager.borrowingOf(
+            address(aliceSafe)
+        );
+
+        uint256 debtInWeETH = etherFiCashDebtManager
+            .convertUsdcToCollateralToken(address(weETH), borrowAmt);
+
+        assertEq(aliceSafeDebtBefore, borrowAmt);
+        assertEq(aliceSafeDebtAfter, 0);
+        assertEq(
+            aliceSafeWeEthBalAfter - aliceSafeWeEthBalBefore,
+            supplyAmt - debtInWeETH
+        );
+    }
 }

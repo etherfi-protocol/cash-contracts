@@ -48,10 +48,10 @@ contract L2DebtManager is
 
     // In 18 decimals
     uint256 private _borrowApyPerSecond;
-    uint256 private _accumulatedInterestPerDebtTokenStored;
-    uint256 private _lastInterestUpdateTime;
+    uint256 private _debtInterestIndexSnapshot;
+    uint256 private _debtInterestIndexSnapshotTimestamp;
     mapping(address user => uint256 interestAlreadyAdded)
-        private _userInterestAlreadyAdded;
+        private _usersDebtInterestIndexSnapshots;
 
     constructor(
         address _weETH,
@@ -98,8 +98,8 @@ contract L2DebtManager is
             }
         }
 
-        _lastInterestUpdateTime = block.timestamp;
-        _accumulatedInterestPerDebtTokenStored = 0;
+        _debtInterestIndexSnapshotTimestamp = block.timestamp;
+        _debtInterestIndexSnapshot = 0;
         _totalBorrowingAmount = 0;
     }
 
@@ -267,18 +267,11 @@ contract L2DebtManager is
      * @inheritdoc IL2DebtManager
      */
     function totalBorrowingAmount() public view returns (uint256) {
-        uint256 accInterestAlreadyStored = _accumulatedInterestPerDebtTokenStored;
-
         return
-            ((
-                (1e18 *
-                    _totalBorrowingAmount *
-                    (accumulatedInterestPerDebtToken() -
-                        accInterestAlreadyStored))
-            ) /
-                1e20 +
-                1e18 *
-                _totalBorrowingAmount) / 1e18;
+            _getAmountWithInterest(
+                _totalBorrowingAmount,
+                _debtInterestIndexSnapshot
+            );
     }
 
     /**
@@ -286,13 +279,10 @@ contract L2DebtManager is
      */
     function borrowingOf(address user) public view returns (uint256) {
         return
-            ((1e18 *
-                (_userBorrowings[user] *
-                    (accumulatedInterestPerDebtToken() -
-                        _userInterestAlreadyAdded[user]))) /
-                1e20 +
-                1e18 *
-                _userBorrowings[user]) / 1e18;
+            _getAmountWithInterest(
+                _userBorrowings[user],
+                _usersDebtInterestIndexSnapshots[user]
+            );
     }
 
     /**
@@ -515,10 +505,10 @@ contract L2DebtManager is
     /**
      * @inheritdoc IL2DebtManager
      */
-    function accumulatedInterestPerDebtToken() public view returns (uint256) {
+    function debtInterestIndexSnapshot() public view returns (uint256) {
         return
-            _accumulatedInterestPerDebtTokenStored +
-            (block.timestamp - _lastInterestUpdateTime) *
+            _debtInterestIndexSnapshot +
+            (block.timestamp - _debtInterestIndexSnapshotTimestamp) *
             _borrowApyPerSecond;
     }
 
@@ -939,13 +929,26 @@ contract L2DebtManager is
         _borrowApyPerSecond = apy;
     }
 
+    function _getAmountWithInterest(
+        uint256 amountBefore,
+        uint256 accInterestAlreadyAdded
+    ) internal view returns (uint256) {
+        return
+            ((1e18 *
+                (amountBefore *
+                    (debtInterestIndexSnapshot() - accInterestAlreadyAdded))) /
+                1e20 +
+                1e18 *
+                amountBefore) / 1e18;
+    }
+
     modifier updateBorrowings(address user) {
         uint256 totalBorrowingAmtBeforeInterest = _totalBorrowingAmount;
 
-        uint256 accInterestAlreadyStored = _accumulatedInterestPerDebtTokenStored;
-        _accumulatedInterestPerDebtTokenStored = accumulatedInterestPerDebtToken();
+        uint256 accInterestAlreadyStored = _debtInterestIndexSnapshot;
+        _debtInterestIndexSnapshot = debtInterestIndexSnapshot();
         _totalBorrowingAmount = totalBorrowingAmount();
-        _lastInterestUpdateTime = block.timestamp;
+        _debtInterestIndexSnapshotTimestamp = block.timestamp;
 
         if (totalBorrowingAmtBeforeInterest != _totalBorrowingAmount)
             emit TotalBorrowingUpdated(
@@ -956,9 +959,7 @@ contract L2DebtManager is
         if (user != address(0)) {
             uint256 userBorrowingsBefore = _userBorrowings[user];
             _userBorrowings[user] = borrowingOf(user);
-            _userInterestAlreadyAdded[
-                user
-            ] = _accumulatedInterestPerDebtTokenStored;
+            _usersDebtInterestIndexSnapshots[user] = _debtInterestIndexSnapshot;
 
             emit UserInterestAdded(
                 user,
