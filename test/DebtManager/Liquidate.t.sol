@@ -6,7 +6,6 @@ import {IL2DebtManager} from "../../src/interfaces/IL2DebtManager.sol";
 import {SafeERC20, IERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IERC20Errors} from "@openzeppelin/contracts/interfaces/draft-IERC6093.sol";
 import {stdStorage, StdStorage} from "forge-std/Test.sol";
-import {IAccessControl} from "@openzeppelin/contracts/access/IAccessControl.sol";
 
 contract DebtManagerLiquidateTest is DebtManagerSetup {
     using SafeERC20 for IERC20;
@@ -31,24 +30,12 @@ contract DebtManagerLiquidateTest is DebtManagerSetup {
 
         vm.startPrank(alice);
         weETH.safeIncreaseAllowance(address(debtManager), collateralAmount);
-        debtManager.depositCollateral(address(weETH), collateralAmount);
+        debtManager.depositCollateral(address(weETH), alice, collateralAmount);
 
         borrowAmt = debtManager.remainingBorrowingCapacityInUSDC(alice);
 
         debtManager.borrow(address(usdc), borrowAmt);
         vm.stopPrank();
-    }
-
-    function buildAccessControlRevertData(
-        address account,
-        bytes32 role
-    ) internal pure returns (bytes memory) {
-        return
-            abi.encodeWithSelector(
-                IAccessControl.AccessControlUnauthorizedAccount.selector,
-                account,
-                role
-            );
     }
 
     function test_SetLiquidationThreshold() public {

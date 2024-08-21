@@ -39,6 +39,7 @@ contract DebtManagerSetup is Utils {
     L2DebtManager debtManager;
     uint256 mockWeETHPriceInUsd = 3000e6;
     uint256 liquidationThreshold = 60e18; // 60%
+    uint256 borrowApyPerSecond = 1e18; // 1%
 
     function setUp() public virtual {
         chainId = vm.envString("TEST_CHAIN");
@@ -83,6 +84,11 @@ contract DebtManagerSetup is Utils {
             );
         }
 
+        address[] memory collateralTokens = new address[](1);
+        collateralTokens[0] = address(weETH);
+        address[] memory borrowTokens = new address[](1);
+        borrowTokens[0] = address(usdc);
+
         address impl = address(
             new L2DebtManager(
                 address(weETH),
@@ -97,10 +103,13 @@ contract DebtManagerSetup is Utils {
             new UUPSProxy(
                 impl,
                 abi.encodeWithSelector(
-                    // intiailize(address)
-                    0xcd6dc687,
+                    // initialize(address,uint256,uint256,address[],address[])
+                    0x1df44494,
                     owner,
-                    liquidationThreshold
+                    liquidationThreshold,
+                    borrowApyPerSecond,
+                    collateralTokens,
+                    borrowTokens
                 )
             )
         );

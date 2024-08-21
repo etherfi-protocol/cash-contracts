@@ -6,6 +6,7 @@ import {IL2DebtManager} from "../../src/interfaces/IL2DebtManager.sol";
 import {SafeERC20, IERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IERC20Errors} from "@openzeppelin/contracts/interfaces/draft-IERC6093.sol";
 import {stdStorage, StdStorage} from "forge-std/Test.sol";
+import {console} from "forge-std/console.sol";
 
 contract DebtManagerRepayTest is DebtManagerSetup {
     using SafeERC20 for IERC20;
@@ -30,7 +31,7 @@ contract DebtManagerRepayTest is DebtManagerSetup {
 
         vm.startPrank(alice);
         weETH.safeIncreaseAllowance(address(debtManager), collateralAmount);
-        debtManager.depositCollateral(address(weETH), collateralAmount);
+        debtManager.depositCollateral(address(weETH), alice, collateralAmount);
 
         borrowAmt = debtManager.remainingBorrowingCapacityInUSDC(alice) / 2;
 
@@ -53,6 +54,30 @@ contract DebtManagerRepayTest is DebtManagerSetup {
         assertEq(debtAmtBefore - debtAmtAfter, repayAmt);
     }
 
+    function test_RepayAfterSomeTimeIncursInterestOnTheBorrowings() public {
+        uint256 timeElapsed = 10;
+
+        vm.warp(block.timestamp + timeElapsed);
+        uint256 expectedInterest = (borrowAmt *
+            borrowApyPerSecond *
+            timeElapsed) / 1e20;
+
+        uint256 debtAmtBefore = borrowAmt + expectedInterest;
+        console.log(debtAmtBefore);
+
+        assertEq(debtManager.borrowingOf(alice), debtAmtBefore);
+        uint256 repayAmt = debtAmtBefore;
+
+        vm.startPrank(alice);
+        usdc.forceApprove(address(debtManager), repayAmt);
+        debtManager.repay(alice, address(usdc), repayAmt);
+        vm.stopPrank();
+
+        uint256 debtAmtAfter = debtManager.borrowingOf(alice);
+        console.log(debtAmtAfter);
+        assertEq(debtAmtBefore - debtAmtAfter, repayAmt);
+    }
+
     function test_RepayWithWeETH() public {
         uint256 debtAmtBefore = debtManager.borrowingOf(alice);
         assertGt(debtAmtBefore, 0);
@@ -64,6 +89,26 @@ contract DebtManagerRepayTest is DebtManagerSetup {
 
         vm.startPrank(alice);
         debtManager.repay(alice, address(weETH), repayAmt);
+        vm.stopPrank();
+
+        uint256 debtAmtAfter = debtManager.borrowingOf(alice);
+        assertEq(debtAmtBefore - debtAmtAfter, repayAmt);
+
+        uint256 collateralAfter = debtManager.getCollateralValueInUsdc(alice);
+        assertEq(collateralAfter, collateralValueInUsdc - repayAmt);
+    }
+
+    function test_RepayWithCollateral() public {
+        uint256 debtAmtBefore = debtManager.borrowingOf(alice);
+        assertGt(debtAmtBefore, 0);
+
+        uint256 collateralBefore = debtManager.getCollateralValueInUsdc(alice);
+        assertEq(collateralBefore, collateralValueInUsdc);
+
+        uint256 repayAmt = debtAmtBefore;
+
+        vm.startPrank(alice);
+        debtManager.repayWithCollateral(alice, repayAmt);
         vm.stopPrank();
 
         uint256 debtAmtAfter = debtManager.borrowingOf(alice);

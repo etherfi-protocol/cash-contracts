@@ -27,7 +27,76 @@ contract DebtManagerBorrowTest is DebtManagerSetup {
 
         vm.startPrank(alice);
         weETH.safeIncreaseAllowance(address(debtManager), collateralAmount);
-        debtManager.depositCollateral(address(weETH), collateralAmount);
+        debtManager.depositCollateral(address(weETH), alice, collateralAmount);
+        vm.stopPrank();
+    }
+
+    function test_CanAddOrRemoveSupportedBorrowTokens() public {
+        address newBorrowToken = address(weETH);
+
+        vm.startPrank(owner);
+        debtManager.supportBorrowToken(newBorrowToken);
+
+        assertEq(debtManager.getBorrowTokens().length, 2);
+        assertEq(debtManager.getBorrowTokens()[0], address(usdc));
+        assertEq(debtManager.getBorrowTokens()[1], newBorrowToken);
+
+        debtManager.unsupportBorrowToken(address(usdc));
+        assertEq(debtManager.getBorrowTokens().length, 1);
+        assertEq(debtManager.getBorrowTokens()[0], newBorrowToken);
+
+        vm.stopPrank();
+    }
+
+    function test_OnlyAdminCanSupportOrUnsupportBorrowTokens() public {
+        address newBorrowToken = address(weETH);
+
+        vm.startPrank(alice);
+        vm.expectRevert(
+            buildAccessControlRevertData(alice, debtManager.ADMIN_ROLE())
+        );
+        debtManager.supportBorrowToken(newBorrowToken);
+        vm.expectRevert(
+            buildAccessControlRevertData(alice, debtManager.ADMIN_ROLE())
+        );
+        debtManager.unsupportBorrowToken(address(weETH));
+        vm.stopPrank();
+    }
+
+    function test_CannotAddBorrowTokenIfAlreadySupported() public {
+        vm.startPrank(owner);
+        vm.expectRevert(IL2DebtManager.AlreadyBorrowToken.selector);
+        debtManager.supportBorrowToken(address(usdc));
+        vm.stopPrank();
+    }
+
+    function test_CannotAddNullAddressAsBorrowToken() public {
+        vm.startPrank(owner);
+        vm.expectRevert(IL2DebtManager.InvalidValue.selector);
+        debtManager.supportBorrowToken(address(0));
+        vm.stopPrank();
+    }
+
+    function test_CannotUnsupportTokenForBorrowIfItIsNotABorrowTokenAlready()
+        public
+    {
+        vm.startPrank(owner);
+        vm.expectRevert(IL2DebtManager.NotABorrowToken.selector);
+        debtManager.unsupportBorrowToken(address(weETH));
+        vm.stopPrank();
+    }
+
+    function test_CannotUnsupportAllTokensAsBorrowTokens() public {
+        vm.startPrank(owner);
+        vm.expectRevert(IL2DebtManager.NoBorrowTokenLeft.selector);
+        debtManager.unsupportBorrowToken(address(usdc));
+        vm.stopPrank();
+    }
+
+    function test_CannotUnsupportAddressZeroAsBorrowToken() public {
+        vm.startPrank(owner);
+        vm.expectRevert(IL2DebtManager.InvalidValue.selector);
+        debtManager.unsupportBorrowToken(address(0));
         vm.stopPrank();
     }
 
@@ -67,6 +136,63 @@ contract DebtManagerBorrowTest is DebtManagerSetup {
 
         uint256 debtRatioOfAfter = debtManager.debtRatioOf(alice);
         assertEq(debtRatioOfAfter, expectedDebtRatio);
+    }
+
+    function test_BorrowIncursInterestWithTime() public {
+        uint256 borrowAmt = debtManager.remainingBorrowingCapacityInUSDC(
+            alice
+        ) / 2;
+
+        vm.startPrank(alice);
+        debtManager.borrow(address(usdc), borrowAmt);
+        vm.stopPrank();
+
+        assertEq(debtManager.borrowingOf(alice), borrowAmt);
+
+        uint256 timeElapsed = 10;
+
+        vm.warp(block.timestamp + timeElapsed);
+        uint256 expectedInterest = (borrowAmt *
+            borrowApyPerSecond *
+            timeElapsed) / 1e20;
+
+        assertEq(debtManager.borrowingOf(alice), borrowAmt + expectedInterest);
+    }
+
+    function test_NextBorrowAutomaticallyAddsInterestToThePreviousBorrows()
+        public
+    {
+        uint256 borrowAmt = debtManager.remainingBorrowingCapacityInUSDC(
+            alice
+        ) / 4;
+
+        vm.startPrank(alice);
+        debtManager.borrow(address(usdc), borrowAmt);
+
+        assertEq(debtManager.borrowingOf(alice), borrowAmt);
+
+        uint256 timeElapsed = 10;
+
+        vm.warp(block.timestamp + timeElapsed);
+        uint256 expectedInterest = (borrowAmt *
+            borrowApyPerSecond *
+            timeElapsed) / 1e20;
+
+        uint256 expectedTotalBorrowWithInterest = borrowAmt + expectedInterest;
+
+        assertEq(
+            debtManager.borrowingOf(alice),
+            expectedTotalBorrowWithInterest
+        );
+
+        debtManager.borrow(address(usdc), borrowAmt);
+
+        assertEq(
+            debtManager.borrowingOf(alice),
+            expectedTotalBorrowWithInterest + borrowAmt
+        );
+
+        vm.stopPrank();
     }
 
     function test_CannotBorrowIfTokenIsNotSupported() public {

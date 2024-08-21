@@ -3,6 +3,7 @@ pragma solidity ^0.8.24;
 
 import {Test} from "forge-std/Test.sol";
 import {stdJson} from "forge-std/StdJson.sol";
+import {IAccessControl} from "@openzeppelin/contracts/access/IAccessControl.sol";
 
 struct ChainConfig {
     string rpc;
@@ -106,5 +107,17 @@ contract Utils is Test {
         inputs[8] = vm.toString(amount);
 
         return vm.ffi(inputs);
+    }
+
+    function buildAccessControlRevertData(
+        address account,
+        bytes32 role
+    ) internal pure returns (bytes memory) {
+        return
+            abi.encodeWithSelector(
+                IAccessControl.AccessControlUnauthorizedAccount.selector,
+                account,
+                role
+            );
     }
 }

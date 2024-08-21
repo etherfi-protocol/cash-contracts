@@ -33,7 +33,7 @@ contract UserSafeWebAuthnSignatureTest is UserSafeSetup {
         );
     }
 
-    function test_Deploy() public {
+    function test_Deploy() public view {
         assertEq(
             abi.encode(passkeyOwnerSafe.owner().x, passkeyOwnerSafe.owner().y),
             passkeyOwner

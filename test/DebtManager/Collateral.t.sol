@@ -16,11 +16,95 @@ contract DebtManagerCollateralTest is DebtManagerSetup {
         deal(address(weETH), alice, 1000 ether);
     }
 
+    function test_CanAddOrRemoveSupportedCollateralTokens() public {
+        address newCollateralToken = address(usdc);
+
+        vm.startPrank(owner);
+        debtManager.supportCollateralToken(newCollateralToken);
+
+        assertEq(debtManager.getCollateralTokens().length, 2);
+        assertEq(debtManager.getCollateralTokens()[0], address(weETH));
+        assertEq(debtManager.getCollateralTokens()[1], newCollateralToken);
+
+        debtManager.unsupportCollateralToken(address(weETH));
+        assertEq(debtManager.getCollateralTokens().length, 1);
+        assertEq(debtManager.getCollateralTokens()[0], newCollateralToken);
+
+        vm.stopPrank();
+    }
+
+    function test_OnlyAdminCanSupportOrUnsupportCollateral() public {
+        address newCollateralToken = address(usdc);
+
+        vm.startPrank(alice);
+        vm.expectRevert(
+            buildAccessControlRevertData(alice, debtManager.ADMIN_ROLE())
+        );
+        debtManager.supportCollateralToken(newCollateralToken);
+        vm.expectRevert(
+            buildAccessControlRevertData(alice, debtManager.ADMIN_ROLE())
+        );
+        debtManager.unsupportCollateralToken(address(weETH));
+        vm.stopPrank();
+    }
+
+    function test_CannotAddCollateralTokenIfAlreadySupported() public {
+        vm.startPrank(owner);
+        vm.expectRevert(IL2DebtManager.AlreadyCollateralToken.selector);
+        debtManager.supportCollateralToken(address(weETH));
+        vm.stopPrank();
+    }
+
+    function test_CannotAddNullAddressAsCollateralToken() public {
+        vm.startPrank(owner);
+        vm.expectRevert(IL2DebtManager.InvalidValue.selector);
+        debtManager.supportCollateralToken(address(0));
+        vm.stopPrank();
+    }
+
+    function test_CannotUnsupportCollateralTokenIfTotalCollateralNotZeroForTheToken()
+        public
+    {
+        uint256 amount = 0.1 ether;
+        vm.startPrank(alice);
+        weETH.safeIncreaseAllowance(address(debtManager), amount);
+        debtManager.depositCollateral(address(weETH), alice, amount);
+        vm.stopPrank();
+
+        vm.startPrank(owner);
+        vm.expectRevert(IL2DebtManager.TotalCollateralAmountNotZero.selector);
+        debtManager.unsupportCollateralToken(address(weETH));
+        vm.stopPrank();
+    }
+
+    function test_CannotUnsupportTokenForCollateralIfItIsNotACollateralTokenAlready()
+        public
+    {
+        vm.startPrank(owner);
+        vm.expectRevert(IL2DebtManager.NotACollateralToken.selector);
+        debtManager.unsupportCollateralToken(address(usdc));
+        vm.stopPrank();
+    }
+
+    function test_CannotUnsupportAllTokensAsCollateral() public {
+        vm.startPrank(owner);
+        vm.expectRevert(IL2DebtManager.NoCollateralTokenLeft.selector);
+        debtManager.unsupportCollateralToken(address(weETH));
+        vm.stopPrank();
+    }
+
+    function test_CannotUnsupportAddressZeroAsCollateralToken() public {
+        vm.startPrank(owner);
+        vm.expectRevert(IL2DebtManager.InvalidValue.selector);
+        debtManager.unsupportCollateralToken(address(0));
+        vm.stopPrank();
+    }
+
     function test_DepositCollateral() public {
         uint256 amount = 0.01 ether;
 
         (
-            IL2DebtManager.Collateral[] memory collateralsBefore,
+            IL2DebtManager.TokenData[] memory collateralsBefore,
             uint256 collateralInUsdcBefore
         ) = debtManager.collateralOf(alice);
 
@@ -37,7 +121,7 @@ contract DebtManagerCollateralTest is DebtManagerSetup {
         assertEq(userCollateralForTokenInUsdcBefore, 0);
 
         (
-            IL2DebtManager.Collateral[] memory totalCollateralAmountBefore,
+            IL2DebtManager.TokenData[] memory totalCollateralAmountBefore,
             uint256 totalCollateralInUsdcBefore
         ) = debtManager.totalCollateralAmounts();
         assertEq(totalCollateralAmountBefore[0].token, address(weETH));
@@ -47,10 +131,10 @@ contract DebtManagerCollateralTest is DebtManagerSetup {
         vm.startPrank(alice);
         weETH.safeIncreaseAllowance(address(debtManager), amount);
 
-        debtManager.depositCollateral(address(weETH), amount);
+        debtManager.depositCollateral(address(weETH), alice, amount);
 
         (
-            IL2DebtManager.Collateral[] memory collateralsAfter,
+            IL2DebtManager.TokenData[] memory collateralsAfter,
             uint256 collateralInUsdcAfter
         ) = debtManager.collateralOf(alice);
 
@@ -71,7 +155,7 @@ contract DebtManagerCollateralTest is DebtManagerSetup {
         assertEq(userCollateralForTokenInUsdcAfter, collateralValueInUsdc);
 
         (
-            IL2DebtManager.Collateral[] memory totalCollateralAmountAfter,
+            IL2DebtManager.TokenData[] memory totalCollateralAmountAfter,
             uint256 totalCollateralInUsdcAfter
         ) = debtManager.totalCollateralAmounts();
         assertEq(totalCollateralAmountAfter[0].token, address(weETH));
@@ -83,7 +167,7 @@ contract DebtManagerCollateralTest is DebtManagerSetup {
 
     function test_CannotDepositCollateralIfTokenNotSupported() public {
         vm.expectRevert(IL2DebtManager.UnsupportedCollateralToken.selector);
-        debtManager.depositCollateral(address(usdc), 1);
+        debtManager.depositCollateral(address(usdc), alice, 1);
     }
 
     function test_CannotDepositCollateralIfAllownaceIsInsufficient() public {
@@ -103,7 +187,7 @@ contract DebtManagerCollateralTest is DebtManagerSetup {
             );
         else vm.expectRevert("ERC20: transfer amount exceeds allowance");
 
-        debtManager.depositCollateral(address(weETH), 2);
+        debtManager.depositCollateral(address(weETH), alice, 2);
 
         vm.stopPrank();
     }
@@ -123,7 +207,7 @@ contract DebtManagerCollateralTest is DebtManagerSetup {
             );
         else vm.expectRevert("ERC20: transfer amount exceeds balance");
 
-        debtManager.depositCollateral(address(weETH), 1);
+        debtManager.depositCollateral(address(weETH), alice, 1);
         vm.stopPrank();
     }
 }

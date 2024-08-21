@@ -25,5 +25,12 @@ contract DebtManagerDeployTest is DebtManagerSetup {
             false
         );
         assertEq(debtManager.liquidationThreshold(), liquidationThreshold);
+        assertEq(debtManager.borrowApyPerSecond(), borrowApyPerSecond);
+
+        assertEq(debtManager.getCollateralTokens().length, 1);
+        assertEq(debtManager.getCollateralTokens()[0], address(weETH));
+
+        assertEq(debtManager.getBorrowTokens().length, 1);
+        assertEq(debtManager.getBorrowTokens()[0], address(usdc));
     }
 }

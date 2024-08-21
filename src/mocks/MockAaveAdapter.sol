@@ -14,24 +14,36 @@ contract MockAave {
     uint256 ltv;
     uint256 healthFactor;
 
-    function supply(address asset, uint256 amount) external {
+    function supply(
+        address, // asset
+        uint256 amount
+    ) external {
         totalCollateral += amount;
     }
 
-    function borrow(address asset, uint256 amount) external {
+    function borrow(
+        address, // asset
+        uint256 amount
+    ) external {
         totalDebt += amount;
     }
 
-    function repay(address asset, uint256 amount) external {
+    function repay(
+        address, // asset
+        uint256 amount
+    ) external {
         totalDebt -= amount;
     }
 
-    function withdraw(address asset, uint256 amount) external {
+    function withdraw(
+        address, // asset
+        uint256 amount
+    ) external {
         totalCollateral -= amount;
     }
 
     function getAccountData(
-        address user
+        address // user
     ) external view returns (IEtherFiCashAaveV3Adapter.AaveAccountData memory) {
         return
             IEtherFiCashAaveV3Adapter.AaveAccountData({
@@ -45,15 +57,15 @@ contract MockAave {
     }
 
     function getDebt(
-        address user,
-        address token
+        address, // user
+        address // token
     ) external view returns (uint256 debt) {
         return totalDebt;
     }
 
     function getCollateralBalance(
-        address user,
-        address token
+        address, // user
+        address // token
     ) external view returns (uint256 balance) {
         return totalCollateral;
     }

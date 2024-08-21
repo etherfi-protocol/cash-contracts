@@ -8,22 +8,14 @@ contract MockSwapper {
 
     error InvalidMinToAssetAmount();
 
-    /**
-     * @notice Strategist swaps assets sitting in the contract of the `assetHolder`.
-     * @param _fromAsset The token address of the asset being sold by the vault.
-     * @param _toAsset The token address of the asset being purchased by the vault.
-     * @param _fromAssetAmount The amount of assets being sold by the vault.
-     * @param _minToAssetAmount The minimum amount of assets to be purchased.
-     * @param _data RLP encoded executer address and bytes data. This is re-encoded tx.data from 1Inch swap API
-     */
     function swap(
-        address _fromAsset,
+        address, // _fromAsset
         address _toAsset,
-        uint256 _fromAssetAmount,
+        uint256, // _fromAssetAmount
         uint256 _minToAssetAmount,
-        bytes calldata _data
+        bytes calldata // _data
     ) external returns (uint256 toAssetAmount) {
-        // more than a million usdc we wont support on test
+        // more than a million usdc swap we won't support on test
         if (_minToAssetAmount > 1e12) revert InvalidMinToAssetAmount();
         IERC20(_toAsset).safeTransfer(msg.sender, _minToAssetAmount);
         return _minToAssetAmount;

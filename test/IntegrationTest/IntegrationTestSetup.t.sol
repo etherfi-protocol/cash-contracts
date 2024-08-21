@@ -71,7 +71,9 @@ contract IntegrationTestSetup is Utils {
     uint16 aaveReferralCode = 0;
 
     L2DebtManager etherFiCashDebtManager;
+
     uint256 liquidationThreshold = 60e18; // 60%
+    uint256 borrowApy = 1000; // 10%
 
     function setUp() public virtual {
         chainId = vm.envString("TEST_CHAIN");
@@ -120,6 +122,11 @@ contract IntegrationTestSetup is Utils {
             );
         }
 
+        address[] memory collateralTokens = new address[](1);
+        collateralTokens[0] = address(weETH);
+        address[] memory borrowTokens = new address[](1);
+        borrowTokens[0] = address(usdc);
+
         address debtManagerImpl = address(
             new L2DebtManager(
                 address(weETH),
@@ -134,10 +141,13 @@ contract IntegrationTestSetup is Utils {
             new UUPSProxy(
                 debtManagerImpl,
                 abi.encodeWithSelector(
-                    // intiailize(address)
-                    0xcd6dc687,
+                    // initialize(address,uint256,uint256,address[],address[])
+                    0x1df44494,
                     owner,
-                    liquidationThreshold
+                    liquidationThreshold,
+                    borrowApy,
+                    collateralTokens,
+                    borrowTokens
                 )
             )
         );

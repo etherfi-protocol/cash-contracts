@@ -21,20 +21,8 @@ contract DebtManagerFundManagementTest is DebtManagerSetup {
 
         vm.startPrank(owner);
         weETH.safeIncreaseAllowance(address(debtManager), collateralAmt);
-        debtManager.depositCollateral(address(weETH), collateralAmt);
+        debtManager.depositCollateral(address(weETH), owner, collateralAmt);
         vm.stopPrank();
-    }
-
-    function buildAccessControlRevertData(
-        address account,
-        bytes32 role
-    ) internal pure returns (bytes memory) {
-        return
-            abi.encodeWithSelector(
-                IAccessControl.AccessControlUnauthorizedAccount.selector,
-                account,
-                role
-            );
     }
 
     function test_FundsManagementOnAave() public {

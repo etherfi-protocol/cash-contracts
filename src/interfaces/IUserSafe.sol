@@ -70,6 +70,8 @@ interface IUserSafe {
     event AddCollateralToDebtManager(address token, uint256 amount);
     event BorrowFromDebtManager(address token, uint256 amount);
     event RepayDebtManager(address token, uint256 debtAmount);
+    event WithdrawCollateralFromDebtManager(address token, uint256 amount);
+    event CloseAccountWithDebtManager();
     event ResetSpendingLimit(
         uint8 spendingLimitType,
         uint256 limitInUsd,
@@ -439,6 +441,22 @@ interface IUserSafe {
      * @param debtAmountInUsdc Amount of debt to be repaid in USDC.
      */
     function repay(address token, uint256 debtAmountInUsdc) external;
+
+    /**
+     * @notice Function to withdraw collateral from the Debt Manager.
+     * @param  token Address of the collateral token to withdraw.
+     * @param  amount Amount of the collateral token to withdraw.
+     */
+    function withdrawCollateralFromDebtManager(
+        address token,
+        uint256 amount
+    ) external;
+
+    /**
+     * @notice Function to close account with the Debt Manager.
+     * @notice Repays all the debt with user's collateral and withdraws the remaining collateral to the User Safe.
+     */
+    function closeAccountWithDebtManager() external;
 
     /**
      * @notice Function to swap funds to output token and transfer it to EtherFiCash Safe.

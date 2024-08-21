@@ -17,6 +17,7 @@ interface IL2DebtManager {
 
     event SuppliedUSDC(uint256 amount);
     event DepositedCollateral(
+        address indexed depositor,
         address indexed user,
         address indexed token,
         uint256 amount
@@ -58,6 +59,26 @@ interface IL2DebtManager {
     event CollateralTokenRemoved(address token);
     event BorrowTokenAdded(address token);
     event BorrowTokenRemoved(address token);
+    event BorrowApySet(uint256 oldApy, uint256 newApy);
+    event UserInterestAdded(
+        address indexed user,
+        uint256 borrowingAmtBeforeInterest,
+        uint256 borrowingAmtAfterInterest
+    );
+    event TotalBorrowingUpdated(
+        uint256 totalBorrowingAmtBeforeInterest,
+        uint256 totalBorrowingAmtAfterInterest
+    );
+    event WithdrawCollateral(
+        address indexed user,
+        address indexed token,
+        uint256 amount
+    );
+    event AccountClosed(
+        address indexed user,
+        uint256 borrowingsRepaid,
+        TokenData[] collateralWithdrawal
+    );
 
     error UnsupportedCollateralToken();
     error UnsupportedRepayToken();
@@ -77,6 +98,22 @@ interface IL2DebtManager {
     error NoCollateralTokenLeft();
     error NotABorrowToken();
     error NoBorrowTokenLeft();
+    error ArrayLengthMismatch();
+    error BorrowApyGreaterThanMaxAllowed();
+    error TotalCollateralAmountNotZero();
+    error InsufficientLiquidityPleaseTryAgainLater();
+
+    /**
+     * @notice Function to fetch the accumulated interest per debt token.
+     * @return accumulated interest per debt token
+     */
+    function accumulatedInterestPerDebtToken() external view returns (uint256);
+
+    /**
+     * @notice Function to fetch the borrow APY per second with 18 decimals.
+     * @notice Borrow APY per second. Eg: 0.0001% -> 0.0001e18
+     */
+    function borrowApyPerSecond() external view returns (uint256);
 
     /**
      * @notice Function to fetch the array of collateral tokens.
@@ -101,6 +138,13 @@ interface IL2DebtManager {
      * @return Boolean value suggesting if token is a borrow token.
      */
     function isBorrowToken(address token) external view returns (bool);
+
+    /**
+     * @notice Function to set the borrow APY per second.
+     * @dev Can only be called by an address with the ADMIN_ROLE.
+     * @param apy New borrow apy per second with 18 decimals. For eg: 0.001% -> 0.001 * 1e18
+     */
+    function setBorrowApyPerSecond(uint256 apy) external;
 
     /**
      * @notice Function to add support for a new collateral token.
@@ -133,9 +177,14 @@ interface IL2DebtManager {
     /**
      * @notice Function to deposit collateral into this contract.
      * @param  token Address of the token to deposit.
+     * @param  user Address of the user safe to deposit collateral for.
      * @param  amount Amount of the token to deposit.
      */
-    function depositCollateral(address token, uint256 amount) external;
+    function depositCollateral(
+        address token,
+        address user,
+        uint256 amount
+    ) external;
 
     /**
      * @notice Function for users to borrow funds for payment using the deposited collateral.
@@ -167,6 +216,19 @@ interface IL2DebtManager {
         uint256 repayDebtUsdcAmt
     ) external;
 
+    /**
+     * @notice Function to withdraw collateral from the Debt Manager.
+     * @param  token Address of the collateral token to withdraw.
+     * @param  amount Amount of the collateral token to withdraw.
+     */
+    function withdrawCollateral(address token, uint256 amount) external;
+
+    /**
+     * @notice Function to close account with the Debt Manager.
+     * @notice Repays all the debt with user's collateral and withdraws the remaining collateral to the User Safe.
+     */
+    function closeAccount() external;
+
     // https://docs.aave.com/faq/liquidations
     /**
      * @notice Liquidate the user's debt by repaying the entire debt using the collateral.
@@ -180,12 +242,14 @@ interface IL2DebtManager {
      * @param  user Address of the user.
      * @return isLiquidatable boolean value.
      */
-    function liquidatable(address user) external view returns (bool);
+    function liquidatable(
+        address user
+    ) external view returns (bool isLiquidatable);
 
     /**
      * @notice Function to fetch the collateral amount for the user.
      * @param  user Address of the user.
-     * @return array of TokenData struct, total collateral amount in usdc.
+     * @return Array of TokenData struct, total collateral amount in usdc.
      */
     function collateralOf(
         address user
@@ -194,7 +258,7 @@ interface IL2DebtManager {
     /**
      * @notice Function to fetch the borrowing amount of the user.
      * @param  user Address of the user.
-     * @return borrow amount.
+     * @return Borrow amount with interest.
      */
     function borrowingOf(address user) external view returns (uint256);
 

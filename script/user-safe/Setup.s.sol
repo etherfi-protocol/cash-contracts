@@ -30,6 +30,7 @@ contract DeployUserSafeSetup is Utils {
     address owner;
     uint256 delay = 60;
     uint256 liquidationThreshold = 60e18;
+    uint256 borrowApy = 1000; // 10%
 
     // Shivam Metamask wallets
     address recoverySigner1 = 0x7fEd99d0aA90423de55e238Eb5F9416FF7Cc58eF;
@@ -54,6 +55,11 @@ contract DeployUserSafeSetup is Utils {
 
         usdc.transfer(address(swapper), 1000 ether);
 
+        address[] memory collateralTokens = new address[](1);
+        collateralTokens[0] = address(weETH);
+        address[] memory borrowTokens = new address[](1);
+        borrowTokens[0] = address(usdc);
+
         address debtManagerImpl = address(
             new L2DebtManager(
                 address(weETH),
@@ -68,13 +74,17 @@ contract DeployUserSafeSetup is Utils {
             new UUPSProxy(
                 debtManagerImpl,
                 abi.encodeWithSelector(
-                    // intiailize(address)
-                    0xcd6dc687,
+                    // initialize(address,uint256,uint256,address[],address[])
+                    0x1df44494,
                     owner,
-                    liquidationThreshold
+                    liquidationThreshold,
+                    borrowApy,
+                    collateralTokens,
+                    borrowTokens
                 )
             )
         );
+
         debtManager = L2DebtManager(debtManagerProxy);
 
         address cashDataProviderProxy = Upgrades.deployUUPSProxy(

@@ -615,6 +615,26 @@ contract UserSafe is IUserSafe, Initializable, UserSafeRecovery {
         _repay(debtManager, token, repayDebtUsdcAmt);
     }
 
+    /**
+     * @inheritdoc IUserSafe
+     */
+    function withdrawCollateralFromDebtManager(
+        address token,
+        uint256 amount
+    ) external onlyEtherFiWallet {
+        address debtManager = _cashDataProvider.etherFiCashDebtManager();
+        _withdrawCollateralFromDebtManager(debtManager, token, amount);
+    }
+
+    /**
+     * @inheritdoc IUserSafe
+     */
+    function closeAccountWithDebtManager() external onlyEtherFiWallet {
+        IL2DebtManager(_cashDataProvider.etherFiCashDebtManager())
+            .closeAccount();
+        emit CloseAccountWithDebtManager();
+    }
+
     function _getSpendingLimitRenewalTimestamp(
         uint64 startTimestamp,
         SpendingLimitTypes spendingLimitType
@@ -832,7 +852,11 @@ contract UserSafe is IUserSafe, Initializable, UserSafeRecovery {
         _updateWithdrawalRequestIfNecessary(token, amount);
 
         IERC20(token).forceApprove(debtManager, amount);
-        IL2DebtManager(debtManager).depositCollateral(token, amount);
+        IL2DebtManager(debtManager).depositCollateral(
+            token,
+            address(this),
+            amount
+        );
 
         emit AddCollateralToDebtManager(token, amount);
     }
@@ -870,6 +894,15 @@ contract UserSafe is IUserSafe, Initializable, UserSafeRecovery {
             );
             emit RepayDebtManager(token, repayDebtUsdcAmt);
         } else revert UnsupportedToken();
+    }
+
+    function _withdrawCollateralFromDebtManager(
+        address debtManager,
+        address token,
+        uint256 amount
+    ) internal {
+        IL2DebtManager(debtManager).withdrawCollateral(token, amount);
+        emit WithdrawCollateralFromDebtManager(token, amount);
     }
 
     function _updateWithdrawalRequestIfNecessary(

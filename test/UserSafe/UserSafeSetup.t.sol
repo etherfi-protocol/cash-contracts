@@ -20,6 +20,7 @@ import {IPool} from "@aave/interfaces/IPool.sol";
 import {IPoolDataProvider} from "@aave/interfaces/IPoolDataProvider.sol";
 import {IEtherFiCashAaveV3Adapter, EtherFiCashAaveV3Adapter} from "../../src/adapters/aave-v3/EtherFiCashAaveV3Adapter.sol";
 import {MockAaveAdapter} from "../../src/mocks/MockAaveAdapter.sol";
+import {UUPSProxy} from "../../src/UUPSProxy.sol";
 
 contract UserSafeSetup is Utils {
     using OwnerLib for address;
@@ -49,7 +50,7 @@ contract UserSafeSetup is Utils {
     uint256 collateralLimit = 10000e6;
     uint64 delay = 10;
     address etherFiCashMultisig = makeAddr("multisig");
-    address etherFiCashDebtManager = makeAddr("debtManager");
+    address etherFiCashDebtManager;
     address etherFiWallet = makeAddr("etherFiWallet");
 
     address weEthWethOracle;
@@ -68,6 +69,9 @@ contract UserSafeSetup is Utils {
     // Interest rate mode -> Stable: 1, variable: 2
     uint256 interestRateMode = 2;
     uint16 aaveReferralCode = 0;
+
+    uint256 liquidationThreshold = 60e18; // 60%
+    uint256 borrowApy = 1000; // 10%
 
     function setUp() public virtual {
         chainId = vm.envString("TEST_CHAIN");
@@ -123,6 +127,36 @@ contract UserSafeSetup is Utils {
                 address(etherFiCashMultisig),
                 address(priceProvider),
                 address(aaveV3Adapter)
+            )
+        );
+
+        address[] memory collateralTokens = new address[](1);
+        collateralTokens[0] = address(weETH);
+        address[] memory borrowTokens = new address[](1);
+        borrowTokens[0] = address(usdc);
+
+        address etherFiCashDebtManagerImpl = address(
+            new L2DebtManager(
+                address(weETH),
+                address(usdc),
+                address(etherFiCashMultisig),
+                address(priceProvider),
+                address(aaveV3Adapter)
+            )
+        );
+
+        etherFiCashDebtManager = address(
+            new UUPSProxy(
+                etherFiCashDebtManagerImpl,
+                abi.encodeWithSelector(
+                    // initialize(address,uint256,uint256,address[],address[])
+                    0x1df44494,
+                    owner,
+                    liquidationThreshold,
+                    borrowApy,
+                    collateralTokens,
+                    borrowTokens
+                )
             )
         );
 
