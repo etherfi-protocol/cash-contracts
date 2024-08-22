@@ -10,6 +10,8 @@ import {UpgradeableBeacon} from "@openzeppelin/contracts/proxy/beacon/Upgradeabl
  * @notice Factory to deploy User Safe contracts
  */
 contract UserSafeFactory is UpgradeableBeacon {
+    event UserSafeDeployed(address indexed safe);
+
     constructor(
         address _implementation,
         address _owner
@@ -21,6 +23,9 @@ contract UserSafeFactory is UpgradeableBeacon {
      * @return Address of the user safe.
      */
     function createUserSafe(bytes memory data) external returns (address) {
-        return address(new BeaconProxy(address(this), data));
+        address safe = address(new BeaconProxy(address(this), data));
+        emit UserSafeDeployed(safe);
+
+        return safe;
     }
 }

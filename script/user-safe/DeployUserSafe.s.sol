@@ -7,8 +7,6 @@ import {UserSafe} from "../../src/user-safe/UserSafe.sol";
 import {stdJson} from "forge-std/StdJson.sol";
 
 contract DeployUserSafe is Utils {
-    // address owner;
-    // uint256 ownerKey;
     UserSafeFactory userSafeFactory;
     UserSafe ownerSafe;
     uint256 defaultSpendingLimit = 10000e6;
@@ -21,8 +19,6 @@ contract DeployUserSafe is Utils {
 
         // Start broadcast with deployer as the signer
         vm.startBroadcast(deployerPrivateKey);
-
-        // (owner, ownerKey) = makeAddrAndKey("owner");
 
         string memory deployments = readDeploymentFile();
 
