@@ -2,13 +2,13 @@
 pragma solidity ^0.8.24;
 
 import {SafeERC20, IERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import {ICashDataProvider} from "./interfaces/ICashDataProvider.sol";
 import {AccessControlUpgradeable} from "openzeppelin-contracts-upgradeable/contracts/access/AccessControlUpgradeable.sol";
 import {UUPSUpgradeable, Initializable} from "openzeppelin-contracts-upgradeable/contracts/proxy/utils/UUPSUpgradeable.sol";
 import {IL2DebtManager} from "./interfaces/IL2DebtManager.sol";
 import {IPriceProvider} from "./interfaces/IPriceProvider.sol";
 import {IEtherFiCashAaveV3Adapter} from "./interfaces/IEtherFiCashAaveV3Adapter.sol";
-import {TokenDecimalCache} from "./utils/TokenDecimalCache.sol";
 import {console} from "forge-std/console.sol";
 
 /**
@@ -18,7 +18,6 @@ import {console} from "forge-std/console.sol";
  */
 contract L2DebtManager is
     IL2DebtManager,
-    TokenDecimalCache,
     UUPSUpgradeable,
     AccessControlUpgradeable
 {
@@ -111,9 +110,13 @@ contract L2DebtManager is
         _debtInterestIndexSnapshotTimestamp = block.timestamp;
         _debtInterestIndexSnapshot = 0;
         _totalBorrowingAmount = 0;
+    }
 
-        cacheDecimals(__supportedCollateralTokens);
-        cacheDecimals(__supportedBorrowTokens);
+    /**
+     * @inheritdoc IL2DebtManager
+     */
+    function getDecimals(address token) public view returns (uint8) {
+        return IERC20Metadata(token).decimals();
     }
 
     /**
@@ -735,6 +738,24 @@ contract L2DebtManager is
                 amountToBorrow
             );
         } else revert InvalidMarketOperationType();
+    }
+
+    /**
+     * @inheritdoc IL2DebtManager
+     */
+    function adminWithdrawFunds(
+        address token,
+        uint256 amount
+    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        if (isCollateralToken(token)) {
+            uint256 liquidTokenAmt = IERC20(token).balanceOf(address(this)) -
+                _totalCollateralAmounts[token];
+            if (liquidTokenAmt < amount)
+                revert LiquidAmountLesserThanRequired();
+        }
+
+        IERC20(token).safeTransfer(etherFiCashSafe, amount);
+        emit AdminWithdrawFunds(token, amount);
     }
 
     /// Users repay the borrowed USDC in USDC

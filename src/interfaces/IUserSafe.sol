@@ -114,6 +114,13 @@ interface IUserSafe {
     error RecoverySignersCannotBeSame();
 
     /**
+     * @notice Function to fetch token decimals.
+     * @param  token Address of the token to fetch decimals for.
+     * @return Token decimals.
+     */
+    function getDecimals(address token) external view returns (uint8);
+
+    /**
      * @notice Function to fetch the owner bytes for the User Safe.
      * @return owner bytes of the User Safe.
      */

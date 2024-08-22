@@ -206,9 +206,6 @@ contract IntegrationTestSetup is Utils {
             )
         );
 
-        aliceSafe.cacheDecimals(collateralTokens);
-        aliceSafe.cacheDecimals(borrowTokens);
-
         deal(address(weETH), alice, 1000 ether);
         deal(address(usdc), alice, 1 ether);
         deal(address(usdc), address(swapper), 1 ether);

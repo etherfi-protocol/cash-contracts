@@ -14,19 +14,13 @@ import {IUserSafe} from "../interfaces/IUserSafe.sol";
 import {UserSafeRecovery} from "./UserSafeRecovery.sol";
 import {WebAuthn} from "../libraries/WebAuthn.sol";
 import {OwnerLib} from "../libraries/OwnerLib.sol";
-import {TokenDecimalCache} from "../utils/TokenDecimalCache.sol";
 
 /**
  * @title UserSafe
  * @author ether.fi [shivam@ether.fi]
  * @notice User safe account for interactions with the EtherFi Cash contracts
  */
-contract UserSafe is
-    IUserSafe,
-    TokenDecimalCache,
-    Initializable,
-    UserSafeRecovery
-{
+contract UserSafe is IUserSafe, Initializable, UserSafeRecovery {
     using SafeERC20 for IERC20;
     using SignatureUtils for bytes32;
     using OwnerLib for bytes;
@@ -106,6 +100,13 @@ contract UserSafe is
         _collateralLimit = __collateralLimit;
 
         __UserSafeRecovery_init();
+    }
+
+    /**
+     * @inheritdoc IUserSafe
+     */
+    function getDecimals(address token) public view returns (uint8) {
+        return IERC20Metadata(token).decimals();
     }
 
     /**
