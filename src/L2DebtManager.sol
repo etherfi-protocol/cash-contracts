@@ -836,6 +836,8 @@ contract L2DebtManager is
         address tokenToBorrow,
         uint256 amountToBorrow
     ) internal {
+        if (aaveV3Adapter == address(0)) revert AaveAdapterNotSet();
+
         _delegateCall(
             aaveV3Adapter,
             abi.encodeWithSelector(
