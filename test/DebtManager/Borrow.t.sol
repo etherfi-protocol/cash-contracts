@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import {DebtManagerSetup} from "./DebtManagerSetup.t.sol";
+import {DebtManagerSetup, MockERC20} from "./DebtManagerSetup.t.sol";
 import {IL2DebtManager} from "../../src/interfaces/IL2DebtManager.sol";
 import {SafeERC20, IERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IERC20Errors} from "@openzeppelin/contracts/interfaces/draft-IERC6093.sol";
@@ -157,6 +157,27 @@ contract DebtManagerBorrowTest is DebtManagerSetup {
             timeElapsed) / 1e20;
 
         assertEq(debtManager.borrowingOf(alice), borrowAmt + expectedInterest);
+    }
+
+    function test_BorrowTokenWithDecimalsOtherThanSix() public {
+        MockERC20 newToken = new MockERC20("mockToken", "MTK", 12);
+        deal(address(newToken), address(debtManager), 1 ether);
+
+        vm.prank(owner);
+        debtManager.supportBorrowToken(address(newToken));
+
+        uint256 remainingBorrowCapacityInUsdc = debtManager
+            .remainingBorrowingCapacityInUSDC(alice);
+
+        assertEq(debtManager.borrowingOf(alice), 0);
+
+        vm.prank(alice);
+        debtManager.borrow(
+            address(newToken),
+            (remainingBorrowCapacityInUsdc * 1e12) / 1e6
+        );
+
+        assertEq(debtManager.borrowingOf(alice), remainingBorrowCapacityInUsdc);
     }
 
     function test_NextBorrowAutomaticallyAddsInterestToThePreviousBorrows()

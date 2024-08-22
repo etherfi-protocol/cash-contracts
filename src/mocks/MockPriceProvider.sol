@@ -5,17 +5,19 @@ pragma solidity ^0.8.24;
  * @title MockPriceProvider
  */
 contract MockPriceProvider {
-    uint256 price;
+    uint256 _price;
 
-    constructor(uint256 _price) {
-        price = _price;
+    constructor(uint256 __price) {
+        _price = __price;
     }
 
-    function setWeEthUsdPrice(uint256 _price) external {
-        price = _price;
+    function setPrice(uint256 __price) external {
+        _price = __price;
     }
 
-    function getWeEthUsdPrice() external view returns (uint256) {
-        return price;
+    function price(
+        address // token
+    ) public view returns (uint256) {
+        return _price;
     }
 }

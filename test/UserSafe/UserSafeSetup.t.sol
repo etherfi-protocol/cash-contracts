@@ -103,7 +103,11 @@ contract UserSafeSetup is Utils {
             assets[0] = address(weETH);
 
             swapper = new Swapper1InchV6(swapRouter1InchV6, assets);
-            priceProvider = new PriceProvider(weEthWethOracle, ethUsdcOracle);
+            priceProvider = new PriceProvider(
+                address(weETH),
+                weEthWethOracle,
+                ethUsdcOracle
+            );
 
             aavePool = IPool(chainConfig.aaveV3Pool);
             aaveV3PoolDataProvider = IPoolDataProvider(
@@ -208,6 +212,9 @@ contract UserSafeSetup is Utils {
                 )
             )
         );
+
+        aliceSafe.cacheDecimals(collateralTokens);
+        aliceSafe.cacheDecimals(borrowTokens);
 
         deal(address(weETH), alice, 1000 ether);
         deal(address(usdc), alice, 1 ether);

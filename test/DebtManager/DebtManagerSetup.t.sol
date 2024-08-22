@@ -72,7 +72,11 @@ contract DebtManagerSetup is Utils {
             weEthWethOracle = chainConfig.weEthWethOracle;
             ethUsdcOracle = chainConfig.ethUsdcOracle;
 
-            priceProvider = new PriceProvider(weEthWethOracle, ethUsdcOracle);
+            priceProvider = new PriceProvider(
+                address(weETH),
+                weEthWethOracle,
+                ethUsdcOracle
+            );
 
             aaveV3Adapter = IEtherFiCashAaveV3Adapter(
                 new EtherFiCashAaveV3Adapter(

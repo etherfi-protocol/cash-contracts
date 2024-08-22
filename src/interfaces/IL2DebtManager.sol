@@ -392,6 +392,8 @@ interface IL2DebtManager {
         returns (
             TokenData[] memory totalCollaterals,
             uint256 totalCollateralInUsdc,
-            uint256 totalBorrowings
+            uint256 totalBorrowings,
+            TokenData[] memory totalLiquidCollateralAmounts,
+            uint256 totalLiquidStableAmounts
         );
 }
