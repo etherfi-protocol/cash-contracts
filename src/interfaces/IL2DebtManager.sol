@@ -79,6 +79,7 @@ interface IL2DebtManager {
         uint256 borrowingsRepaid,
         TokenData[] collateralWithdrawal
     );
+    event AdminWithdrawFunds(address token, uint256 amount);
 
     error UnsupportedCollateralToken();
     error UnsupportedRepayToken();
@@ -103,6 +104,14 @@ interface IL2DebtManager {
     error TotalCollateralAmountNotZero();
     error InsufficientLiquidityPleaseTryAgainLater();
     error AaveAdapterNotSet();
+    error LiquidAmountLesserThanRequired();
+
+    /**
+     * @notice Function to fetch token decimals.
+     * @param  token Address of the token to fetch decimals for.
+     * @return Token decimals.
+     */
+    function getDecimals(address token) external view returns (uint8);
 
     /**
      * @notice Function to fetch the debt interest index snapshot.
@@ -392,6 +401,16 @@ interface IL2DebtManager {
         returns (
             TokenData[] memory totalCollaterals,
             uint256 totalCollateralInUsdc,
-            uint256 totalBorrowings
+            uint256 totalBorrowings,
+            TokenData[] memory totalLiquidCollateralAmounts,
+            uint256 totalLiquidStableAmounts
         );
+
+    /**
+     * @notice Function to withdraw funds from this contract to the etherFiCashMultiSig.
+     * @notice Can only be called by the DEFAULT ADMIN.
+     * @param  token Address of the token to withdraw.
+     * @param  amount Amount of the token to withdraw.
+     */
+    function adminWithdrawFunds(address token, uint256 amount) external;
 }

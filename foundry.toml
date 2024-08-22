@@ -5,7 +5,7 @@ libs = ["lib"]
 cbor_metadata = true
 ffi = true
 optimizer = true
-optimizer_runs = 10000
+optimizer_runs = 200
 evm_version = "shanghai"
 ast = true
 build_info = true
@@ -26,11 +26,14 @@ build_info = true
 extra_output = ["storageLayout"]
 gas_reports = ["*"]
 
-
 [rpc_endpoints]
 mainnet = "${MAINNET_RPC}"
+sepolia = "${SEPOLIA_RPC}"
 fi_sepolia = "${FI_SEPOLIA_RPC}"
+arbitrum_sepolia = "${ARBITRUM_SEPOLIA_RPC}"
 
 [etherscan]
-mainnet = { chain = "mainnet", key = "${MAINNET_ETHERSCAN_KEY}" }
+mainnet = { key = "${MAINNET_ETHERSCAN_KEY}" }
+sepolia = { key = "${MAINNET_ETHERSCAN_KEY}" }
 fi_sepolia = { url = "https://fi-sepolia-explorer.ether.fi/api", key = "5P1ZGHEFGJUN2N1T9NY6NVVDXQDJKPMD2Z" }
+arbitrum_sepolia = { key = "${ARBISCAN_ETHERSCAN_KEY}" }

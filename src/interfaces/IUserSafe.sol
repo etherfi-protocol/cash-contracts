@@ -114,6 +114,13 @@ interface IUserSafe {
     error RecoverySignersCannotBeSame();
 
     /**
+     * @notice Function to fetch token decimals.
+     * @param  token Address of the token to fetch decimals for.
+     * @return Token decimals.
+     */
+    function getDecimals(address token) external view returns (uint8);
+
+    /**
      * @notice Function to fetch the owner bytes for the User Safe.
      * @return owner bytes of the User Safe.
      */
@@ -250,6 +257,7 @@ interface IUserSafe {
 
     /**
      * @notice Function to set the spending limit.
+     * @notice This resets the used up amount to 0 and specify a new limit.
      * @param spendingLimitType Type of spending limit.
      * @param limitInUsd Spending limit in USD with 6 decimals.
      */
@@ -260,6 +268,7 @@ interface IUserSafe {
 
     /**
      * @notice Function to set the spending limit with permit.
+     * @notice This resets the used up amount to 0 and specify a new limit.
      * @param spendingLimitType Type of spending limit.
      * @param limitInUsd Spending limit in USD with 6 decimals.
      * @param signature Must be a valid signature from the user.
@@ -289,12 +298,14 @@ interface IUserSafe {
 
     /**
      * @notice Function to update the spending limit.
+     * @notice This does not affect the used up amount and specify a new limit.
      * @param limitInUsd Spending limit in USD with 6 decimals.
      */
     function updateSpendingLimit(uint256 limitInUsd) external;
 
     /**
      * @notice Function to set the spending limit with permit.
+     * @notice This does not affect the used up amount and specify a new limit.
      * @param limitInUsd Spending limit in USD with 6 decimals.
      * @param signature Must be a valid signature from the user.
      */

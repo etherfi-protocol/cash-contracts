@@ -2,6 +2,7 @@
 pragma solidity ^0.8.24;
 
 import {SafeERC20, IERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import {IERC20Permit} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Permit.sol";
 import {ICashDataProvider} from "../interfaces/ICashDataProvider.sol";
 import {SignatureUtils} from "../libraries/SignatureUtils.sol";
@@ -99,6 +100,13 @@ contract UserSafe is IUserSafe, Initializable, UserSafeRecovery {
         _collateralLimit = __collateralLimit;
 
         __UserSafeRecovery_init();
+    }
+
+    /**
+     * @inheritdoc IUserSafe
+     */
+    function getDecimals(address token) public view returns (uint8) {
+        return IERC20Metadata(token).decimals();
     }
 
     /**
@@ -515,7 +523,7 @@ contract UserSafe is IUserSafe, Initializable, UserSafeRecovery {
         address token,
         uint256 amount
     ) external onlyEtherFiWallet {
-        if (token != _usdc) revert UnsupportedToken();
+        if (!_isBorrowToken(token)) revert UnsupportedToken();
 
         _checkSpendingLimit(token, amount);
         _updateWithdrawalRequestIfNecessary(token, amount);
@@ -538,8 +546,10 @@ contract UserSafe is IUserSafe, Initializable, UserSafeRecovery {
         uint256 outputAmountToTransfer,
         bytes calldata swapData
     ) external onlyEtherFiWallet {
-        if (inputTokenToSwap != _weETH || outputToken != _usdc)
-            revert UnsupportedToken();
+        if (
+            !_isCollateralToken(inputTokenToSwap) ||
+            !_isBorrowToken(outputToken)
+        ) revert UnsupportedToken();
 
         _checkSpendingLimit(outputToken, outputAmountToTransfer);
         _updateWithdrawalRequestIfNecessary(
@@ -803,11 +813,17 @@ contract UserSafe is IUserSafe, Initializable, UserSafeRecovery {
             );
         }
 
-        // in current case, token can be either weETH or USDC only
-        if (token == _weETH) {
-            uint256 price = _priceProvider.getWeEthUsdPrice();
-            // amount * price with 6 decimals / 1 ether will convert the weETH amount to USD amount with 6 decimals
-            amount = (amount * price) / 1 ether;
+        uint8 tokenDecimals = getDecimals(token);
+
+        // in current case, token can be either collateral tokens or borrow tokens
+        if (_isCollateralToken(token)) {
+            uint256 price = _priceProvider.price(token);
+            // token amount * price with 6 decimals / 10**decimals will convert the collateral token amount to USD amount with 6 decimals
+            amount = (amount * price) / 10 ** tokenDecimals;
+        } else {
+            if (tokenDecimals != 6)
+                // get amount in 6 decimals
+                amount = (amount * 1e6) / 10 ** tokenDecimals;
         }
 
         if (amount + _spendingLimit.usedUpAmount > _spendingLimit.spendingLimit)
@@ -826,12 +842,10 @@ contract UserSafe is IUserSafe, Initializable, UserSafeRecovery {
         uint256 currentCollateral = IL2DebtManager(debtManager)
             .getCollateralValueInUsdc(address(this));
 
-        // in current case, token can be either weETH or USDC only
-        if (token == _weETH) {
-            uint256 price = _priceProvider.getWeEthUsdPrice();
-            // amount * price with 6 decimals / 1 ether will convert the weETH amount to USD amount with 6 decimals
-            amountToAdd = (amountToAdd * price) / 1 ether;
-        }
+        uint256 price = _priceProvider.price(token);
+
+        // amount * price with 6 decimals / 10 ** tokenDecimals will convert the collateral amount to USD amount with 6 decimals
+        amountToAdd = (amountToAdd * price) / 10 ** getDecimals(token);
 
         if (currentCollateral + amountToAdd > _collateralLimit)
             revert ExceededCollateralLimit();
@@ -846,7 +860,7 @@ contract UserSafe is IUserSafe, Initializable, UserSafeRecovery {
         address token,
         uint256 amount
     ) internal {
-        if (token != _weETH) revert UnsupportedToken();
+        if (!_isCollateralToken(token)) revert UnsupportedToken();
 
         _checkCollateralLimit(debtManager, token, amount);
         _updateWithdrawalRequestIfNecessary(token, amount);
@@ -866,7 +880,8 @@ contract UserSafe is IUserSafe, Initializable, UserSafeRecovery {
         address token,
         uint256 amount
     ) internal {
-        if (token != _usdc) revert UnsupportedToken();
+        if (!_isBorrowToken(token)) revert UnsupportedToken();
+
         _checkSpendingLimit(token, amount);
 
         IL2DebtManager(debtManager).borrow(token, amount);
@@ -878,22 +893,17 @@ contract UserSafe is IUserSafe, Initializable, UserSafeRecovery {
         address token,
         uint256 repayDebtUsdcAmt
     ) internal {
-        if (token == _usdc) {
-            IERC20(_usdc).forceApprove(debtManager, repayDebtUsdcAmt);
-            IL2DebtManager(debtManager).repay(
-                address(this),
-                token,
-                repayDebtUsdcAmt
-            );
-            emit RepayDebtManager(token, repayDebtUsdcAmt);
-        } else if (token == _weETH) {
-            IL2DebtManager(debtManager).repay(
-                address(this),
-                token,
-                repayDebtUsdcAmt
-            );
-            emit RepayDebtManager(token, repayDebtUsdcAmt);
-        } else revert UnsupportedToken();
+        // Repay token can either be borrow token or collateral token
+        if (_isBorrowToken(token))
+            IERC20(token).forceApprove(debtManager, repayDebtUsdcAmt);
+        else if (!_isCollateralToken(token)) revert UnsupportedToken();
+
+        IL2DebtManager(debtManager).repay(
+            address(this),
+            token,
+            repayDebtUsdcAmt
+        );
+        emit RepayDebtManager(token, repayDebtUsdcAmt);
     }
 
     function _withdrawCollateralFromDebtManager(
@@ -901,6 +911,7 @@ contract UserSafe is IUserSafe, Initializable, UserSafeRecovery {
         address token,
         uint256 amount
     ) internal {
+        if (!_isCollateralToken(token)) revert UnsupportedToken();
         IL2DebtManager(debtManager).withdrawCollateral(token, amount);
         emit WithdrawCollateralFromDebtManager(token, amount);
     }
@@ -939,6 +950,18 @@ contract UserSafe is IUserSafe, Initializable, UserSafeRecovery {
             delete _incomingCollateralLimit;
             delete _incomingCollateralLimitStartTime;
         }
+    }
+
+    function _isCollateralToken(address token) internal view returns (bool) {
+        return
+            IL2DebtManager(_cashDataProvider.etherFiCashDebtManager())
+                .isCollateralToken(token);
+    }
+
+    function _isBorrowToken(address token) internal view returns (bool) {
+        return
+            IL2DebtManager(_cashDataProvider.etherFiCashDebtManager())
+                .isBorrowToken(token);
     }
 
     function _onlyEtherFiWallet() private view {

@@ -61,6 +61,7 @@ contract DeployUserSafeSetup is Utils {
         usdc = ERC20(chainConfig.usdc);
         weETH = ERC20(chainConfig.weETH);
         priceProvider = new PriceProvider(
+            chainConfig.weETH,
             chainConfig.weEthWethOracle,
             chainConfig.ethUsdcOracle
         );

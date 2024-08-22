@@ -30,7 +30,7 @@ contract DeployMockUserSafeSetup is Utils {
     address owner;
     uint256 delay = 60;
     uint256 liquidationThreshold = 60e18;
-    uint256 borrowApy = 1000; // 10%
+    uint256 borrowApyPerSecond = 634195839675; // 20% APR -> 20e18 / (365 days in seconds)
 
     // Shivam Metamask wallets
     address recoverySigner1 = 0x7fEd99d0aA90423de55e238Eb5F9416FF7Cc58eF;
@@ -78,7 +78,7 @@ contract DeployMockUserSafeSetup is Utils {
                     0x1df44494,
                     owner,
                     liquidationThreshold,
-                    borrowApy,
+                    borrowApyPerSecond,
                     collateralTokens,
                     borrowTokens
                 )

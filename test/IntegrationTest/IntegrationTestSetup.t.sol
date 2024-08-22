@@ -105,7 +105,11 @@ contract IntegrationTestSetup is Utils {
             assets[0] = address(weETH);
 
             swapper = new Swapper1InchV6(swapRouter1InchV6, assets);
-            priceProvider = new PriceProvider(weEthWethOracle, ethUsdcOracle);
+            priceProvider = new PriceProvider(
+                address(weETH),
+                weEthWethOracle,
+                ethUsdcOracle
+            );
 
             aavePool = IPool(chainConfig.aaveV3Pool);
             aaveV3PoolDataProvider = IPoolDataProvider(
