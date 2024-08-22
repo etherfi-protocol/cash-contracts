@@ -102,6 +102,7 @@ interface IL2DebtManager {
     error BorrowApyGreaterThanMaxAllowed();
     error TotalCollateralAmountNotZero();
     error InsufficientLiquidityPleaseTryAgainLater();
+    error AaveAdapterNotSet();
 
     /**
      * @notice Function to fetch the debt interest index snapshot.

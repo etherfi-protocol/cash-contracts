@@ -6,38 +6,35 @@ import {Script, console} from "forge-std/Script.sol";
 import {Upgrades} from "openzeppelin-foundry-upgrades/Upgrades.sol";
 import {UserSafeFactory} from "../../src/user-safe/UserSafeFactory.sol";
 import {UserSafe} from "../../src/user-safe/UserSafe.sol";
-import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import {PriceProvider} from "../../src/oracle/PriceProvider.sol";
-import {Swapper1InchV6} from "../../src/utils/Swapper1InchV6.sol";
+import {MockERC20} from "../../src/mocks/MockERC20.sol";
+import {MockPriceProvider} from "../../src/mocks/MockPriceProvider.sol";
+import {MockSwapper} from "../../src/mocks/MockSwapper.sol";
 import {L2DebtManager} from "../../src/L2DebtManager.sol";
 import {CashDataProvider} from "../../src/utils/CashDataProvider.sol";
 import {Utils, ChainConfig} from "./Utils.sol";
-import {EtherFiCashAaveV3Adapter} from "../../src/adapters/aave-v3/EtherFiCashAaveV3Adapter.sol";
+import {MockAaveAdapter} from "../../src/mocks/MockAaveAdapter.sol";
 import {UUPSProxy} from "../../src/UUPSProxy.sol";
 
-contract DeployUserSafeSetup is Utils {
-    ERC20 usdc;
-    ERC20 weETH;
-    PriceProvider priceProvider;
-    Swapper1InchV6 swapper;
+contract DeployMockUserSafeSetup is Utils {
+    MockERC20 usdc;
+    MockERC20 weETH;
+    MockPriceProvider priceProvider;
+    MockSwapper swapper;
     UserSafe userSafeImpl;
     UserSafeFactory userSafeFactory;
     L2DebtManager debtManager;
     CashDataProvider cashDataProvider;
-    EtherFiCashAaveV3Adapter aaveV3Adapter;
+    MockAaveAdapter aaveAdapter;
     address etherFiCashMultisig;
     address etherFiWallet;
     address owner;
-    uint256 delay = 300; // 5 min
-    uint256 liquidationThreshold = 60e18; // 60%
-    uint256 borrowApyPerSecond = 634195839675; // 20% APR -> 20e18 / (365 days in seconds)
+    uint256 delay = 60;
+    uint256 liquidationThreshold = 60e18;
+    uint256 borrowApy = 1000; // 10%
 
     // Shivam Metamask wallets
     address recoverySigner1 = 0x7fEd99d0aA90423de55e238Eb5F9416FF7Cc58eF;
     address recoverySigner2 = 0x24e311DA50784Cf9DB1abE59725e4A1A110220FA;
-    string chainId;
-    uint16 aaveV3ReferralCode = 0;
-    uint256 interestRateMode = 2; // variable
 
     function run() public {
         // Pulling deployer info from the environment
@@ -46,34 +43,22 @@ contract DeployUserSafeSetup is Utils {
         // Start broadcast with deployer as the signer
         vm.startBroadcast(deployerPrivateKey);
 
-        chainId = vm.toString(block.chainid);
-        ChainConfig memory chainConfig = getChainConfig(chainId);
-
-        address[] memory supportedCollateralTokens = new address[](1);
-        supportedCollateralTokens[0] = chainConfig.weETH;
-        address[] memory supportedBorrowTokens = new address[](1);
-        supportedBorrowTokens[0] = chainConfig.usdc;
-
         etherFiWallet = deployerAddress;
         etherFiCashMultisig = deployerAddress;
         owner = deployerAddress;
 
-        usdc = ERC20(chainConfig.usdc);
-        weETH = ERC20(chainConfig.weETH);
-        priceProvider = new PriceProvider(
-            chainConfig.weEthWethOracle,
-            chainConfig.ethUsdcOracle
-        );
-        swapper = new Swapper1InchV6(
-            chainConfig.swapRouter1InchV6,
-            supportedCollateralTokens
-        );
-        aaveV3Adapter = new EtherFiCashAaveV3Adapter(
-            chainConfig.aaveV3Pool,
-            chainConfig.aaveV3PoolDataProvider,
-            aaveV3ReferralCode,
-            interestRateMode
-        );
+        usdc = MockERC20(deployErc20("USDC", "USDC", 6));
+        weETH = MockERC20(deployErc20("Wrapped eETH", "weETH", 18));
+        priceProvider = new MockPriceProvider(2500e6);
+        swapper = new MockSwapper();
+        aaveAdapter = new MockAaveAdapter();
+
+        usdc.transfer(address(swapper), 1000 ether);
+
+        address[] memory collateralTokens = new address[](1);
+        collateralTokens[0] = address(weETH);
+        address[] memory borrowTokens = new address[](1);
+        borrowTokens[0] = address(usdc);
 
         address debtManagerImpl = address(
             new L2DebtManager(
@@ -81,7 +66,7 @@ contract DeployUserSafeSetup is Utils {
                 address(usdc),
                 etherFiCashMultisig,
                 address(priceProvider),
-                address(aaveV3Adapter)
+                address(aaveAdapter)
             )
         );
 
@@ -93,9 +78,9 @@ contract DeployUserSafeSetup is Utils {
                     0x1df44494,
                     owner,
                     liquidationThreshold,
-                    borrowApyPerSecond,
-                    supportedCollateralTokens,
-                    supportedBorrowTokens
+                    borrowApy,
+                    collateralTokens,
+                    borrowTokens
                 )
             )
         );
@@ -118,7 +103,6 @@ contract DeployUserSafeSetup is Utils {
                 address(swapper)
             )
         );
-
         cashDataProvider = CashDataProvider(cashDataProviderProxy);
         address cashDataProviderImpl = Upgrades.getImplementationAddress(
             address(cashDataProvider)
@@ -208,5 +192,13 @@ contract DeployUserSafeSetup is Utils {
         writeDeploymentFile(finalJson);
 
         vm.stopBroadcast();
+    }
+
+    function deployErc20(
+        string memory name,
+        string memory symbol,
+        uint8 decimals
+    ) internal returns (address) {
+        return address(new MockERC20(name, symbol, decimals));
     }
 }

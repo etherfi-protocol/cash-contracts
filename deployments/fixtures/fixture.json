@@ -1,12 +1,12 @@
 {
-    "42161": {
-        "rpc": "https://arbitrum-one.public.blastapi.io",
-        "usdc": "0xaf88d065e77c8cC2239327C5EDb3A432268e5831",
-        "weETH": "0x35751007a407ca6FEFfE80b3cB397736D2cf4dbe",
-        "weEthWethOracle": "0xE141425bc1594b8039De6390db1cDaf4397EA22b",
-        "ethUsdcOracle": "0x639Fe6ab55C921f74e7fac1ee960C0B6293ba612",
-        "swapRouter1InchV6": "0x111111125421cA6dc452d289314280a0f8842A65",
-        "aaveV3Pool": "0x794a61358D6845594F94dc1DB02A252b5b4814aD",
-        "aaveV3PoolDataProvider": "0x69FA688f1Dc47d4B5d8029D5a35FB7a548310654"
-    }
+  "42161": {
+    "rpc": "https://arbitrum-one.public.blastapi.io",
+    "usdc": "0xaf88d065e77c8cC2239327C5EDb3A432268e5831",
+    "weETH": "0x35751007a407ca6FEFfE80b3cB397736D2cf4dbe",
+    "weEthWethOracle": "0xE141425bc1594b8039De6390db1cDaf4397EA22b",
+    "ethUsdcOracle": "0x639Fe6ab55C921f74e7fac1ee960C0B6293ba612",
+    "swapRouter1InchV6": "0x111111125421cA6dc452d289314280a0f8842A65",
+    "aaveV3Pool": "0x794a61358D6845594F94dc1DB02A252b5b4814aD",
+    "aaveV3PoolDataProvider": "0x69FA688f1Dc47d4B5d8029D5a35FB7a548310654"
+  }
 }
