@@ -42,33 +42,36 @@ interface IUserSafe {
         uint256 usedUpAmount; // in USD with 6 decimals
     }
 
-    event DepositFunds(address token, uint256 amount);
+    event DepositFunds(address indexed token, uint256 amount);
     event WithdrawalRequested(
         address[] tokens,
         uint256[] amounts,
-        address recipient,
+        address indexed recipient,
         uint256 finalizeTimestamp
     );
-    event WithdrawalAmountUpdated(address token, uint256 amount);
+    event WithdrawalAmountUpdated(address indexed token, uint256 amount);
     event WithdrawalCancelled(
         address[] tokens,
         uint256[] amounts,
-        address recipient
+        address indexed recipient
     );
     event WithdrawalProcessed(
         address[] tokens,
         uint256[] amounts,
-        address recipient
+        address indexed recipient
     );
-    event TransferForSpending(address token, uint256 amount);
+    event TransferForSpending(address indexed token, uint256 amount);
     event SwapTransferForSpending(
-        address inputToken,
+        address indexed inputToken,
         uint256 inputAmount,
-        address outputToken,
+        address indexed outputToken,
         uint256 outputTokenSent
     );
     event AddCollateralToDebtManager(address token, uint256 amount);
     event BorrowFromDebtManager(address token, uint256 amount);
+    event RepayDebtManager(address token, uint256 debtAmount);
+    event WithdrawCollateralFromDebtManager(address token, uint256 amount);
+    event CloseAccountWithDebtManager();
     event ResetSpendingLimit(
         uint8 spendingLimitType,
         uint256 limitInUsd,
@@ -108,6 +111,7 @@ interface IUserSafe {
     error InvalidSignatureIndex();
     error SignatureIndicesCannotBeSame();
     error AmountCannotBeZero();
+    error RecoverySignersCannotBeSame();
 
     /**
      * @notice Function to fetch the owner bytes for the User Safe.
@@ -170,12 +174,6 @@ interface IUserSafe {
      * @notice Function to fetch whether the recovery is active.
      */
     function isRecoveryActive() external view returns (bool);
-
-    /**
-     * @notice Function to fetch the contract address of the EtherFi Recovery safe.
-     * @return contract address of the EtherFi Recovery safe.
-     */
-    function etherFiRecoverySafe() external view returns (address);
 
     /**
      * @notice Function to fetch the recovery signers.
@@ -427,6 +425,38 @@ interface IUserSafe {
         address borrowToken,
         uint256 borrowAmount
     ) external;
+
+    /**
+     * @notice Function to borrow funds from EtherFiCash Debt Manager.
+     * @dev Can only be called by the EtherFi Cash Wallet.
+     * @param token Address of token to borrow.
+     * @param amount Amount of tokens to borrow.
+     */
+    function borrow(address token, uint256 amount) external;
+
+    /**
+     * @notice Function to repay funds to EtherFiCash Debt Manager.
+     * @dev Can only be called by the EtherFi Cash Wallet.
+     * @param token Address of token to use for repayment. Can be USDC or the collateral tokens.
+     * @param debtAmountInUsdc Amount of debt to be repaid in USDC.
+     */
+    function repay(address token, uint256 debtAmountInUsdc) external;
+
+    /**
+     * @notice Function to withdraw collateral from the Debt Manager.
+     * @param  token Address of the collateral token to withdraw.
+     * @param  amount Amount of the collateral token to withdraw.
+     */
+    function withdrawCollateralFromDebtManager(
+        address token,
+        uint256 amount
+    ) external;
+
+    /**
+     * @notice Function to close account with the Debt Manager.
+     * @notice Repays all the debt with user's collateral and withdraws the remaining collateral to the User Safe.
+     */
+    function closeAccountWithDebtManager() external;
 
     /**
      * @notice Function to swap funds to output token and transfer it to EtherFiCash Safe.

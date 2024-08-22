@@ -3,25 +3,12 @@ pragma solidity ^0.8.24;
 
 import {IPool} from "@aave/interfaces/IPool.sol";
 import {IPoolDataProvider} from "@aave/interfaces/IPoolDataProvider.sol";
-import {DataTypes} from "@aave/protocol/libraries/types/DataTypes.sol";
-import {WadRayMath} from "@aave/protocol/libraries/math/WadRayMath.sol";
-import {PercentageMath} from "@aave/protocol/libraries/math/PercentageMath.sol";
 import {SafeERC20, IERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {ICashDataProvider} from "../../interfaces/ICashDataProvider.sol";
+import {IEtherFiCashAaveV3Adapter} from "../../interfaces/IEtherFiCashAaveV3Adapter.sol";
 
-contract EtherFiCashAaveV3Adapter {
+contract EtherFiCashAaveV3Adapter is IEtherFiCashAaveV3Adapter {
     using SafeERC20 for IERC20;
-    using WadRayMath for uint256;
-    using PercentageMath for uint256;
-
-    struct AaveAccountData {
-        uint256 totalCollateralBase;
-        uint256 totalDebtBase;
-        uint256 availableBorrowsBase;
-        uint256 currentLiquidationThreshold; // ltv liquidation threshold in basis points
-        uint256 ltv; // loan to value ration in basis points
-        uint256 healthFactor;
-    }
 
     // Address of the AaveV3 Pool contract
     IPool public immutable aaveV3Pool;
@@ -29,17 +16,8 @@ contract EtherFiCashAaveV3Adapter {
     IPoolDataProvider public immutable aaveV3PoolDataProvider;
     // Referral code for AaveV3
     uint16 public immutable aaveV3ReferralCode;
-    // Interest rate mode
+    // Interest rate mode -> Stable: 1, variable: 2
     uint256 public immutable interestRateMode;
-    // Health factor limit
-    // uint256 public immutable healthFactorThreshold;
-
-    event AaveV3Process(
-        address assetToSupply,
-        uint256 amountToSupply,
-        address assetToBorrow,
-        uint256 amountToBorrow
-    );
 
     constructor(
         address _aaveV3Pool,
@@ -47,12 +25,18 @@ contract EtherFiCashAaveV3Adapter {
         uint16 _aaveV3ReferralCode,
         uint256 _interestRateMode
     ) {
+        if (_interestRateMode != 1 && _interestRateMode != 2)
+            revert InvalidRateMode();
+
         aaveV3Pool = IPool(_aaveV3Pool);
         aaveV3PoolDataProvider = IPoolDataProvider(_aaveV3PoolDataProvider);
         aaveV3ReferralCode = _aaveV3ReferralCode;
         interestRateMode = _interestRateMode;
     }
 
+    /**
+     * @inheritdoc IEtherFiCashAaveV3Adapter
+     */
     function process(
         address assetToSupply,
         uint256 amountToSupply,
@@ -61,7 +45,7 @@ contract EtherFiCashAaveV3Adapter {
     ) external {
         _supply(assetToSupply, amountToSupply);
 
-        if (!getIsCollateral(assetToSupply))
+        if (!_getIsCollateral(assetToSupply))
             aaveV3Pool.setUserUseReserveAsCollateral(assetToSupply, true);
 
         _borrow(assetToBorrow, amountToBorrow);
@@ -74,29 +58,40 @@ contract EtherFiCashAaveV3Adapter {
         );
     }
 
-    function _supply(address asset, uint256 amount) internal {
-        IERC20(asset).safeIncreaseAllowance(address(aaveV3Pool), amount);
-        aaveV3Pool.supply(asset, amount, address(this), aaveV3ReferralCode);
+    /**
+     * @inheritdoc IEtherFiCashAaveV3Adapter
+     */
+    function supply(address asset, uint256 amount) external {
+        _supply(asset, amount);
+
+        if (!_getIsCollateral(asset))
+            aaveV3Pool.setUserUseReserveAsCollateral(asset, true);
     }
 
-    function _borrow(address asset, uint256 amount) internal {
-        aaveV3Pool.borrow(
-            asset,
-            amount,
-            interestRateMode,
-            aaveV3ReferralCode,
-            address(this)
-        );
+    /**
+     * @inheritdoc IEtherFiCashAaveV3Adapter
+     */
+    function borrow(address asset, uint256 amount) external {
+        _borrow(asset, amount);
     }
 
-    function _repay(address asset, uint256 amount) internal {
-        aaveV3Pool.repay(asset, amount, interestRateMode, address(this));
+    /**
+     * @inheritdoc IEtherFiCashAaveV3Adapter
+     */
+    function repay(address asset, uint256 amount) external {
+        _repay(asset, amount);
     }
 
-    function _withdraw(address token, uint256 amount) internal {
-        aaveV3Pool.withdraw(token, amount, address(this));
+    /**
+     * @inheritdoc IEtherFiCashAaveV3Adapter
+     */
+    function withdraw(address asset, uint256 amount) external {
+        _withdraw(asset, amount);
     }
 
+    /**
+     * @inheritdoc IEtherFiCashAaveV3Adapter
+     */
     function getAccountData(
         address user
     ) public view returns (AaveAccountData memory) {
@@ -121,22 +116,12 @@ contract EtherFiCashAaveV3Adapter {
     }
 
     /**
-     * @dev Checks if collateral is enabled for an asset
-     * @param token token address of the asset.(For ETH: 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE)
+     * @inheritdoc IEtherFiCashAaveV3Adapter
      */
-
-    function getIsCollateral(
+    function getDebt(
+        address user,
         address token
-    ) internal view returns (bool isCollateral) {
-        (, , , , , , , , isCollateral) = aaveV3PoolDataProvider
-            .getUserReserveData(token, address(this));
-    }
-
-    /**
-     * @dev Get total debt balance & fee for an asset
-     * @param token token address of the debt
-     */
-    function getDebt(address token) internal view returns (uint256) {
+    ) external view returns (uint256) {
         (
             ,
             uint256 stableDebt,
@@ -147,28 +132,55 @@ contract EtherFiCashAaveV3Adapter {
             ,
             ,
 
-        ) = aaveV3PoolDataProvider.getUserReserveData(token, address(this));
+        ) = aaveV3PoolDataProvider.getUserReserveData(token, user);
         return interestRateMode == 1 ? stableDebt : variableDebt;
     }
 
     /**
-     * @dev Get total collateral balance for an asset
-     * @param token token address of the collateral
+     * @inheritdoc IEtherFiCashAaveV3Adapter
      */
     function getCollateralBalance(
+        address user,
         address token
-    ) internal view returns (uint256 balance) {
+    ) external view returns (uint256 balance) {
         (balance, , , , , , , , ) = aaveV3PoolDataProvider.getUserReserveData(
             token,
+            user
+        );
+    }
+
+    function _supply(address asset, uint256 amount) internal {
+        IERC20(asset).safeIncreaseAllowance(address(aaveV3Pool), amount);
+        aaveV3Pool.supply(asset, amount, address(this), aaveV3ReferralCode);
+    }
+
+    function _borrow(address asset, uint256 amount) internal {
+        aaveV3Pool.borrow(
+            asset,
+            amount,
+            interestRateMode,
+            aaveV3ReferralCode,
             address(this)
         );
     }
 
-    // gets the `ltv` and `liquidationThreshold` of the pool
-    // gets the `borrowCap` and `supplyCap` of the pool
-    function getPoolLiquidationData(
+    function _repay(address asset, uint256 amount) internal {
+        IERC20(asset).safeIncreaseAllowance(address(aaveV3Pool), amount);
+        aaveV3Pool.repay(asset, amount, interestRateMode, address(this));
+    }
+
+    function _withdraw(address token, uint256 amount) internal {
+        aaveV3Pool.withdraw(token, amount, address(this));
+    }
+
+    /**
+     * @dev Checks if collateral is enabled for an asset
+     * @param token token address of the asset.(For ETH: 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE)
+     */
+    function _getIsCollateral(
         address token
-    ) public view returns (DataTypes.ReserveConfigurationMap memory) {
-        return aaveV3Pool.getConfiguration(token);
+    ) internal view returns (bool isCollateral) {
+        (, , , , , , , , isCollateral) = aaveV3PoolDataProvider
+            .getUserReserveData(token, address(this));
     }
 }

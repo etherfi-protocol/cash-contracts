@@ -4,7 +4,7 @@ pragma solidity ^0.8.24;
 import {IUserSafe, OwnerLib, UserSafe} from "../../src/user-safe/UserSafe.sol";
 import {MessageHashUtils} from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
 import {EIP1271SignatureUtils} from "../../src/libraries/EIP1271SignatureUtils.sol";
-import {ERC20, UserSafeSetup} from "./UserSafeSetup.sol";
+import {ERC20, UserSafeSetup} from "./UserSafeSetup.t.sol";
 import {OwnerLib} from "../../src/libraries/OwnerLib.sol";
 
 contract UserSafeRecoveryTest is UserSafeSetup {

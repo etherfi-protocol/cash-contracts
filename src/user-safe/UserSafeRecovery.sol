@@ -17,8 +17,6 @@ abstract contract UserSafeRecovery is IUserSafe {
     bytes32 public constant SET_IS_RECOVERY_ACTIVE_METHOD =
         keccak256("setIsRecoveryActive");
 
-    // Address of the EtherFi Recovery safe
-    address private immutable _etherFiRecoverySafe;
     // Address of the EtherFi Recovery Signer
     address private immutable _etherFiRecoverySigner;
     // Address of the Third Party Recovery Signer
@@ -27,26 +25,17 @@ abstract contract UserSafeRecovery is IUserSafe {
     bool private _isRecoveryActive;
 
     constructor(
-        address __cashDataProvider,
         address __etherFiRecoverySigner,
         address __thirdPartyRecoverySigner
     ) {
-        _etherFiRecoverySafe = ICashDataProvider(__cashDataProvider)
-            .etherFiRecoverySafe();
-
+        if (__etherFiRecoverySigner == __thirdPartyRecoverySigner)
+            revert RecoverySignersCannotBeSame();
         _etherFiRecoverySigner = __etherFiRecoverySigner;
         _thirdPartyRecoverySigner = __thirdPartyRecoverySigner;
     }
 
     function __UserSafeRecovery_init() internal {
         _isRecoveryActive = true;
-    }
-
-    /**
-     * @inheritdoc IUserSafe
-     */
-    function etherFiRecoverySafe() external view returns (address) {
-        return _etherFiRecoverySafe;
     }
 
     /**

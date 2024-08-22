@@ -1,9 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import {Test} from "forge-std/Test.sol";
+import {Script} from "forge-std/Script.sol";
 import {stdJson} from "forge-std/StdJson.sol";
-import {IAccessControl} from "@openzeppelin/contracts/access/IAccessControl.sol";
 
 struct ChainConfig {
     string rpc;
@@ -12,11 +11,9 @@ struct ChainConfig {
     address weEthWethOracle;
     address ethUsdcOracle;
     address swapRouter1InchV6;
-    address aaveV3Pool;
-    address aaveV3PoolDataProvider;
 }
 
-contract Utils is Test {
+contract Utils is Script {
     function getChainConfig(
         string memory chainId
     ) internal view returns (ChainConfig memory) {
@@ -58,16 +55,6 @@ contract Utils is Test {
             string.concat(".", chainId, ".", "swapRouter1InchV6")
         );
 
-        address aaveV3Pool = stdJson.readAddress(
-            inputJson,
-            string.concat(".", chainId, ".", "aaveV3Pool")
-        );
-
-        address aaveV3PoolDataProvider = stdJson.readAddress(
-            inputJson,
-            string.concat(".", chainId, ".", "aaveV3PoolDataProvider")
-        );
-
         return
             ChainConfig({
                 rpc: rpc,
@@ -75,10 +62,29 @@ contract Utils is Test {
                 weETH: weETH,
                 weEthWethOracle: weEthWethOracle,
                 ethUsdcOracle: ethUsdcOracle,
-                swapRouter1InchV6: swapRouter1InchV6,
-                aaveV3Pool: aaveV3Pool,
-                aaveV3PoolDataProvider: aaveV3PoolDataProvider
+                swapRouter1InchV6: swapRouter1InchV6
             });
+    }
+
+    function readDeploymentFile() internal view returns (string memory) {
+        string memory dir = string.concat(vm.projectRoot(), "/deployments/");
+        string memory chainDir = string.concat(vm.toString(block.chainid), "/");
+        string memory file = string.concat("deployments", ".json");
+        return vm.readFile(string.concat(dir, chainDir, file));
+    }
+
+    function writeDeploymentFile(string memory output) internal {
+        string memory dir = string.concat(vm.projectRoot(), "/deployments/");
+        string memory chainDir = string.concat(vm.toString(block.chainid), "/");
+        string memory file = string.concat("deployments", ".json");
+        vm.writeJson(output, string.concat(dir, chainDir, file));
+    }
+
+    function writeUserSafeDeploymentFile(string memory output) internal {
+        string memory dir = string.concat(vm.projectRoot(), "/deployments/");
+        string memory chainDir = string.concat(vm.toString(block.chainid), "/");
+        string memory file = string.concat("safe", ".json");
+        vm.writeJson(output, string.concat(dir, chainDir, file));
     }
 
     function isFork(string memory chainId) internal pure returns (bool) {
@@ -107,17 +113,5 @@ contract Utils is Test {
         inputs[8] = vm.toString(amount);
 
         return vm.ffi(inputs);
-    }
-
-    function buildAccessControlRevertData(
-        address account,
-        bytes32 role
-    ) internal pure returns (bytes memory) {
-        return
-            abi.encodeWithSelector(
-                IAccessControl.AccessControlUnauthorizedAccount.selector,
-                account,
-                role
-            );
     }
 }

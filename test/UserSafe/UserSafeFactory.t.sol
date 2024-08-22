@@ -9,7 +9,7 @@ import {UserSafeV2Mock} from "../../src/mocks/UserSafeV2Mock.sol";
 import {Swapper1InchV6} from "../../src/utils/Swapper1InchV6.sol";
 import {PriceProvider} from "../../src/oracle/PriceProvider.sol";
 import {CashDataProvider} from "../../src/utils/CashDataProvider.sol";
-import {UserSafeSetup} from "./UserSafeSetup.sol";
+import {UserSafeSetup} from "./UserSafeSetup.t.sol";
 import {Upgrades} from "openzeppelin-foundry-upgrades/Upgrades.sol";
 
 contract UserSafeFactoryTest is UserSafeSetup {

@@ -32,8 +32,6 @@ contract CashDataProvider is
     address private _priceProvider;
     // Address of the swapper
     address private _swapper;
-    // Address of the etherFi Recovery Safe contract
-    address private _etherFiRecoverySafe;
 
     function intiailize(
         address __owner,
@@ -44,8 +42,7 @@ contract CashDataProvider is
         address __usdc,
         address __weETH,
         address __priceProvider,
-        address __swapper,
-        address __etherFiRecoverySafe
+        address __swapper
     ) external initializer {
         __Ownable_init(__owner);
         _delay = __delay;
@@ -56,7 +53,6 @@ contract CashDataProvider is
         _weETH = __weETH;
         _priceProvider = __priceProvider;
         _swapper = __swapper;
-        _etherFiRecoverySafe = __etherFiRecoverySafe;
     }
 
     function _authorizeUpgrade(
@@ -117,13 +113,6 @@ contract CashDataProvider is
      */
     function swapper() external view returns (address) {
         return _swapper;
-    }
-
-    /**
-     * @inheritdoc ICashDataProvider
-     */
-    function etherFiRecoverySafe() external view returns (address) {
-        return _etherFiRecoverySafe;
     }
 
     /**
@@ -200,14 +189,5 @@ contract CashDataProvider is
         if (_swapper == address(0)) revert InvalidValue();
         emit SwapperUpdated(_swapper, swapperAddr);
         _swapper = swapperAddr;
-    }
-
-    /**
-     * @inheritdoc ICashDataProvider
-     */
-    function setEtherFiRecoverySafe(address recoverySafe) external onlyOwner {
-        if (recoverySafe == address(0)) revert InvalidValue();
-        emit EtherFiRecoverySafeUpdated(_etherFiRecoverySafe, recoverySafe);
-        _etherFiRecoverySafe = recoverySafe;
     }
 }
