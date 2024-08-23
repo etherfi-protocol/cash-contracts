@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import {IUserSafe, OwnerLib, UserSafe} from "../../src/user-safe/UserSafe.sol";
+import {IUserSafe, OwnerLib, UserSafe, UserSafeLib} from "../../src/user-safe/UserSafe.sol";
 import {MessageHashUtils} from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
 import {UserSafeSetup} from "./UserSafeSetup.t.sol";
 
@@ -12,7 +12,7 @@ contract UserSafeCollateralLimitTest is UserSafeSetup {
         uint256 newCollateralLimit = 1 ether;
         uint256 delayedTime = block.timestamp + delay + 1;
 
-        uint256 collateralLimitBefore = aliceSafe.collateralLimit();
+        uint256 collateralLimitBefore = aliceSafe.applicableCollateralLimit();
         assertEq(collateralLimitBefore, collateralLimit);
 
         vm.prank(alice);
@@ -48,7 +48,7 @@ contract UserSafeCollateralLimitTest is UserSafeSetup {
 
         bytes32 msgHash = keccak256(
             abi.encode(
-                aliceSafe.SET_COLLATERAL_LIMIT_METHOD(),
+                UserSafeLib.SET_COLLATERAL_LIMIT_METHOD,
                 block.chainid,
                 address(aliceSafe),
                 nonce,
@@ -62,7 +62,7 @@ contract UserSafeCollateralLimitTest is UserSafeSetup {
         );
         bytes memory signature = abi.encodePacked(r, s, v);
 
-        uint256 collateralLimitBefore = aliceSafe.collateralLimit();
+        uint256 collateralLimitBefore = aliceSafe.applicableCollateralLimit();
         assertEq(collateralLimitBefore, collateralLimit);
 
         vm.prank(alice);

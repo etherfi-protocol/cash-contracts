@@ -2,8 +2,6 @@
 pragma solidity ^0.8.24;
 
 import {Script, console} from "forge-std/Script.sol";
-
-import {Upgrades} from "openzeppelin-foundry-upgrades/Upgrades.sol";
 import {UserSafeFactory} from "../../src/user-safe/UserSafeFactory.sol";
 import {UserSafe} from "../../src/user-safe/UserSafe.sol";
 import {MockERC20} from "../../src/mocks/MockERC20.sol";
@@ -55,19 +53,18 @@ contract DeployMockUserSafeSetup is Utils {
 
         usdc.transfer(address(swapper), 1000 ether);
 
+        address cashDataProviderImpl = address(new CashDataProvider());
+        cashDataProvider = CashDataProvider(
+            address(new UUPSProxy(cashDataProviderImpl, ""))
+        );
+
         address[] memory collateralTokens = new address[](1);
         collateralTokens[0] = address(weETH);
         address[] memory borrowTokens = new address[](1);
         borrowTokens[0] = address(usdc);
 
         address debtManagerImpl = address(
-            new L2DebtManager(
-                address(weETH),
-                address(usdc),
-                etherFiCashMultisig,
-                address(priceProvider),
-                address(aaveAdapter)
-            )
+            new L2DebtManager(address(cashDataProvider))
         );
 
         address debtManagerProxy = address(
@@ -87,11 +84,10 @@ contract DeployMockUserSafeSetup is Utils {
 
         debtManager = L2DebtManager(debtManagerProxy);
 
-        address cashDataProviderProxy = Upgrades.deployUUPSProxy(
-            "CashDataProvider.sol:CashDataProvider",
+        (bool success, ) = address(cashDataProvider).call(
             abi.encodeWithSelector(
-                // intiailize(address,uint64,address,address,address,address,address,address,address)
-                0x04dfc293,
+                // intiailize(address,uint64,address,address,address,address,address,address,address,address)
+                0xf86fac96,
                 owner,
                 delay,
                 etherFiWallet,
@@ -100,13 +96,12 @@ contract DeployMockUserSafeSetup is Utils {
                 address(usdc),
                 address(weETH),
                 address(priceProvider),
-                address(swapper)
+                address(swapper),
+                address(aaveAdapter)
             )
         );
-        cashDataProvider = CashDataProvider(cashDataProviderProxy);
-        address cashDataProviderImpl = Upgrades.getImplementationAddress(
-            address(cashDataProvider)
-        );
+
+        if (!success) revert("Initialize failed on Cash Data Provider");
 
         userSafeImpl = new UserSafe(
             address(cashDataProvider),

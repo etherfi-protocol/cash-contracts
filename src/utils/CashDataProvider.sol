@@ -32,6 +32,8 @@ contract CashDataProvider is
     address private _priceProvider;
     // Address of the swapper
     address private _swapper;
+    // Address of aave adapter
+    address private _aaveAdapter;
 
     function intiailize(
         address __owner,
@@ -42,7 +44,8 @@ contract CashDataProvider is
         address __usdc,
         address __weETH,
         address __priceProvider,
-        address __swapper
+        address __swapper,
+        address __aaveAdapter
     ) external initializer {
         __Ownable_init(__owner);
         _delay = __delay;
@@ -53,6 +56,7 @@ contract CashDataProvider is
         _weETH = __weETH;
         _priceProvider = __priceProvider;
         _swapper = __swapper;
+        _aaveAdapter = __aaveAdapter;
     }
 
     function _authorizeUpgrade(
@@ -113,6 +117,13 @@ contract CashDataProvider is
      */
     function swapper() external view returns (address) {
         return _swapper;
+    }
+
+    /**
+     * @inheritdoc ICashDataProvider
+     */
+    function aaveAdapter() external view returns (address) {
+        return _aaveAdapter;
     }
 
     /**
@@ -189,5 +200,14 @@ contract CashDataProvider is
         if (_swapper == address(0)) revert InvalidValue();
         emit SwapperUpdated(_swapper, swapperAddr);
         _swapper = swapperAddr;
+    }
+
+    /**
+     * @inheritdoc ICashDataProvider
+     */
+    function setAaveAdapter(address adapter) external onlyOwner {
+        if (adapter == address(0)) revert InvalidValue();
+        emit AaveAdapterUpdated(_aaveAdapter, adapter);
+        _aaveAdapter = adapter;
     }
 }

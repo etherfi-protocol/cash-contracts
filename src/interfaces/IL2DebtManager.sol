@@ -90,7 +90,6 @@ interface IL2DebtManager {
     error CannotLiquidateYet();
     error ZeroCollateralValue();
     error CannotPayMoreThanDebtIncurred();
-    error InvalidMarketOperationType();
     error OnlyUserCanRepayWithCollateral();
     error InvalidValue();
     error AlreadyCollateralToken();
@@ -103,16 +102,13 @@ interface IL2DebtManager {
     error BorrowApyGreaterThanMaxAllowed();
     error TotalCollateralAmountNotZero();
     error InsufficientLiquidityPleaseTryAgainLater();
-    error AaveAdapterNotSet();
     error LiquidAmountLesserThanRequired();
 
     /**
-     * @notice Function to fetch token decimals.
-     * @param  token Address of the token to fetch decimals for.
-     * @return Token decimals.
+     * @notice Function to fetch the address of the Cash Data Provider.
+     * @return Cash Data Provider address
      */
-    function getDecimals(address token) external view returns (uint8);
-
+    function cashDataProvider() external view returns (address);
     /**
      * @notice Function to fetch the debt interest index snapshot.
      * @return debt interest index snapshot

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import {IUserSafe, OwnerLib, WebAuthn, UserSafe} from "../../src/user-safe/UserSafe.sol";
+import {IUserSafe, OwnerLib, WebAuthn, UserSafe, UserSafeLib} from "../../src/user-safe/UserSafe.sol";
 import {MessageHashUtils} from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
 import {UserSafeSetup} from "./UserSafeSetup.t.sol";
 import {WebAuthnInfo, WebAuthnUtils} from "../WebAuthnUtils.sol";
@@ -63,7 +63,7 @@ contract UserSafeWebAuthnSignatureTest is UserSafeSetup {
 
         bytes32 msgHash = keccak256(
             abi.encode(
-                passkeyOwnerSafe.SET_OWNER_METHOD(),
+                UserSafeLib.SET_OWNER_METHOD,
                 block.chainid,
                 address(passkeyOwnerSafe),
                 nonce,

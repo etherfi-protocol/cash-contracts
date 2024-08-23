@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import {IUserSafe, OwnerLib, UserSafe} from "../../src/user-safe/UserSafe.sol";
+import {IUserSafe, OwnerLib, UserSafe, UserSafeLib} from "../../src/user-safe/UserSafe.sol";
 import {MessageHashUtils} from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
 import {UserSafeSetup} from "./UserSafeSetup.t.sol";
 
@@ -50,7 +50,7 @@ contract UserSafeOwnerTest is UserSafeSetup {
 
         bytes32 msgHash = keccak256(
             abi.encode(
-                aliceSafe.SET_OWNER_METHOD(),
+                UserSafeLib.SET_OWNER_METHOD,
                 block.chainid,
                 address(aliceSafe),
                 nonce,

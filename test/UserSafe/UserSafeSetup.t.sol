@@ -10,7 +10,6 @@ import {UserSafeV2Mock} from "../../src/mocks/UserSafeV2Mock.sol";
 import {Swapper1InchV6} from "../../src/utils/Swapper1InchV6.sol";
 import {PriceProvider} from "../../src/oracle/PriceProvider.sol";
 import {CashDataProvider} from "../../src/utils/CashDataProvider.sol";
-import {Upgrades} from "openzeppelin-foundry-upgrades/Upgrades.sol";
 import {OwnerLib} from "../../src/libraries/OwnerLib.sol";
 import {Utils, ChainConfig} from "../Utils.sol";
 import {MockERC20} from "../../src/mocks/MockERC20.sol";
@@ -124,14 +123,9 @@ contract UserSafeSetup is Utils {
             );
         }
 
-        etherFiCashDebtManager = address(
-            new L2DebtManager(
-                address(weETH),
-                address(usdc),
-                address(etherFiCashMultisig),
-                address(priceProvider),
-                address(aaveV3Adapter)
-            )
+        address cashDataProviderImpl = address(new CashDataProvider());
+        cashDataProvider = CashDataProvider(
+            address(new UUPSProxy(cashDataProviderImpl, ""))
         );
 
         address[] memory collateralTokens = new address[](1);
@@ -140,13 +134,7 @@ contract UserSafeSetup is Utils {
         borrowTokens[0] = address(usdc);
 
         address etherFiCashDebtManagerImpl = address(
-            new L2DebtManager(
-                address(weETH),
-                address(usdc),
-                address(etherFiCashMultisig),
-                address(priceProvider),
-                address(aaveV3Adapter)
-            )
+            new L2DebtManager(address(cashDataProvider))
         );
 
         etherFiCashDebtManager = address(
@@ -164,11 +152,10 @@ contract UserSafeSetup is Utils {
             )
         );
 
-        address proxy = Upgrades.deployUUPSProxy(
-            "CashDataProvider.sol:CashDataProvider",
+        (bool success, ) = address(cashDataProvider).call(
             abi.encodeWithSelector(
-                // intiailize(address,uint64,address,address,address,address,address,address,address)
-                0x04dfc293,
+                // intiailize(address,uint64,address,address,address,address,address,address,address,address)
+                0xf86fac96,
                 owner,
                 delay,
                 etherFiWallet,
@@ -177,10 +164,12 @@ contract UserSafeSetup is Utils {
                 address(usdc),
                 address(weETH),
                 address(priceProvider),
-                address(swapper)
+                address(swapper),
+                address(aaveV3Adapter)
             )
         );
-        cashDataProvider = CashDataProvider(proxy);
+
+        if (!success) revert("Initialize failed on Cash Data Provider");
 
         (etherFiRecoverySigner, etherFiRecoverySignerPk) = makeAddrAndKey(
             "etherFiRecoverySigner"

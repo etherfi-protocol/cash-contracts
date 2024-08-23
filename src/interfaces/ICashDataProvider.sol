@@ -17,6 +17,7 @@ interface ICashDataProvider {
     );
     event SwapperUpdated(address oldSwapper, address newSwapper);
     event EtherFiRecoverySafeUpdated(address oldSafe, address newSafe);
+    event AaveAdapterUpdated(address oldAdapter, address newAdapter);
 
     error InvalidValue();
 
@@ -67,6 +68,12 @@ interface ICashDataProvider {
      * @return Swapper contract address
      */
     function swapper() external view returns (address);
+
+    /**
+     * @notice Function to fetch the address of the Aave adapter
+     * @return Aave adapter address
+     */
+    function aaveAdapter() external view returns (address);
 
     /**
      * @notice Function to set the timelock delay for tokens from User Safe
@@ -123,4 +130,11 @@ interface ICashDataProvider {
      * @param swapper Swapper contract address
      */
     function setSwapper(address swapper) external;
+
+    /**
+     * @notice Function to set the address of the Aave adapter
+     * @dev Can only be called by the owner of the contract
+     * @param adapter Aave adapter address
+     */
+    function setAaveAdapter(address adapter) external;
 }

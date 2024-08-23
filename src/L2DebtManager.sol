@@ -9,7 +9,8 @@ import {UUPSUpgradeable, Initializable} from "openzeppelin-contracts-upgradeable
 import {IL2DebtManager} from "./interfaces/IL2DebtManager.sol";
 import {IPriceProvider} from "./interfaces/IPriceProvider.sol";
 import {IEtherFiCashAaveV3Adapter} from "./interfaces/IEtherFiCashAaveV3Adapter.sol";
-import {console} from "forge-std/console.sol";
+import {ICashDataProvider} from "./interfaces/ICashDataProvider.sol";
+import {AaveLib} from "./libraries/AaveLib.sol";
 
 /**
  * @title L2 Debt Manager
@@ -27,11 +28,7 @@ contract L2DebtManager is
     uint256 public constant AN_YEAR_IN_SECONDS = 365 * 24 * 60 * 60;
     uint256 public constant MAX_BORROW_APY = 20e18;
 
-    IERC20 public immutable weETH;
-    IERC20 public immutable usdc;
-    address public immutable etherFiCashSafe;
-    IPriceProvider public immutable priceProvider;
-    address public immutable aaveV3Adapter;
+    ICashDataProvider private immutable _cashDataProvider;
 
     address[] private _supportedCollateralTokens;
     address[] private _supportedBorrowTokens;
@@ -62,18 +59,8 @@ contract L2DebtManager is
     mapping(address user => uint256 interestSnapshot)
         private _usersDebtInterestIndexSnapshots;
 
-    constructor(
-        address _weETH,
-        address _usdc,
-        address _etherFiCashSafe,
-        address _priceProvider,
-        address _aaveV3Adapter
-    ) {
-        weETH = IERC20(_weETH);
-        usdc = IERC20(_usdc);
-        etherFiCashSafe = _etherFiCashSafe;
-        priceProvider = IPriceProvider(_priceProvider);
-        aaveV3Adapter = _aaveV3Adapter;
+    constructor(address __cashDataProvider) {
+        _cashDataProvider = ICashDataProvider(__cashDataProvider);
     }
 
     function initialize(
@@ -115,8 +102,8 @@ contract L2DebtManager is
     /**
      * @inheritdoc IL2DebtManager
      */
-    function getDecimals(address token) public view returns (uint8) {
-        return IERC20Metadata(token).decimals();
+    function cashDataProvider() external view returns (address) {
+        return address(_cashDataProvider);
     }
 
     /**
@@ -404,8 +391,10 @@ contract L2DebtManager is
         if (!isCollateralToken(collateralToken))
             revert UnsupportedCollateralToken();
         return
-            (debtUsdcAmount * 10 ** getDecimals(collateralToken)) /
-            priceProvider.price(collateralToken);
+            (debtUsdcAmount * 10 ** _getDecimals(collateralToken)) /
+            IPriceProvider(_cashDataProvider.priceProvider()).price(
+                collateralToken
+            );
     }
 
     /**
@@ -419,8 +408,10 @@ contract L2DebtManager is
             revert UnsupportedCollateralToken();
 
         return
-            (collateralAmount * priceProvider.price(collateralToken)) /
-            10 ** getDecimals(collateralToken);
+            (collateralAmount *
+                IPriceProvider(_cashDataProvider.priceProvider()).price(
+                    collateralToken
+                )) / 10 ** _getDecimals(collateralToken);
     }
 
     /**
@@ -584,7 +575,10 @@ contract L2DebtManager is
         if (IERC20(token).balanceOf(address(this)) < amount)
             revert InsufficientLiquidity();
 
-        IERC20(token).safeTransfer(etherFiCashSafe, amount);
+        IERC20(token).safeTransfer(
+            _cashDataProvider.etherFiCashMultiSig(),
+            amount
+        );
 
         emit Borrowed(msg.sender, token, amount);
     }
@@ -698,46 +692,8 @@ contract L2DebtManager is
         uint8 marketOperationType,
         bytes calldata data
     ) external onlyRole(ADMIN_ROLE) {
-        if (marketOperationType == uint8(MarketOperationType.Supply)) {
-            (address token, uint256 amount) = abi.decode(
-                data,
-                (address, uint256)
-            );
-            _supplyOnAave(token, amount);
-        } else if (marketOperationType == uint8(MarketOperationType.Borrow)) {
-            (address token, uint256 amount) = abi.decode(
-                data,
-                (address, uint256)
-            );
-            _borrowFromAave(token, amount);
-        } else if (marketOperationType == uint8(MarketOperationType.Repay)) {
-            (address token, uint256 amount) = abi.decode(
-                data,
-                (address, uint256)
-            );
-            _repayOnAave(token, amount);
-        } else if (marketOperationType == uint8(MarketOperationType.Withdraw)) {
-            (address token, uint256 amount) = abi.decode(
-                data,
-                (address, uint256)
-            );
-            _withdrawFromAave(token, amount);
-        } else if (
-            marketOperationType == uint8(MarketOperationType.SupplyAndBorrow)
-        ) {
-            (
-                address tokenToSupply,
-                uint256 amountToSupply,
-                address tokenToBorrow,
-                uint256 amountToBorrow
-            ) = abi.decode(data, (address, uint256, address, uint256));
-            _supplyAndBorrowOnAave(
-                tokenToSupply,
-                amountToSupply,
-                tokenToBorrow,
-                amountToBorrow
-            );
-        } else revert InvalidMarketOperationType();
+        address aaveV3Adapter = _cashDataProvider.aaveAdapter();
+        AaveLib.aaveOperation(aaveV3Adapter, marketOperationType, data);
     }
 
     /**
@@ -754,7 +710,10 @@ contract L2DebtManager is
                 revert LiquidAmountLesserThanRequired();
         }
 
-        IERC20(token).safeTransfer(etherFiCashSafe, amount);
+        IERC20(token).safeTransfer(
+            _cashDataProvider.etherFiCashMultiSig(),
+            amount
+        );
         emit AdminWithdrawFunds(token, amount);
     }
 
@@ -885,70 +844,6 @@ contract L2DebtManager is
         emit RepaidWithCollateral(user, repayDebtUsdcAmt, collateral);
     }
 
-    function _supplyAndBorrowOnAave(
-        address tokenToSupply,
-        uint256 amountToSupply,
-        address tokenToBorrow,
-        uint256 amountToBorrow
-    ) internal {
-        if (aaveV3Adapter == address(0)) revert AaveAdapterNotSet();
-
-        _delegateCall(
-            aaveV3Adapter,
-            abi.encodeWithSelector(
-                IEtherFiCashAaveV3Adapter.process.selector,
-                tokenToSupply,
-                amountToSupply,
-                tokenToBorrow,
-                amountToBorrow
-            )
-        );
-    }
-
-    function _supplyOnAave(address token, uint256 amount) internal {
-        _delegateCall(
-            aaveV3Adapter,
-            abi.encodeWithSelector(
-                IEtherFiCashAaveV3Adapter.supply.selector,
-                token,
-                amount
-            )
-        );
-    }
-
-    function _borrowFromAave(address token, uint256 amount) internal {
-        _delegateCall(
-            aaveV3Adapter,
-            abi.encodeWithSelector(
-                IEtherFiCashAaveV3Adapter.borrow.selector,
-                token,
-                amount
-            )
-        );
-    }
-
-    function _repayOnAave(address token, uint256 amount) internal {
-        _delegateCall(
-            aaveV3Adapter,
-            abi.encodeWithSelector(
-                IEtherFiCashAaveV3Adapter.repay.selector,
-                token,
-                amount
-            )
-        );
-    }
-
-    function _withdrawFromAave(address token, uint256 amount) internal {
-        _delegateCall(
-            aaveV3Adapter,
-            abi.encodeWithSelector(
-                IEtherFiCashAaveV3Adapter.withdraw.selector,
-                token,
-                amount
-            )
-        );
-    }
-
     function _supportCollateralToken(address token) internal {
         if (token == address(0)) revert InvalidValue();
 
@@ -1003,7 +898,7 @@ contract L2DebtManager is
         address token,
         uint256 amount
     ) internal view returns (uint256) {
-        uint8 tokenDecimals = getDecimals(token);
+        uint8 tokenDecimals = _getDecimals(token);
         return
             tokenDecimals == 6 ? amount : (amount * 1e6) / 10 ** tokenDecimals;
     }
@@ -1037,43 +932,8 @@ contract L2DebtManager is
         _;
     }
 
-    function _delegateCall(
-        address target,
-        bytes memory data
-    ) internal returns (bytes memory result) {
-        require(target != address(this), "delegatecall to self");
-
-        // solhint-disable-next-line no-inline-assembly
-        assembly {
-            // Perform delegatecall to the target contract
-            let success := delegatecall(
-                gas(),
-                target,
-                add(data, 0x20),
-                mload(data),
-                0,
-                0
-            )
-
-            // Get the size of the returned data
-            let size := returndatasize()
-
-            // Allocate memory for the return data
-            result := mload(0x40)
-
-            // Set the length of the return data
-            mstore(result, size)
-
-            // Copy the return data to the allocated memory
-            returndatacopy(add(result, 0x20), 0, size)
-
-            // Update the free memory pointer
-            mstore(0x40, add(result, add(0x20, size)))
-
-            if iszero(success) {
-                revert(result, returndatasize())
-            }
-        }
+    function _getDecimals(address token) internal view returns (uint8) {
+        return IERC20Metadata(token).decimals();
     }
 
     function _authorizeUpgrade(

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import {IUserSafe, OwnerLib, UserSafe} from "../../src/user-safe/UserSafe.sol";
+import {IUserSafe, OwnerLib, UserSafe, UserSafeLib} from "../../src/user-safe/UserSafe.sol";
 import {MessageHashUtils} from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
 import {EIP1271SignatureUtils} from "../../src/libraries/EIP1271SignatureUtils.sol";
 import {ERC20, UserSafeSetup} from "./UserSafeSetup.t.sol";
@@ -41,7 +41,7 @@ contract UserSafeRecoveryTest is UserSafeSetup {
         bool setValue = false;
         bytes32 msgHash = keccak256(
             abi.encode(
-                aliceSafe.SET_IS_RECOVERY_ACTIVE_METHOD(),
+                UserSafeLib.SET_IS_RECOVERY_ACTIVE_METHOD,
                 block.chainid,
                 address(aliceSafe),
                 nonce,
@@ -76,7 +76,7 @@ contract UserSafeRecoveryTest is UserSafeSetup {
 
             bytes32 msgHash = keccak256(
                 abi.encode(
-                    aliceSafe.RECOVERY_METHOD(),
+                    UserSafeLib.RECOVERY_METHOD,
                     block.chainid,
                     address(aliceSafe),
                     nonce,
@@ -118,7 +118,7 @@ contract UserSafeRecoveryTest is UserSafeSetup {
 
         bytes32 msgHash = keccak256(
             abi.encode(
-                aliceSafe.RECOVERY_METHOD(),
+                UserSafeLib.RECOVERY_METHOD,
                 block.chainid,
                 address(aliceSafe),
                 nonce,
@@ -140,7 +140,7 @@ contract UserSafeRecoveryTest is UserSafeSetup {
 
         bytes32 msgHash = keccak256(
             abi.encode(
-                aliceSafe.RECOVERY_METHOD(),
+                UserSafeLib.RECOVERY_METHOD,
                 block.chainid,
                 address(aliceSafe),
                 nonce,
@@ -162,7 +162,7 @@ contract UserSafeRecoveryTest is UserSafeSetup {
 
         bytes32 msgHash = keccak256(
             abi.encode(
-                aliceSafe.RECOVERY_METHOD(),
+                UserSafeLib.RECOVERY_METHOD,
                 block.chainid,
                 address(aliceSafe),
                 nonce,

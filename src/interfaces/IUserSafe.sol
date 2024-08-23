@@ -24,12 +24,6 @@ interface IUserSafe {
 
     struct WithdrawalRequest {
         address[] tokens;
-        address recipient;
-        uint96 finalizeTime;
-    }
-
-    struct WithdrawalData {
-        address[] tokens;
         uint256[] amounts;
         address recipient;
         uint96 finalizeTime;
@@ -114,35 +108,10 @@ interface IUserSafe {
     error RecoverySignersCannotBeSame();
 
     /**
-     * @notice Function to fetch token decimals.
-     * @param  token Address of the token to fetch decimals for.
-     * @return Token decimals.
-     */
-    function getDecimals(address token) external view returns (uint8);
-
-    /**
-     * @notice Function to fetch the owner bytes for the User Safe.
-     * @return owner bytes of the User Safe.
-     */
-    function ownerBytes() external view returns (bytes memory);
-
-    /**
      * @notice Function to fetch the address of the owner of the User Safe.
      * @return address of the owner of the User Safe.
      */
     function owner() external view returns (OwnerLib.OwnerObject memory);
-
-    /**
-     * @notice Function to fetch the contract address of the USDC token.
-     * @return contract address of the USDC token.
-     */
-    function usdc() external view returns (address);
-
-    /**
-     * @notice Function to fetch the contract address of the weETH token.
-     * @return contract address of the weETH token.
-     */
-    function weETH() external view returns (address);
 
     /**
      * @notice Function to fetch the contract address of the Cash Data Provider.
@@ -151,25 +120,13 @@ interface IUserSafe {
     function cashDataProvider() external view returns (address);
 
     /**
-     * @notice Function to fetch the contract address of the Price Provider.
-     * @return contract address of the Price Provider.
-     */
-    function priceProvider() external view returns (address);
-
-    /**
-     * @notice Function to fetch the contract address of the Swapper.
-     * @return contract address of the Swapper.
-     */
-    function swapper() external view returns (address);
-
-    /**
      * @notice Function to fetch the pending withdrawal request.
-     * @return WithdrawalData struct.
+     * @return WithdrawalRequest struct.
      */
     function pendingWithdrawalRequest()
         external
         view
-        returns (WithdrawalData memory);
+        returns (WithdrawalRequest memory);
 
     /**
      * @notice Function to fetch the current nonce.
@@ -192,22 +149,6 @@ interface IUserSafe {
         returns (OwnerLib.OwnerObject[3] memory);
 
     /**
-     * @notice Function to get the spending limit for the user.
-     * @return SpendingLimitData struct.
-     */
-    function spendingLimit() external view returns (SpendingLimitData memory);
-
-    /**
-     * @notice Function to get the incoming spending limit for the user.
-     * @return SpendingLimitData struct.
-     * @return start time for incoming spending limit.
-     */
-    function incomingSpendingLimit()
-        external
-        view
-        returns (SpendingLimitData memory, uint256);
-
-    /**
      * @notice Function to get the current applicable spending limit.
      * @notice This function gives incoming spending limit if it is set and its start time is in the past.
      * @notice This function gives renewed limit based on if the renewal timestamp is in the past.
@@ -217,18 +158,6 @@ interface IUserSafe {
         external
         view
         returns (SpendingLimitData memory);
-
-    /**
-     * @notice Function to get the collateral limit.
-     * @return Collateral limit
-     */
-    function collateralLimit() external view returns (uint256);
-
-    /**
-     * @notice Function to get the incoming collateral limit.
-     * @return Incoming collateral limit
-     */
-    function incomingCollateralLimit() external view returns (uint256, uint256);
 
     /**
      * @notice Function to get the current applicable collateral limit.
