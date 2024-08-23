@@ -3,6 +3,7 @@ pragma solidity ^0.8.24;
 
 import {DebtManagerSetup} from "./DebtManagerSetup.t.sol";
 import {IL2DebtManager} from "../../src/interfaces/IL2DebtManager.sol";
+import {AaveLib} from "../../src/libraries/AaveLib.sol";
 import {SafeERC20, IERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IERC20Errors} from "@openzeppelin/contracts/interfaces/draft-IERC6093.sol";
 import {stdStorage, StdStorage} from "forge-std/Test.sol";
@@ -34,7 +35,7 @@ contract DebtManagerFundManagementTest is DebtManagerSetup {
         assertEq(totalCollateralInAaveBefore, 0);
 
         debtManager.fundManagementOperation(
-            uint8(IL2DebtManager.MarketOperationType.Supply),
+            uint8(AaveLib.MarketOperationType.Supply),
             abi.encode(address(weETH), collateralAmt)
         );
 
@@ -53,7 +54,7 @@ contract DebtManagerFundManagementTest is DebtManagerSetup {
 
         uint256 borrowAmt = 1e6;
         debtManager.fundManagementOperation(
-            uint8(IL2DebtManager.MarketOperationType.Borrow),
+            uint8(AaveLib.MarketOperationType.Borrow),
             abi.encode(address(usdc), borrowAmt)
         );
 
@@ -75,7 +76,7 @@ contract DebtManagerFundManagementTest is DebtManagerSetup {
         assertEq(totalBorrowInAaveBeforeRepay, borrowAmt);
 
         debtManager.fundManagementOperation(
-            uint8(IL2DebtManager.MarketOperationType.Repay),
+            uint8(AaveLib.MarketOperationType.Repay),
             abi.encode(address(usdc), totalBorrowInAaveBeforeRepay)
         );
         uint256 totalBorrowInAaveAfterRepay = aaveV3Adapter.getDebt(
@@ -90,7 +91,7 @@ contract DebtManagerFundManagementTest is DebtManagerSetup {
         assertEq(totalCollateralInAaveBeforeWithdraw, collateralAmt);
 
         debtManager.fundManagementOperation(
-            uint8(IL2DebtManager.MarketOperationType.Withdraw),
+            uint8(AaveLib.MarketOperationType.Withdraw),
             abi.encode(address(weETH), totalCollateralInAaveBeforeWithdraw)
         );
 
@@ -110,7 +111,7 @@ contract DebtManagerFundManagementTest is DebtManagerSetup {
         assertEq(totalBorrowInAaveBeforeSupplyAndBorrow, 0);
 
         debtManager.fundManagementOperation(
-            uint8(IL2DebtManager.MarketOperationType.SupplyAndBorrow),
+            uint8(AaveLib.MarketOperationType.SupplyAndBorrow),
             abi.encode(address(weETH), collateralAmt, address(usdc), 1e6)
         );
 
@@ -132,7 +133,7 @@ contract DebtManagerFundManagementTest is DebtManagerSetup {
             buildAccessControlRevertData(notOwner, debtManager.ADMIN_ROLE())
         );
         debtManager.fundManagementOperation(
-            uint8(IL2DebtManager.MarketOperationType.Supply),
+            uint8(AaveLib.MarketOperationType.Supply),
             abi.encode(address(weETH), collateralAmt)
         );
 

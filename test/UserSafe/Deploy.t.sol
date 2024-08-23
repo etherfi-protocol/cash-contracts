@@ -18,7 +18,7 @@ contract UserSafeDeployTest is UserSafeSetup {
         );
 
         UserSafe.SpendingLimitData memory spendingLimit = aliceSafe
-            .spendingLimit();
+            .applicableSpendingLimit();
         assertEq(spendingLimit.spendingLimit, defaultSpendingLimit);
     }
 

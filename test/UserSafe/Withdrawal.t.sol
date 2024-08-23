@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import {IUserSafe, OwnerLib, UserSafe} from "../../src/user-safe/UserSafe.sol";
+import {IUserSafe, OwnerLib, UserSafe, UserSafeLib} from "../../src/user-safe/UserSafe.sol";
 import {MessageHashUtils} from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
 import {UserSafeSetup} from "./UserSafeSetup.t.sol";
 
@@ -34,7 +34,7 @@ contract UserSafeWithdrawalTest is UserSafeSetup {
         );
         aliceSafe.requestWithdrawal(tokens, amounts, recipient);
 
-        UserSafe.WithdrawalData memory pendingWithdrawalRequest = aliceSafe
+        UserSafe.WithdrawalRequest memory pendingWithdrawalRequest = aliceSafe
             .pendingWithdrawalRequest();
         assertEq(pendingWithdrawalRequest.tokens.length, 2);
         assertEq(pendingWithdrawalRequest.tokens[0], tokens[0]);
@@ -87,7 +87,7 @@ contract UserSafeWithdrawalTest is UserSafeSetup {
 
         bytes32 msgHash = keccak256(
             abi.encode(
-                aliceSafe.REQUEST_WITHDRAWAL_METHOD(),
+                UserSafeLib.REQUEST_WITHDRAWAL_METHOD,
                 block.chainid,
                 address(aliceSafe),
                 nonce,
@@ -102,7 +102,7 @@ contract UserSafeWithdrawalTest is UserSafeSetup {
             msgHash.toEthSignedMessageHash()
         );
 
-        UserSafe.WithdrawalData
+        UserSafe.WithdrawalRequest
             memory pendingWithdrawalRequestBefore = aliceSafe
                 .pendingWithdrawalRequest();
         assertEq(pendingWithdrawalRequestBefore.tokens.length, 0);
@@ -124,8 +124,9 @@ contract UserSafeWithdrawalTest is UserSafeSetup {
             signature
         );
 
-        UserSafe.WithdrawalData memory pendingWithdrawalRequestAfter = aliceSafe
-            .pendingWithdrawalRequest();
+        UserSafe.WithdrawalRequest
+            memory pendingWithdrawalRequestAfter = aliceSafe
+                .pendingWithdrawalRequest();
 
         assertEq(pendingWithdrawalRequestAfter.tokens.length, 2);
         assertEq(pendingWithdrawalRequestAfter.tokens[0], tokens[0]);
@@ -225,7 +226,7 @@ contract UserSafeWithdrawalTest is UserSafeSetup {
         );
         aliceSafe.requestWithdrawal(tokens, amounts, recipient);
 
-        IUserSafe.WithdrawalData memory pendingWithdrawalRequest = aliceSafe
+        IUserSafe.WithdrawalRequest memory pendingWithdrawalRequest = aliceSafe
             .pendingWithdrawalRequest();
         assertEq(pendingWithdrawalRequest.tokens.length, 2);
         assertEq(pendingWithdrawalRequest.tokens[0], tokens[0]);
@@ -257,7 +258,7 @@ contract UserSafeWithdrawalTest is UserSafeSetup {
         );
         aliceSafe.requestWithdrawal(newTokens, newAmounts, newRecipient);
 
-        UserSafe.WithdrawalData memory newWithdrawalRequest = aliceSafe
+        UserSafe.WithdrawalRequest memory newWithdrawalRequest = aliceSafe
             .pendingWithdrawalRequest();
         assertEq(newWithdrawalRequest.tokens.length, 1);
         assertEq(newWithdrawalRequest.tokens[0], newTokens[0]);
@@ -309,7 +310,7 @@ contract UserSafeWithdrawalTest is UserSafeSetup {
         vm.prank(etherFiWallet);
         aliceSafe.transfer(address(usdc), amountToTransfer);
 
-        IUserSafe.WithdrawalData memory withdrawalData = aliceSafe
+        IUserSafe.WithdrawalRequest memory withdrawalData = aliceSafe
             .pendingWithdrawalRequest();
         assertEq(withdrawalData.tokens[0], address(usdc));
         assertEq(withdrawalData.amounts[0], amounts[0] - amountToTransfer);

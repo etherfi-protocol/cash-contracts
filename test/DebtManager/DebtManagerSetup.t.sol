@@ -13,6 +13,7 @@ import {MockPriceProvider} from "../../src/mocks/MockPriceProvider.sol";
 import {PriceProvider} from "../../src/oracle/PriceProvider.sol";
 import {L2DebtManager} from "../../src/L2DebtManager.sol";
 import {UUPSProxy} from "../../src/UUPSProxy.sol";
+import {CashDataProvider} from "../../src/utils/CashDataProvider.sol";
 
 contract DebtManagerSetup is Utils {
     using SafeERC20 for IERC20;
@@ -22,6 +23,7 @@ contract DebtManagerSetup is Utils {
     address alice = makeAddr("alice");
 
     IEtherFiCashAaveV3Adapter aaveV3Adapter;
+    CashDataProvider cashDataProvider;
 
     IPool aavePool;
     IPoolDataProvider aaveV3PoolDataProvider;
@@ -40,6 +42,10 @@ contract DebtManagerSetup is Utils {
     uint256 mockWeETHPriceInUsd = 3000e6;
     uint256 liquidationThreshold = 60e18; // 60%
     uint256 borrowApyPerSecond = 1e18; // 1%
+
+    uint64 delay = 10;
+    address etherFiWallet = makeAddr("etherFiWallet");
+    address swapper = makeAddr("swapper");
 
     function setUp() public virtual {
         chainId = vm.envString("TEST_CHAIN");
@@ -88,20 +94,17 @@ contract DebtManagerSetup is Utils {
             );
         }
 
+        address cashDataProviderImpl = address(new CashDataProvider());
+        cashDataProvider = CashDataProvider(
+            address(new UUPSProxy(cashDataProviderImpl, ""))
+        );
+
         address[] memory collateralTokens = new address[](1);
         collateralTokens[0] = address(weETH);
         address[] memory borrowTokens = new address[](1);
         borrowTokens[0] = address(usdc);
 
-        address impl = address(
-            new L2DebtManager(
-                address(weETH),
-                address(usdc),
-                etherFiCashSafe,
-                address(priceProvider),
-                address(aaveV3Adapter)
-            )
-        );
+        address impl = address(new L2DebtManager(address(cashDataProvider)));
 
         address proxy = address(
             new UUPSProxy(
@@ -118,6 +121,25 @@ contract DebtManagerSetup is Utils {
             )
         );
         debtManager = L2DebtManager(proxy);
+
+        (bool success, ) = address(cashDataProvider).call(
+            abi.encodeWithSelector(
+                // intiailize(address,uint64,address,address,address,address,address,address,address,address)
+                0xf86fac96,
+                owner,
+                delay,
+                etherFiWallet,
+                etherFiCashSafe,
+                address(debtManager),
+                address(usdc),
+                address(weETH),
+                address(priceProvider),
+                address(swapper),
+                address(aaveV3Adapter)
+            )
+        );
+
+        if (!success) revert("Initialize failed on Cash Data Provider");
 
         vm.stopPrank();
     }

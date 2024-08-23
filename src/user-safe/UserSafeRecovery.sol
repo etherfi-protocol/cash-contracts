@@ -6,16 +6,14 @@ import {ICashDataProvider} from "../interfaces/ICashDataProvider.sol";
 import {SignatureUtils} from "../libraries/SignatureUtils.sol";
 import {IUserSafe} from "../interfaces/IUserSafe.sol";
 import {OwnerLib} from "../libraries/OwnerLib.sol";
+import {UserSafeLib} from "../libraries/UserSafeLib.sol";
 
 abstract contract UserSafeRecovery is IUserSafe {
     using SafeERC20 for IERC20;
     using SignatureUtils for bytes32;
     using OwnerLib for bytes;
     using OwnerLib for address;
-
-    bytes32 public constant RECOVERY_METHOD = keccak256("recoverUserSafe");
-    bytes32 public constant SET_IS_RECOVERY_ACTIVE_METHOD =
-        keccak256("setIsRecoveryActive");
+    using UserSafeLib for OwnerLib.OwnerObject;
 
     // Address of the EtherFi Recovery Signer
     address private immutable _etherFiRecoverySigner;
@@ -68,17 +66,12 @@ abstract contract UserSafeRecovery is IUserSafe {
         uint256 _nonce,
         bytes calldata signature
     ) internal {
-        bytes32 msgHash = keccak256(
-            abi.encode(
-                SET_IS_RECOVERY_ACTIVE_METHOD,
-                block.chainid,
-                address(this),
-                _nonce,
-                isActive
-            )
+        UserSafeLib.verifySetRecoverySig(
+            this.owner(),
+            _nonce,
+            isActive,
+            signature
         );
-
-        msgHash.verifySig(this.owner(), signature);
         _setIsRecoveryActive(isActive);
     }
 
@@ -87,27 +80,18 @@ abstract contract UserSafeRecovery is IUserSafe {
         Signature[2] calldata signatures,
         bytes calldata newOwner
     ) internal {
-        bytes32 msgHash = keccak256(
-            abi.encode(
-                RECOVERY_METHOD,
-                block.chainid,
-                address(this),
-                _nonce,
-                newOwner
-            )
-        );
-
         if (signatures[0].index == signatures[1].index)
             revert SignatureIndicesCannotBeSame();
 
-        msgHash.verifySig(
-            _getRecoveryOwner(signatures[0].index),
-            signatures[0].signature
-        );
+        OwnerLib.OwnerObject[2] memory recoveryOwners;
+        recoveryOwners[0] = _getRecoveryOwner(signatures[0].index);
+        recoveryOwners[1] = _getRecoveryOwner(signatures[1].index);
 
-        msgHash.verifySig(
-            _getRecoveryOwner(signatures[1].index),
-            signatures[1].signature
+        UserSafeLib.verifyRecoverSig(
+            _nonce,
+            signatures,
+            recoveryOwners,
+            newOwner
         );
 
         OwnerLib.OwnerObject memory oldOwner = this.owner();

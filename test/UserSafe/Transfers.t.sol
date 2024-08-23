@@ -137,7 +137,9 @@ contract UserSafeTransfersTest is UserSafeSetup {
 
         vm.warp(block.timestamp + delay + 1);
         uint256 newInputAmt = 5 ether;
-        newAmountUsdcToSend = aliceSafe.spendingLimit().spendingLimit + 1;
+        newAmountUsdcToSend =
+            aliceSafe.applicableSpendingLimit().spendingLimit +
+            1;
         vm.prank(etherFiWallet);
         vm.expectRevert(IUserSafe.ExceededSpendingLimit.selector);
         aliceSafe.swapAndTransfer(

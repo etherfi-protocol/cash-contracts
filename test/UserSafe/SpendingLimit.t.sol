@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import {IUserSafe, OwnerLib, UserSafe} from "../../src/user-safe/UserSafe.sol";
+import {IUserSafe, OwnerLib, UserSafe, UserSafeLib} from "../../src/user-safe/UserSafe.sol";
 import {MessageHashUtils} from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
 import {UserSafeSetup} from "./UserSafeSetup.t.sol";
 
@@ -111,7 +111,7 @@ contract UserSafeSpendingLimitTest is UserSafeSetup {
 
         bytes32 msgHash = keccak256(
             abi.encode(
-                aliceSafe.RESET_SPENDING_LIMIT_METHOD(),
+                UserSafeLib.RESET_SPENDING_LIMIT_METHOD,
                 block.chainid,
                 address(aliceSafe),
                 nonce,
@@ -126,7 +126,7 @@ contract UserSafeSpendingLimitTest is UserSafeSetup {
         );
 
         UserSafe.SpendingLimitData memory spendingLimitBefore = aliceSafe
-            .spendingLimit();
+            .applicableSpendingLimit();
         assertEq(spendingLimitBefore.spendingLimit, defaultSpendingLimit);
 
         bytes memory signature = abi.encodePacked(r, s, v);
@@ -152,7 +152,7 @@ contract UserSafeSpendingLimitTest is UserSafeSetup {
         uint256 transferAmount = 1e6;
 
         UserSafe.SpendingLimitData memory spendingLimitBefore = aliceSafe
-            .spendingLimit();
+            .applicableSpendingLimit();
         assertEq(spendingLimitBefore.spendingLimit, defaultSpendingLimit);
         assertEq(spendingLimitBefore.usedUpAmount, 0);
 
@@ -161,7 +161,7 @@ contract UserSafeSpendingLimitTest is UserSafeSetup {
         aliceSafe.transfer(address(usdc), transferAmount);
         assertEq(usdc.balanceOf(etherFiCashMultisig), transferAmount);
 
-        spendingLimitBefore = aliceSafe.spendingLimit();
+        spendingLimitBefore = aliceSafe.applicableSpendingLimit();
         assertEq(spendingLimitBefore.usedUpAmount, transferAmount);
 
         vm.prank(alice);
@@ -197,7 +197,7 @@ contract UserSafeSpendingLimitTest is UserSafeSetup {
         uint256 transferAmount = 1e6;
 
         UserSafe.SpendingLimitData memory spendingLimitBefore = aliceSafe
-            .spendingLimit();
+            .applicableSpendingLimit();
         assertEq(spendingLimitBefore.spendingLimit, defaultSpendingLimit);
         assertEq(spendingLimitBefore.usedUpAmount, 0);
 
@@ -206,14 +206,14 @@ contract UserSafeSpendingLimitTest is UserSafeSetup {
         aliceSafe.transfer(address(usdc), transferAmount);
         assertEq(usdc.balanceOf(etherFiCashMultisig), transferAmount);
 
-        spendingLimitBefore = aliceSafe.spendingLimit();
+        spendingLimitBefore = aliceSafe.applicableSpendingLimit();
         assertEq(spendingLimitBefore.usedUpAmount, transferAmount);
 
         uint256 nonce = aliceSafe.nonce() + 1;
 
         bytes32 msgHash = keccak256(
             abi.encode(
-                aliceSafe.UPDATE_SPENDING_LIMIT_METHOD(),
+                UserSafeLib.UPDATE_SPENDING_LIMIT_METHOD,
                 block.chainid,
                 address(aliceSafe),
                 nonce,
@@ -245,7 +245,9 @@ contract UserSafeSpendingLimitTest is UserSafeSetup {
     }
 
     function test_CannotSpendMoreThanSpendingLimit() public {
-        uint256 spendingLimit = aliceSafe.spendingLimit().spendingLimit;
+        uint256 spendingLimit = aliceSafe
+            .applicableSpendingLimit()
+            .spendingLimit;
         uint256 amount = spendingLimit + 1;
         vm.prank(alice);
         usdc.transfer(address(aliceSafe), amount);
@@ -256,7 +258,9 @@ contract UserSafeSpendingLimitTest is UserSafeSetup {
     }
 
     function test_SpendingLimitGetsRenewedAutomatically() public {
-        uint256 spendingLimit = aliceSafe.spendingLimit().spendingLimit;
+        uint256 spendingLimit = aliceSafe
+            .applicableSpendingLimit()
+            .spendingLimit;
         uint256 amount = spendingLimit / 2;
 
         deal(address(usdc), address(aliceSafe), 1 ether);
@@ -264,19 +268,19 @@ contract UserSafeSpendingLimitTest is UserSafeSetup {
         vm.prank(etherFiWallet);
         aliceSafe.transfer(address(usdc), amount);
 
-        uint256 usedUpAmount = aliceSafe.spendingLimit().usedUpAmount;
+        uint256 usedUpAmount = aliceSafe.applicableSpendingLimit().usedUpAmount;
         assertEq(usedUpAmount, amount);
 
         vm.prank(etherFiWallet);
         vm.expectRevert(IUserSafe.ExceededSpendingLimit.selector);
         aliceSafe.transfer(address(usdc), spendingLimit - amount + 1);
 
-        vm.warp(aliceSafe.spendingLimit().renewalTimestamp);
+        vm.warp(aliceSafe.applicableSpendingLimit().renewalTimestamp);
         vm.prank(etherFiWallet);
         vm.expectRevert(IUserSafe.ExceededSpendingLimit.selector);
         aliceSafe.transfer(address(usdc), spendingLimit - amount + 1);
 
-        vm.warp(aliceSafe.spendingLimit().renewalTimestamp + 1);
+        vm.warp(aliceSafe.applicableSpendingLimit().renewalTimestamp + 1);
 
         // Since the time for renewal is in the past, usedUpAmount should be 0
         assertEq(aliceSafe.applicableSpendingLimit().usedUpAmount, 0);

@@ -10,7 +10,6 @@ import {Swapper1InchV6} from "../../src/utils/Swapper1InchV6.sol";
 import {PriceProvider} from "../../src/oracle/PriceProvider.sol";
 import {CashDataProvider} from "../../src/utils/CashDataProvider.sol";
 import {UserSafeSetup} from "./UserSafeSetup.t.sol";
-import {Upgrades} from "openzeppelin-foundry-upgrades/Upgrades.sol";
 
 contract UserSafeFactoryTest is UserSafeSetup {
     using OwnerLib for address;
@@ -60,7 +59,5 @@ contract UserSafeFactoryTest is UserSafeSetup {
 
         assertEq(aliceSafeV2.version(), 2);
         assertEq(bobSafeV2.version(), 2);
-        assertEq(aliceSafeV2.usdc(), cashDataProvider.usdc());
-        assertEq(aliceSafeV2.weETH(), cashDataProvider.weETH());
     }
 }

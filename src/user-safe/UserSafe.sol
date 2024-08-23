@@ -14,6 +14,7 @@ import {IUserSafe} from "../interfaces/IUserSafe.sol";
 import {UserSafeRecovery} from "./UserSafeRecovery.sol";
 import {WebAuthn} from "../libraries/WebAuthn.sol";
 import {OwnerLib} from "../libraries/OwnerLib.sol";
+import {UserSafeLib} from "../libraries/UserSafeLib.sol";
 
 /**
  * @title UserSafe
@@ -24,34 +25,15 @@ contract UserSafe is IUserSafe, Initializable, UserSafeRecovery {
     using SafeERC20 for IERC20;
     using SignatureUtils for bytes32;
     using OwnerLib for bytes;
+    using UserSafeLib for OwnerLib.OwnerObject;
 
-    bytes32 public constant REQUEST_WITHDRAWAL_METHOD =
-        keccak256("requestWithdrawal");
-    bytes32 public constant RESET_SPENDING_LIMIT_METHOD =
-        keccak256("resetSpendingLimit");
-    bytes32 public constant UPDATE_SPENDING_LIMIT_METHOD =
-        keccak256("updateSpendingLimit");
-    bytes32 public constant SET_COLLATERAL_LIMIT_METHOD =
-        keccak256("setCollateralLimit");
-    bytes32 public constant SET_OWNER_METHOD = keccak256("setOwner");
-
-    // Address of the USDC token
-    address private immutable _usdc;
-    // Address of the weETH token
-    address private immutable _weETH;
     // Address of the Cash Data Provider
     ICashDataProvider private immutable _cashDataProvider;
-    // Address of the price provider
-    IPriceProvider private immutable _priceProvider;
-    // Address of the swapper
-    ISwapper private immutable _swapper;
 
     // Owner: if ethAddr -> abi.encode(owner), if passkey -> abi.encode(x,y)
     bytes private _ownerBytes;
     // Withdrawal requests pending with the contract
     WithdrawalRequest private _pendingWithdrawalRequest;
-    // Funds blocked for withdrawal
-    mapping(address token => uint256 amount) private blockedFundsForWithdrawal;
     // Nonce for permit operations
     uint256 private _nonce;
     // Current spending limit
@@ -74,15 +56,11 @@ contract UserSafe is IUserSafe, Initializable, UserSafeRecovery {
         address __thirdPartyRecoverySigner
     ) UserSafeRecovery(__etherFiRecoverySigner, __thirdPartyRecoverySigner) {
         _cashDataProvider = ICashDataProvider(__cashDataProvider);
-        _usdc = _cashDataProvider.usdc();
-        _weETH = _cashDataProvider.weETH();
-        _priceProvider = IPriceProvider(_cashDataProvider.priceProvider());
-        _swapper = ISwapper(_cashDataProvider.swapper());
     }
 
     function initialize(
         bytes calldata __owner,
-        uint256 __defaultSpendingLimit,
+        uint256 __spendingLimit,
         uint256 __collateralLimit
     ) external initializer {
         _ownerBytes = __owner;
@@ -91,29 +69,15 @@ contract UserSafe is IUserSafe, Initializable, UserSafeRecovery {
             spendingLimitType: SpendingLimitTypes(SpendingLimitTypes.Monthly),
             renewalTimestamp: _getSpendingLimitRenewalTimestamp(
                 uint64(block.timestamp),
-                SpendingLimitTypes(SpendingLimitTypes.Monthly)
+                SpendingLimitTypes.Monthly
             ),
-            spendingLimit: __defaultSpendingLimit,
+            spendingLimit: __spendingLimit,
             usedUpAmount: 0
         });
 
         _collateralLimit = __collateralLimit;
 
         __UserSafeRecovery_init();
-    }
-
-    /**
-     * @inheritdoc IUserSafe
-     */
-    function getDecimals(address token) public view returns (uint8) {
-        return IERC20Metadata(token).decimals();
-    }
-
-    /**
-     * @inheritdoc IUserSafe
-     */
-    function ownerBytes() public view returns (bytes memory) {
-        return _ownerBytes;
     }
 
     /**
@@ -126,38 +90,8 @@ contract UserSafe is IUserSafe, Initializable, UserSafeRecovery {
     /**
      * @inheritdoc IUserSafe
      */
-    function usdc() external view returns (address) {
-        return _usdc;
-    }
-
-    /**
-     * @inheritdoc IUserSafe
-     */
-
-    function weETH() external view returns (address) {
-        return _weETH;
-    }
-
-    /**
-     * @inheritdoc IUserSafe
-     */
     function cashDataProvider() external view returns (address) {
         return address(_cashDataProvider);
-    }
-
-    /**
-     * @inheritdoc IUserSafe
-     */
-    function priceProvider() external view returns (address) {
-        return address(_priceProvider);
-    }
-
-    /**
-     * @inheritdoc IUserSafe
-     */
-
-    function swapper() external view returns (address) {
-        return address(_swapper);
     }
 
     /**
@@ -166,32 +100,9 @@ contract UserSafe is IUserSafe, Initializable, UserSafeRecovery {
     function pendingWithdrawalRequest()
         public
         view
-        returns (WithdrawalData memory)
+        returns (WithdrawalRequest memory)
     {
-        address[] memory tokens = _pendingWithdrawalRequest.tokens;
-        if (tokens.length == 0) {
-            WithdrawalData memory withdrawalData;
-            return withdrawalData;
-        }
-
-        uint256[] memory amounts = new uint256[](tokens.length);
-        address recipient = _pendingWithdrawalRequest.recipient;
-        uint256 len = tokens.length;
-
-        for (uint256 i = 0; i < len; ) {
-            amounts[i] = blockedFundsForWithdrawal[tokens[i]];
-            unchecked {
-                ++i;
-            }
-        }
-
-        return
-            WithdrawalData({
-                tokens: tokens,
-                amounts: amounts,
-                recipient: recipient,
-                finalizeTime: _pendingWithdrawalRequest.finalizeTime
-            });
+        return _pendingWithdrawalRequest;
     }
 
     /**
@@ -199,24 +110,6 @@ contract UserSafe is IUserSafe, Initializable, UserSafeRecovery {
      */
     function nonce() external view returns (uint256) {
         return _nonce;
-    }
-
-    /**
-     * @inheritdoc IUserSafe
-     */
-    function spendingLimit() external view returns (SpendingLimitData memory) {
-        return _spendingLimit;
-    }
-
-    /**
-     * @inheritdoc IUserSafe
-     */
-    function incomingSpendingLimit()
-        external
-        view
-        returns (SpendingLimitData memory, uint256)
-    {
-        return (_incomingSpendingLimit, _incomingSpendingLimitStartTime);
     }
 
     /**
@@ -250,24 +143,6 @@ contract UserSafe is IUserSafe, Initializable, UserSafeRecovery {
     /**
      * @inheritdoc IUserSafe
      */
-    function collateralLimit() external view returns (uint256) {
-        return _collateralLimit;
-    }
-
-    /**
-     * @inheritdoc IUserSafe
-     */
-    function incomingCollateralLimit()
-        external
-        view
-        returns (uint256, uint256)
-    {
-        return (_incomingCollateralLimit, _incomingCollateralLimitStartTime);
-    }
-
-    /**
-     * @inheritdoc IUserSafe
-     */
     function applicableCollateralLimit() external view returns (uint256) {
         if (
             _incomingCollateralLimitStartTime > 0 &&
@@ -291,17 +166,7 @@ contract UserSafe is IUserSafe, Initializable, UserSafeRecovery {
         bytes calldata __owner,
         bytes calldata signature
     ) external incrementNonce {
-        bytes32 msgHash = keccak256(
-            abi.encode(
-                SET_OWNER_METHOD,
-                block.chainid,
-                address(this),
-                _nonce,
-                __owner
-            )
-        );
-
-        msgHash.verifySig(owner(), signature);
+        owner().verifySetOwnerSig(_nonce, __owner, signature);
         _setOwner(__owner);
     }
 
@@ -323,18 +188,12 @@ contract UserSafe is IUserSafe, Initializable, UserSafeRecovery {
         uint256 limitInUsd,
         bytes calldata signature
     ) external incrementNonce {
-        bytes32 msgHash = keccak256(
-            abi.encode(
-                RESET_SPENDING_LIMIT_METHOD,
-                block.chainid,
-                address(this),
-                _nonce,
-                spendingLimitType,
-                limitInUsd
-            )
+        owner().verifyResetSpendingLimitSig(
+            _nonce,
+            spendingLimitType,
+            limitInUsd,
+            signature
         );
-
-        msgHash.verifySig(owner(), signature);
         _resetSpendingLimit(spendingLimitType, limitInUsd);
     }
 
@@ -352,17 +211,7 @@ contract UserSafe is IUserSafe, Initializable, UserSafeRecovery {
         uint256 limitInUsd,
         bytes calldata signature
     ) external incrementNonce {
-        bytes32 msgHash = keccak256(
-            abi.encode(
-                UPDATE_SPENDING_LIMIT_METHOD,
-                block.chainid,
-                address(this),
-                _nonce,
-                limitInUsd
-            )
-        );
-
-        msgHash.verifySig(owner(), signature);
+        owner().verifyUpdateSpendingLimitSig(_nonce, limitInUsd, signature);
         _updateSpendingLimit(limitInUsd);
     }
 
@@ -380,17 +229,7 @@ contract UserSafe is IUserSafe, Initializable, UserSafeRecovery {
         uint256 limitInUsd,
         bytes calldata signature
     ) external incrementNonce {
-        bytes32 msgHash = keccak256(
-            abi.encode(
-                SET_COLLATERAL_LIMIT_METHOD,
-                block.chainid,
-                address(this),
-                _nonce,
-                limitInUsd
-            )
-        );
-
-        msgHash.verifySig(owner(), signature);
+        owner().verifySetCollateralLimitSig(_nonce, limitInUsd, signature);
         _setCollateralLimit(limitInUsd);
     }
 
@@ -450,19 +289,13 @@ contract UserSafe is IUserSafe, Initializable, UserSafeRecovery {
         address recipient,
         bytes calldata signature
     ) external incrementNonce {
-        bytes32 msgHash = keccak256(
-            abi.encode(
-                REQUEST_WITHDRAWAL_METHOD,
-                block.chainid,
-                address(this),
-                _nonce,
-                tokens,
-                amounts,
-                recipient
-            )
+        owner().verifyRequestWithdrawalSig(
+            _nonce,
+            tokens,
+            amounts,
+            recipient,
+            signature
         );
-
-        msgHash.verifySig(owner(), signature);
         _requestWithdrawal(tokens, amounts, recipient);
     }
 
@@ -472,21 +305,27 @@ contract UserSafe is IUserSafe, Initializable, UserSafeRecovery {
     function processWithdrawal() external {
         if (_pendingWithdrawalRequest.finalizeTime > block.timestamp)
             revert CannotWithdrawYet();
-        address[] memory tokens = _pendingWithdrawalRequest.tokens;
-        uint256[] memory amounts = new uint256[](tokens.length);
         address recipient = _pendingWithdrawalRequest.recipient;
-        uint256 len = tokens.length;
+        uint256 len = _pendingWithdrawalRequest.tokens.length;
 
         for (uint256 i = 0; i < len; ) {
-            amounts[i] = blockedFundsForWithdrawal[tokens[i]];
-            IERC20(tokens[i]).safeTransfer(recipient, amounts[i]);
+            IERC20(_pendingWithdrawalRequest.tokens[i]).safeTransfer(
+                recipient,
+                _pendingWithdrawalRequest.amounts[i]
+            );
 
             unchecked {
                 ++i;
             }
         }
 
-        emit WithdrawalProcessed(tokens, amounts, recipient);
+        emit WithdrawalProcessed(
+            _pendingWithdrawalRequest.tokens,
+            _pendingWithdrawalRequest.amounts,
+            recipient
+        );
+
+        delete _pendingWithdrawalRequest;
     }
 
     /**
@@ -667,12 +506,13 @@ contract UserSafe is IUserSafe, Initializable, UserSafeRecovery {
         uint256 outputMinAmount,
         bytes calldata swapData
     ) internal returns (uint256) {
+        address swapper = _cashDataProvider.swapper();
         IERC20(inputTokenToSwap).safeTransfer(
-            address(_swapper),
+            address(swapper),
             inputAmountToSwap
         );
         return
-            _swapper.swap(
+            ISwapper(swapper).swap(
                 inputTokenToSwap,
                 outputToken,
                 inputAmountToSwap,
@@ -687,25 +527,20 @@ contract UserSafe is IUserSafe, Initializable, UserSafeRecovery {
     ) internal {
         _currentSpendingLimit();
 
-        _incomingSpendingLimitStartTime =
-            block.timestamp +
-            _cashDataProvider.delay();
+        uint256 startTime = block.timestamp + _cashDataProvider.delay();
+        _incomingSpendingLimitStartTime = startTime;
 
         _incomingSpendingLimit = SpendingLimitData({
             spendingLimitType: SpendingLimitTypes(spendingLimitType),
             renewalTimestamp: _getSpendingLimitRenewalTimestamp(
-                uint64(_incomingSpendingLimitStartTime),
+                uint64(startTime),
                 SpendingLimitTypes(spendingLimitType)
             ),
             spendingLimit: limitInUsd,
             usedUpAmount: 0
         });
 
-        emit ResetSpendingLimit(
-            spendingLimitType,
-            limitInUsd,
-            _incomingSpendingLimitStartTime
-        );
+        emit ResetSpendingLimit(spendingLimitType, limitInUsd, startTime);
     }
 
     function _updateSpendingLimit(uint256 limitInUsd) internal {
@@ -750,21 +585,20 @@ contract UserSafe is IUserSafe, Initializable, UserSafeRecovery {
         uint256 len = tokens.length;
         if (len != amounts.length) revert ArrayLengthMismatch();
 
+        uint96 finalTime = uint96(block.timestamp) + _cashDataProvider.delay();
+
         for (uint256 i = 0; i < len; ) {
             if (IERC20(tokens[i]).balanceOf(address(this)) < amounts[i])
                 revert InsufficientBalance();
-
-            blockedFundsForWithdrawal[tokens[i]] = amounts[i];
 
             unchecked {
                 ++i;
             }
         }
 
-        uint96 finalTime = uint96(block.timestamp) + _cashDataProvider.delay();
-
         _pendingWithdrawalRequest = WithdrawalRequest({
             tokens: tokens,
+            amounts: amounts,
             recipient: recipient,
             finalizeTime: finalTime
         });
@@ -773,32 +607,22 @@ contract UserSafe is IUserSafe, Initializable, UserSafeRecovery {
     }
 
     function _cancelOldWithdrawal() internal {
-        uint256 oldDataLen = _pendingWithdrawalRequest.tokens.length;
-        if (oldDataLen != 0) {
-            address[] memory oldTokens = _pendingWithdrawalRequest.tokens;
-            uint256[] memory oldAmounts = new uint256[](oldTokens.length);
+        emit WithdrawalCancelled(
+            _pendingWithdrawalRequest.tokens,
+            _pendingWithdrawalRequest.amounts,
+            _pendingWithdrawalRequest.recipient
+        );
 
-            for (uint256 i = 0; i < oldDataLen; ) {
-                oldAmounts[i] = blockedFundsForWithdrawal[oldTokens[i]];
-                delete blockedFundsForWithdrawal[oldTokens[i]];
-                unchecked {
-                    ++i;
-                }
-            }
-
-            emit WithdrawalCancelled(
-                oldTokens,
-                oldAmounts,
-                _pendingWithdrawalRequest.recipient
-            );
-
-            delete _pendingWithdrawalRequest;
-        }
+        delete _pendingWithdrawalRequest;
     }
 
     function _setOwner(bytes calldata __owner) internal override {
         emit SetOwner(_ownerBytes.getOwnerObject(), __owner.getOwnerObject());
         _ownerBytes = __owner;
+    }
+
+    function _getDecimals(address token) internal view returns (uint8) {
+        return IERC20Metadata(token).decimals();
     }
 
     function _checkSpendingLimit(address token, uint256 amount) internal {
@@ -813,11 +637,12 @@ contract UserSafe is IUserSafe, Initializable, UserSafeRecovery {
             );
         }
 
-        uint8 tokenDecimals = getDecimals(token);
+        uint8 tokenDecimals = _getDecimals(token);
 
         // in current case, token can be either collateral tokens or borrow tokens
         if (_isCollateralToken(token)) {
-            uint256 price = _priceProvider.price(token);
+            uint256 price = IPriceProvider(_cashDataProvider.priceProvider())
+                .price(token);
             // token amount * price with 6 decimals / 10**decimals will convert the collateral token amount to USD amount with 6 decimals
             amount = (amount * price) / 10 ** tokenDecimals;
         } else {
@@ -842,10 +667,12 @@ contract UserSafe is IUserSafe, Initializable, UserSafeRecovery {
         uint256 currentCollateral = IL2DebtManager(debtManager)
             .getCollateralValueInUsdc(address(this));
 
-        uint256 price = _priceProvider.price(token);
+        uint256 price = IPriceProvider(_cashDataProvider.priceProvider()).price(
+            token
+        );
 
         // amount * price with 6 decimals / 10 ** tokenDecimals will convert the collateral amount to USD amount with 6 decimals
-        amountToAdd = (amountToAdd * price) / 10 ** getDecimals(token);
+        amountToAdd = (amountToAdd * price) / 10 ** _getDecimals(token);
 
         if (currentCollateral + amountToAdd > _collateralLimit)
             revert ExceededCollateralLimit();
@@ -924,8 +751,23 @@ contract UserSafe is IUserSafe, Initializable, UserSafeRecovery {
 
         if (amount > balance) revert InsufficientBalance();
 
-        if (amount + blockedFundsForWithdrawal[token] > balance) {
-            blockedFundsForWithdrawal[token] = balance - amount;
+        uint256 len = _pendingWithdrawalRequest.tokens.length;
+        uint256 tokenIndex = len;
+        for (uint256 i = 0; i < len; ) {
+            if (_pendingWithdrawalRequest.tokens[i] == token) {
+                tokenIndex = i;
+                break;
+            }
+            unchecked {
+                ++i;
+            }
+        }
+
+        // If the token does not exist in withdrawal request
+        if (tokenIndex == len) return;
+
+        if (amount + _pendingWithdrawalRequest.amounts[tokenIndex] > balance) {
+            _pendingWithdrawalRequest.amounts[tokenIndex] = balance - amount;
             emit WithdrawalAmountUpdated(token, balance - amount);
         }
     }
