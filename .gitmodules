@@ -13,9 +13,9 @@
 [submodule "lib/aave-v3-core"]
 	path = lib/aave-v3-core
 	url = https://github.com/aave/aave-v3-core
-[submodule "lib/FreshCryptoLib"]
-	path = lib/FreshCryptoLib
-	url = https://github.com/rdubois-crypto/FreshCryptoLib
 [submodule "lib/solady"]
 	path = lib/solady
 	url = https://github.com/Vectorized/solady
+[submodule "lib/crypto-lib"]
+	path = lib/crypto-lib
+	url = https://github.com/get-smooth/crypto-lib

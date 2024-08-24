@@ -1,9 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import {FCL_ecdsa} from "FreshCryptoLib/FCL_ecdsa.sol";
-import {FCL_Elliptic_ZZ} from "FreshCryptoLib/FCL_elliptic.sol";
-import {Base64} from "./Base64.sol";
+import {SCL_RIP7212, n} from "SmoothCryptoLib/lib/libSCL_RIP7212.sol";
+import {Base64Url} from "./Base64Url.sol";
 import {LibString} from "solady/utils/LibString.sol";
 
 /// @title WebAuthn
@@ -12,13 +11,13 @@ import {LibString} from "solady/utils/LibString.sol";
 ///         of Daimo.
 ///
 /// @dev Attempts to use the RIP-7212 precompile for signature verification.
-///      If precompile verification fails, it falls back to FreshCryptoLib.
+///      If precompile verification fails, it falls back to SmoothCryptoLib.
 ///
 /// @author Coinbase (https://github.com/base-org/webauthn-sol)
 /// @author Daimo (https://github.com/daimo-eth/p256-verifier/blob/master/src/WebAuthn.sol)
 library WebAuthn {
     using LibString for string;
-    using Base64 for bytes;
+    using Base64Url for bytes;
 
     struct WebAuthnAuth {
         /// @dev The WebAuthn authenticator data.
@@ -46,7 +45,7 @@ library WebAuthn {
     bytes1 private constant _AUTH_DATA_FLAGS_UV = 0x04;
 
     /// @dev Secp256r1 curve order / 2 used as guard to prevent signature malleability issue.
-    uint256 private constant _P256_N_DIV_2 = FCL_Elliptic_ZZ.n / 2;
+    uint256 private constant _P256_N_DIV_2 = n / 2;
 
     /// @dev The precompiled contract address to use for signature verification in the “secp256r1” elliptic curve.
     ///      See https://github.com/ethereum/RIPs/blob/master/RIPS/rip-7212.md.
@@ -128,7 +127,7 @@ library WebAuthn {
 
         // 12. Verify that the value of C.challenge equals the base64url encoding of options.challenge.
         bytes memory expectedChallenge = bytes(
-            string.concat('"challenge":"', challenge.encodeURL(), '"')
+            string.concat('"challenge":"', challenge.encode(), '"')
         );
         string memory actualChallenge = webAuthnAuth.clientDataJSON.slice(
             webAuthnAuth.challengeIndex,
@@ -168,25 +167,28 @@ library WebAuthn {
         bytes32 messageHash = sha256(
             abi.encodePacked(webAuthnAuth.authenticatorData, clientDataJSONHash)
         );
-        bytes memory args = abi.encode(
-            messageHash,
-            webAuthnAuth.r,
-            webAuthnAuth.s,
-            x,
-            y
-        );
-        // try the RIP-7212 precompile address
-        (bool success, bytes memory ret) = _VERIFIER.staticcall(args);
-        // staticcall will not revert if address has no code
-        // check return length
-        // note that even if precompile exists, ret.length is 0 when verification returns false
-        // so an invalid signature will be checked twice: once by the precompile and once by FCL.
-        // Ideally this signature failure is simulated offchain and no one actually pay this gas.
-        bool valid = ret.length > 0;
-        if (success && valid) return abi.decode(ret, (uint256)) == 1;
+
+        {
+            bytes memory args = abi.encode(
+                messageHash,
+                webAuthnAuth.r,
+                webAuthnAuth.s,
+                x,
+                y
+            );
+            // try the RIP-7212 precompile address
+            (bool success, bytes memory ret) = _VERIFIER.staticcall(args);
+            // staticcall will not revert if address has no code
+            // check return length
+            // note that even if precompile exists, ret.length is 0 when verification returns false
+            // so an invalid signature will be checked twice: once by the precompile and once by SCL.
+            // Ideally this signature failure is simulated offchain and no one actually pay this gas.
+            bool valid = ret.length > 0;
+            if (success && valid) return abi.decode(ret, (uint256)) == 1;
+        }
 
         return
-            FCL_ecdsa.ecdsa_verify(
+            SCL_RIP7212.verify(
                 messageHash,
                 webAuthnAuth.r,
                 webAuthnAuth.s,

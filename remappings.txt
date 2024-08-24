@@ -1,3 +1,4 @@
 @openzeppelin/contracts-upgradeable/=lib/openzeppelin-contracts-upgradeable/contracts/
 @openzeppelin/=lib/openzeppelin-contracts/
 @aave/=lib/aave-v3-core/contracts/
+SmoothCryptoLib=lib/crypto-lib/src
