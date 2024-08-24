@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import {FCL_Elliptic_ZZ} from "FreshCryptoLib/FCL_elliptic.sol";
-import {Base64Url} from "FreshCryptoLib/utils/Base64Url.sol";
+import {n} from "SmoothCryptoLib/lib/libSCL_RIP7212.sol";
+import {Base64Url} from "../src/libraries/Base64Url.sol";
 
 struct WebAuthnInfo {
     bytes authenticatorData;
@@ -11,7 +11,7 @@ struct WebAuthnInfo {
 }
 
 library WebAuthnUtils {
-    uint256 constant P256_N_DIV_2 = FCL_Elliptic_ZZ.n / 2;
+    uint256 constant P256_N_DIV_2 = n / 2;
 
     function getWebAuthnStruct(
         bytes32 challenge
@@ -41,7 +41,7 @@ library WebAuthnUtils {
     /// it will pass malleability checks.
     function normalizeS(uint256 s) public pure returns (uint256) {
         if (s > P256_N_DIV_2) {
-            return FCL_Elliptic_ZZ.n - s;
+            return n - s;
         }
 
         return s;
