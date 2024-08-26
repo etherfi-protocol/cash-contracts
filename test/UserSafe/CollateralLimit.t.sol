@@ -11,39 +11,6 @@ contract UserSafeCollateralLimitTest is UserSafeSetup {
     function test_SetCollateralLimit() public {
         uint256 newCollateralLimit = 1 ether;
         uint256 delayedTime = block.timestamp + delay + 1;
-
-        uint256 collateralLimitBefore = aliceSafe.applicableCollateralLimit();
-        assertEq(collateralLimitBefore, collateralLimit);
-
-        vm.prank(alice);
-        vm.expectEmit(true, true, true, true);
-        emit IUserSafe.SetCollateralLimit(
-            collateralLimitBefore,
-            newCollateralLimit,
-            delayedTime - 1
-        );
-        aliceSafe.setCollateralLimit(newCollateralLimit);
-
-        uint256 collateralLimitAfterSet = aliceSafe.applicableCollateralLimit();
-        assertEq(collateralLimitBefore, collateralLimitAfterSet);
-
-        vm.warp(delayedTime);
-        uint256 collateralLimitAfterDelay = aliceSafe
-            .applicableCollateralLimit();
-        assertEq(newCollateralLimit, collateralLimitAfterDelay);
-    }
-
-    function test_OnlyOwnerCanSetCollateralLimits() public {
-        uint256 newCollateralLimit = 1 ether;
-
-        vm.prank(notOwner);
-        vm.expectRevert(abi.encodeWithSelector(OwnerLib.OnlyOwner.selector));
-        aliceSafe.setCollateralLimit(newCollateralLimit);
-    }
-
-    function test_SetCollateralLimitWithPermit() public {
-        uint256 newCollateralLimit = 1 ether;
-        uint256 delayedTime = block.timestamp + delay + 1;
         uint256 nonce = aliceSafe.nonce() + 1;
 
         bytes32 msgHash = keccak256(
@@ -72,7 +39,7 @@ contract UserSafeCollateralLimitTest is UserSafeSetup {
             newCollateralLimit,
             delayedTime - 1
         );
-        aliceSafe.setCollateralLimitWithPermit(newCollateralLimit, signature);
+        aliceSafe.setCollateralLimit(newCollateralLimit, signature);
 
         uint256 collateralLimitAfterSet = aliceSafe.applicableCollateralLimit();
         assertEq(collateralLimitBefore, collateralLimitAfterSet);

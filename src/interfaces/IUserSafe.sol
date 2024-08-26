@@ -168,31 +168,12 @@ interface IUserSafe {
 
     /**
      * @notice Function to set the owner of the contract.
-     * @dev Can only be called by the owner if it is an Ethereum address.
-     * @dev If owner is a passkey, setOwnerWithPermit should be called to set the new owner.
-     * @param __owner Address of the new owner
-     */
-    function setOwner(bytes calldata __owner) external;
-
-    /**
-     * @notice Function to set the owner of the contract.
      * @param __owner Address of the new owner
      * @param signature Must be a valid signature from the user.
      */
-    function setOwnerWithPermit(
+    function setOwner(
         bytes calldata __owner,
         bytes calldata signature
-    ) external;
-
-    /**
-     * @notice Function to set the spending limit.
-     * @notice This resets the used up amount to 0 and specify a new limit.
-     * @param spendingLimitType Type of spending limit.
-     * @param limitInUsd Spending limit in USD with 6 decimals.
-     */
-    function resetSpendingLimit(
-        uint8 spendingLimitType,
-        uint256 limitInUsd
     ) external;
 
     /**
@@ -202,35 +183,21 @@ interface IUserSafe {
      * @param limitInUsd Spending limit in USD with 6 decimals.
      * @param signature Must be a valid signature from the user.
      */
-    function resetSpendingLimitWithPermit(
+    function resetSpendingLimit(
         uint8 spendingLimitType,
         uint256 limitInUsd,
         bytes calldata signature
     ) external;
-
-    /**
-     * @notice Function to set the collateral limit.
-     * @dev Can only be called by the owner if it is an Ethereum address.
-     * @param limitInUsd Collateral limit in USD with 6 decimals.
-     */
-    function setCollateralLimit(uint256 limitInUsd) external;
 
     /**
      * @notice Function to set the collateral limit with permit.
      * @param limitInUsd Collateral limit in USD with 6 decimals.
      * @param signature Must be a valid signature from the user.
      */
-    function setCollateralLimitWithPermit(
+    function setCollateralLimit(
         uint256 limitInUsd,
         bytes calldata signature
     ) external;
-
-    /**
-     * @notice Function to update the spending limit.
-     * @notice This does not affect the used up amount and specify a new limit.
-     * @param limitInUsd Spending limit in USD with 6 decimals.
-     */
-    function updateSpendingLimit(uint256 limitInUsd) external;
 
     /**
      * @notice Function to set the spending limit with permit.
@@ -238,7 +205,7 @@ interface IUserSafe {
      * @param limitInUsd Spending limit in USD with 6 decimals.
      * @param signature Must be a valid signature from the user.
      */
-    function updateSpendingLimitWithPermit(
+    function updateSpendingLimit(
         uint256 limitInUsd,
         bytes calldata signature
     ) external;
@@ -271,19 +238,6 @@ interface IUserSafe {
     ) external;
 
     /**
-     * @notice Function to request withdrawal of funds from this safe.
-     * @notice Can be withdrawn with a configurable delay.
-     * @param tokens Address of the tokens to withdraw.
-     * @param amounts Amount of the tokens to withdraw.
-     * @param recipient Address of the recipient of funds.
-     */
-    function requestWithdrawal(
-        address[] calldata tokens,
-        uint256[] calldata amounts,
-        address recipient
-    ) external;
-
-    /**
      * @notice Function to request withdrawal of funds with permit from this safe.
      * @notice Can be withdrawn with a configurable delay.
      * @param tokens Address of the tokens to withdraw.
@@ -291,7 +245,7 @@ interface IUserSafe {
      * @param recipient Address of the recipient of funds.
      * @param signature Must be a valid signature from the user.
      */
-    function requestWithdrawalWithPermit(
+    function requestWithdrawal(
         address[] calldata tokens,
         uint256[] calldata amounts,
         address recipient,
@@ -320,15 +274,11 @@ interface IUserSafe {
 
     /**
      * @notice Function to set _isRecoveryActive boolean.
-     */
-    function setIsRecoveryActive(bool isRecoveryActive) external;
-
-    /**
-     * @notice Function to set _isRecoveryActive boolean with permit.
+     * @param isActive Boolean value suggesting if recover should be active.
      * @param signature Must be a valid signature from the user.
      */
-    function setIsRecoveryActiveWithPermit(
-        bool isRecoveryActive,
+    function setIsRecoveryActive(
+        bool isActive,
         bytes calldata signature
     ) external;
 

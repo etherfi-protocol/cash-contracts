@@ -61,7 +61,7 @@ abstract contract UserSafeRecovery is IUserSafe {
         emit IsRecoveryActiveSet(_isRecoveryActive);
     }
 
-    function _setIsRecoveryActiveWithPermit(
+    function _setIsRecoveryActive(
         bool isActive,
         uint256 _nonce,
         bytes calldata signature

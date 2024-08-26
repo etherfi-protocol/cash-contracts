@@ -12,8 +12,10 @@ contract UserSafeOwnerTest is UserSafeSetup {
         address newOwner = makeAddr("newOwner");
         bytes memory newOwnerBytes = abi.encode(newOwner);
 
+        bytes memory signature = _signSetOwner(newOwnerBytes);
+
         vm.prank(alice);
-        aliceSafe.setOwner(newOwnerBytes);
+        aliceSafe.setOwner(newOwnerBytes, signature);
 
         assertEq(aliceSafe.owner().ethAddr, newOwner);
         assertEq(aliceSafe.owner().x, 0);
@@ -25,36 +27,27 @@ contract UserSafeOwnerTest is UserSafeSetup {
         uint256 y = 2;
 
         bytes memory newOwnerBytes = abi.encode(x, y);
+        bytes memory signature = _signSetOwner(newOwnerBytes);
 
         vm.prank(alice);
-        aliceSafe.setOwner(newOwnerBytes);
+        aliceSafe.setOwner(newOwnerBytes, signature);
 
         assertEq(aliceSafe.owner().ethAddr, address(0));
         assertEq(aliceSafe.owner().x, x);
         assertEq(aliceSafe.owner().y, y);
     }
 
-    function test_OnlyOwnerCanSetNewOwner() public {
-        address newOwner = makeAddr("newOwner");
-        bytes memory newOwnerBytes = abi.encode(newOwner);
-
-        vm.prank(notOwner);
-        vm.expectRevert(OwnerLib.OnlyOwner.selector);
-        aliceSafe.setOwner(newOwnerBytes);
-    }
-
-    function test_CanSetOwnerWithPermitUsingEthereumSignature() public {
-        address newOwner = makeAddr("newOwner");
-        bytes memory newOwnerBytes = abi.encode(newOwner);
+    function _signSetOwner(
+        bytes memory ownerBytes
+    ) internal view returns (bytes memory) {
         uint256 nonce = aliceSafe.nonce() + 1;
-
         bytes32 msgHash = keccak256(
             abi.encode(
                 UserSafeLib.SET_OWNER_METHOD,
                 block.chainid,
                 address(aliceSafe),
                 nonce,
-                newOwnerBytes
+                ownerBytes
             )
         );
 
@@ -64,11 +57,6 @@ contract UserSafeOwnerTest is UserSafeSetup {
         );
 
         bytes memory signature = abi.encodePacked(r, s, v);
-        vm.prank(notOwner);
-        aliceSafe.setOwnerWithPermit(newOwnerBytes, signature);
-
-        assertEq(aliceSafe.owner().ethAddr, newOwner);
-        assertEq(aliceSafe.owner().x, 0);
-        assertEq(aliceSafe.owner().y, 0);
+        return signature;
     }
 }

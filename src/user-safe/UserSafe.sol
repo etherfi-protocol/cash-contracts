@@ -155,14 +155,7 @@ contract UserSafe is IUserSafe, Initializable, UserSafeRecovery {
     /**
      * @inheritdoc IUserSafe
      */
-    function setOwner(bytes calldata __owner) external onlyOwner {
-        _setOwner(__owner);
-    }
-
-    /**
-     * @inheritdoc IUserSafe
-     */
-    function setOwnerWithPermit(
+    function setOwner(
         bytes calldata __owner,
         bytes calldata signature
     ) external incrementNonce {
@@ -174,16 +167,6 @@ contract UserSafe is IUserSafe, Initializable, UserSafeRecovery {
      * @inheritdoc IUserSafe
      */
     function resetSpendingLimit(
-        uint8 spendingLimitType,
-        uint256 limitInUsd
-    ) external onlyOwner {
-        _resetSpendingLimit(spendingLimitType, limitInUsd);
-    }
-
-    /**
-     * @inheritdoc IUserSafe
-     */
-    function resetSpendingLimitWithPermit(
         uint8 spendingLimitType,
         uint256 limitInUsd,
         bytes calldata signature
@@ -200,14 +183,7 @@ contract UserSafe is IUserSafe, Initializable, UserSafeRecovery {
     /**
      * @inheritdoc IUserSafe
      */
-    function updateSpendingLimit(uint256 limitInUsd) external onlyOwner {
-        _updateSpendingLimit(limitInUsd);
-    }
-
-    /**
-     * @inheritdoc IUserSafe
-     */
-    function updateSpendingLimitWithPermit(
+    function updateSpendingLimit(
         uint256 limitInUsd,
         bytes calldata signature
     ) external incrementNonce {
@@ -218,14 +194,7 @@ contract UserSafe is IUserSafe, Initializable, UserSafeRecovery {
     /**
      * @inheritdoc IUserSafe
      */
-    function setCollateralLimit(uint256 limitInUsd) external onlyOwner {
-        _setCollateralLimit(limitInUsd);
-    }
-
-    /**
-     * @inheritdoc IUserSafe
-     */
-    function setCollateralLimitWithPermit(
+    function setCollateralLimit(
         uint256 limitInUsd,
         bytes calldata signature
     ) external incrementNonce {
@@ -275,17 +244,6 @@ contract UserSafe is IUserSafe, Initializable, UserSafeRecovery {
     function requestWithdrawal(
         address[] calldata tokens,
         uint256[] calldata amounts,
-        address recipient
-    ) external onlyOwner {
-        _requestWithdrawal(tokens, amounts, recipient);
-    }
-
-    /**
-     * @inheritdoc IUserSafe
-     */
-    function requestWithdrawalWithPermit(
-        address[] calldata tokens,
-        uint256[] calldata amounts,
         address recipient,
         bytes calldata signature
     ) external incrementNonce {
@@ -331,18 +289,11 @@ contract UserSafe is IUserSafe, Initializable, UserSafeRecovery {
     /**
      * @inheritdoc IUserSafe
      */
-    function setIsRecoveryActive(bool isActive) external onlyOwner {
-        _setIsRecoveryActive(isActive);
-    }
-
-    /**
-     * @inheritdoc IUserSafe
-     */
-    function setIsRecoveryActiveWithPermit(
+    function setIsRecoveryActive(
         bool isActive,
         bytes calldata signature
     ) external incrementNonce {
-        _setIsRecoveryActiveWithPermit(isActive, _nonce, signature);
+        _setIsRecoveryActive(isActive, _nonce, signature);
     }
 
     /**

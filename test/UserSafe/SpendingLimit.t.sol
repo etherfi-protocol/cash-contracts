@@ -14,8 +14,7 @@ contract UserSafeSpendingLimitTest is UserSafeSetup {
         uint256 monthlySpendingLimit = 100000000;
         uint256 yearlySpendingLimit = 100000000;
 
-        vm.prank(alice);
-        aliceSafe.resetSpendingLimit(
+        _resetSpendingLimit(
             uint8(IUserSafe.SpendingLimitTypes.Daily),
             dailySpendingLimit
         );
@@ -35,8 +34,7 @@ contract UserSafeSpendingLimitTest is UserSafeSetup {
         );
         assertEq(spendingLimitData.usedUpAmount, 0);
 
-        vm.prank(alice);
-        aliceSafe.resetSpendingLimit(
+        _resetSpendingLimit(
             uint8(IUserSafe.SpendingLimitTypes.Weekly),
             weeklySpendingLimit
         );
@@ -54,8 +52,7 @@ contract UserSafeSpendingLimitTest is UserSafeSetup {
         );
         assertEq(spendingLimitData.usedUpAmount, 0);
 
-        vm.prank(alice);
-        aliceSafe.resetSpendingLimit(
+        _resetSpendingLimit(
             uint8(IUserSafe.SpendingLimitTypes.Monthly),
             monthlySpendingLimit
         );
@@ -73,8 +70,7 @@ contract UserSafeSpendingLimitTest is UserSafeSetup {
         );
         assertEq(spendingLimitData.usedUpAmount, 0);
 
-        vm.prank(alice);
-        aliceSafe.resetSpendingLimit(
+        _resetSpendingLimit(
             uint8(IUserSafe.SpendingLimitTypes.Yearly),
             yearlySpendingLimit
         );
@@ -91,102 +87,6 @@ contract UserSafeSpendingLimitTest is UserSafeSetup {
             uint8(IUserSafe.SpendingLimitTypes.Yearly)
         );
         assertEq(spendingLimitData.usedUpAmount, 0);
-    }
-
-    function test_OnlyOwnerCanSetSpendingLimits() public {
-        uint256 spendingLimit = 1000000;
-
-        vm.prank(notOwner);
-        vm.expectRevert(abi.encodeWithSelector(OwnerLib.OnlyOwner.selector));
-        aliceSafe.resetSpendingLimit(
-            uint8(IUserSafe.SpendingLimitTypes.Daily),
-            spendingLimit
-        );
-    }
-
-    function test_SetSpendingLimitWithPermit() public {
-        uint8 spendingLimitType = uint8(IUserSafe.SpendingLimitTypes.Monthly);
-        uint256 spendingLimitInUsd = 1000000000;
-        uint256 nonce = aliceSafe.nonce() + 1;
-
-        bytes32 msgHash = keccak256(
-            abi.encode(
-                UserSafeLib.RESET_SPENDING_LIMIT_METHOD,
-                block.chainid,
-                address(aliceSafe),
-                nonce,
-                spendingLimitType,
-                spendingLimitInUsd
-            )
-        );
-
-        (uint8 v, bytes32 r, bytes32 s) = vm.sign(
-            alicePk,
-            msgHash.toEthSignedMessageHash()
-        );
-
-        UserSafe.SpendingLimitData memory spendingLimitBefore = aliceSafe
-            .applicableSpendingLimit();
-        assertEq(spendingLimitBefore.spendingLimit, defaultSpendingLimit);
-
-        bytes memory signature = abi.encodePacked(r, s, v);
-
-        vm.prank(notOwner);
-        aliceSafe.resetSpendingLimitWithPermit(
-            spendingLimitType,
-            spendingLimitInUsd,
-            signature
-        );
-
-        vm.warp(block.timestamp + delay + 1);
-        UserSafe.SpendingLimitData memory spendingLimitAfter = aliceSafe
-            .applicableSpendingLimit();
-        assertEq(spendingLimitAfter.spendingLimit, spendingLimitInUsd);
-    }
-
-    function test_UpdateSpendingLimit() public {
-        vm.prank(alice);
-        usdc.transfer(address(aliceSafe), 1000e6);
-
-        uint256 spendingLimitInUsd = 1000000000;
-        uint256 transferAmount = 1e6;
-
-        UserSafe.SpendingLimitData memory spendingLimitBefore = aliceSafe
-            .applicableSpendingLimit();
-        assertEq(spendingLimitBefore.spendingLimit, defaultSpendingLimit);
-        assertEq(spendingLimitBefore.usedUpAmount, 0);
-
-        assertEq(usdc.balanceOf(etherFiCashMultisig), 0);
-        vm.prank(etherFiWallet);
-        aliceSafe.transfer(address(usdc), transferAmount);
-        assertEq(usdc.balanceOf(etherFiCashMultisig), transferAmount);
-
-        spendingLimitBefore = aliceSafe.applicableSpendingLimit();
-        assertEq(spendingLimitBefore.usedUpAmount, transferAmount);
-
-        vm.prank(alice);
-        aliceSafe.updateSpendingLimit(spendingLimitInUsd);
-
-        UserSafe.SpendingLimitData memory spendingLimitAfterUpdate = aliceSafe
-            .applicableSpendingLimit();
-        assertEq(
-            spendingLimitAfterUpdate.spendingLimit,
-            spendingLimitBefore.spendingLimit
-        );
-
-        vm.warp(block.timestamp + delay + 1);
-        UserSafe.SpendingLimitData memory spendingLimitAfter = aliceSafe
-            .applicableSpendingLimit();
-        assertEq(spendingLimitAfter.spendingLimit, spendingLimitInUsd);
-        assertEq(spendingLimitAfter.usedUpAmount, transferAmount);
-    }
-
-    function test_OnlyOwnerUpdateSpendingLimit() public {
-        uint256 spendingLimitInUsd = 1000000000;
-
-        vm.prank(notOwner);
-        vm.expectRevert(abi.encodeWithSelector(OwnerLib.OnlyOwner.selector));
-        aliceSafe.updateSpendingLimit(spendingLimitInUsd);
     }
 
     function test_UpdateSpendingLimitWithPermit() public {
@@ -228,7 +128,7 @@ contract UserSafeSpendingLimitTest is UserSafeSetup {
         bytes memory signature = abi.encodePacked(r, s, v);
 
         vm.prank(notOwner);
-        aliceSafe.updateSpendingLimitWithPermit(spendingLimitInUsd, signature);
+        aliceSafe.updateSpendingLimit(spendingLimitInUsd, signature);
 
         UserSafe.SpendingLimitData memory spendingLimitAfterUpdate = aliceSafe
             .applicableSpendingLimit();
@@ -290,5 +190,36 @@ contract UserSafeSpendingLimitTest is UserSafeSetup {
         vm.expectEmit(true, true, true, true);
         emit IUserSafe.TransferForSpending(address(usdc), spendingLimit);
         aliceSafe.transfer(address(usdc), spendingLimit);
+    }
+
+    function _resetSpendingLimit(
+        uint8 spendingLimitType,
+        uint256 spendingLimitInUsd
+    ) internal {
+        uint256 nonce = aliceSafe.nonce() + 1;
+
+        bytes32 msgHash = keccak256(
+            abi.encode(
+                UserSafeLib.RESET_SPENDING_LIMIT_METHOD,
+                block.chainid,
+                address(aliceSafe),
+                nonce,
+                spendingLimitType,
+                spendingLimitInUsd
+            )
+        );
+
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(
+            alicePk,
+            msgHash.toEthSignedMessageHash()
+        );
+
+        bytes memory signature = abi.encodePacked(r, s, v);
+
+        aliceSafe.resetSpendingLimit(
+            spendingLimitType,
+            spendingLimitInUsd,
+            signature
+        );
     }
 }

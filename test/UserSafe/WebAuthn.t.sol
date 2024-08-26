@@ -95,7 +95,7 @@ contract UserSafeWebAuthnSignatureTest is UserSafeSetup {
             })
         );
 
-        passkeyOwnerSafe.setOwnerWithPermit(newOwnerBytes, signature);
+        passkeyOwnerSafe.setOwner(newOwnerBytes, signature);
 
         assertEq(passkeyOwnerSafe.owner().ethAddr, newOwner);
     }

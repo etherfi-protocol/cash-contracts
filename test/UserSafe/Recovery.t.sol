@@ -17,26 +17,6 @@ contract UserSafeRecoveryTest is UserSafeSetup {
 
     function test_CanSetIsRecoveryActive() public {
         assertEq(aliceSafe.isRecoveryActive(), true);
-
-        vm.prank(alice);
-        aliceSafe.setIsRecoveryActive(false);
-
-        assertEq(aliceSafe.isRecoveryActive(), false);
-
-        vm.prank(alice);
-        aliceSafe.setIsRecoveryActive(true);
-
-        assertEq(aliceSafe.isRecoveryActive(), true);
-    }
-
-    function test_OnlyOwnerCanSetIsRecoveryActive() public {
-        vm.prank(notOwner);
-        vm.expectRevert(abi.encodeWithSelector(OwnerLib.OnlyOwner.selector));
-        aliceSafe.setIsRecoveryActive(false);
-    }
-
-    function test_CanSetIsRecoveryActiveWithPermit() public {
-        assertEq(aliceSafe.isRecoveryActive(), true);
         uint256 nonce = aliceSafe.nonce() + 1;
         bool setValue = false;
         bytes32 msgHash = keccak256(
@@ -56,20 +36,19 @@ contract UserSafeRecoveryTest is UserSafeSetup {
         bytes memory signature = abi.encodePacked(r, s, v);
 
         vm.prank(alice);
-        aliceSafe.setIsRecoveryActiveWithPermit(setValue, signature);
+        aliceSafe.setIsRecoveryActive(setValue, signature);
 
         assertEq(aliceSafe.isRecoveryActive(), setValue);
     }
 
     function test_CanRecoverWithTwoAuthorizedSignatures() public {
-        address newOwner = makeAddr("newOwner");
+        (address newOwner, uint256 newOwnerPk) = makeAddrAndKey("newOwner");
         bytes memory newOwnerBytes = abi.encode(newOwner);
         IUserSafe.Signature[2] memory signatures;
 
         for (uint8 i = 0; i < 3; ) {
             if (i > 0) {
-                vm.prank(newOwner);
-                aliceSafe.setOwner(abi.encode(alice));
+                _setOwner(newOwnerPk, abi.encode(alice));
             }
 
             uint256 nonce = aliceSafe.nonce() + 1;
@@ -109,7 +88,7 @@ contract UserSafeRecoveryTest is UserSafeSetup {
 
     function test_CannotRecoverIfRecoveryIsInactive() public {
         vm.prank(alice);
-        aliceSafe.setIsRecoveryActive(false);
+        _setIsRecoveryActive(false);
 
         address newOwner = makeAddr("newOwner");
         bytes memory newOwnerBytes = abi.encode(newOwner);
@@ -211,5 +190,49 @@ contract UserSafeRecoveryTest is UserSafeSetup {
         else if (index == 1) return etherFiRecoverySignerPk;
         else if (index == 2) return thirdPartyRecoverySignerPk;
         else revert("Invalid recovery owner");
+    }
+
+    function _setIsRecoveryActive(bool isActive) internal {
+        uint256 nonce = aliceSafe.nonce() + 1;
+        bytes32 msgHash = keccak256(
+            abi.encode(
+                UserSafeLib.SET_IS_RECOVERY_ACTIVE_METHOD,
+                block.chainid,
+                address(aliceSafe),
+                nonce,
+                isActive
+            )
+        );
+
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(
+            alicePk,
+            msgHash.toEthSignedMessageHash()
+        );
+        bytes memory signature = abi.encodePacked(r, s, v);
+
+        vm.prank(alice);
+        aliceSafe.setIsRecoveryActive(isActive, signature);
+    }
+
+    function _setOwner(uint256 signerPk, bytes memory ownerBytes) internal {
+        uint256 nonce = aliceSafe.nonce() + 1;
+        bytes32 msgHash = keccak256(
+            abi.encode(
+                UserSafeLib.SET_OWNER_METHOD,
+                block.chainid,
+                address(aliceSafe),
+                nonce,
+                ownerBytes
+            )
+        );
+
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(
+            signerPk,
+            msgHash.toEthSignedMessageHash()
+        );
+
+        bytes memory signature = abi.encodePacked(r, s, v);
+
+        aliceSafe.setOwner(ownerBytes, signature);
     }
 }

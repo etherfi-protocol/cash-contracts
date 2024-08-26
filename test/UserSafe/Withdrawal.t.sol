@@ -8,64 +8,6 @@ import {UserSafeSetup} from "./UserSafeSetup.t.sol";
 contract UserSafeWithdrawalTest is UserSafeSetup {
     using MessageHashUtils for bytes32;
 
-    function test_RequestWithdrawal() public {
-        address[] memory tokens = new address[](2);
-        tokens[0] = address(usdc);
-        tokens[1] = address(weETH);
-
-        uint256[] memory amounts = new uint256[](2);
-        amounts[0] = 100e6;
-        amounts[1] = 1 ether;
-
-        address recipient = notOwner;
-
-        vm.startPrank(alice);
-        usdc.transfer(address(aliceSafe), amounts[0]);
-        weETH.transfer(address(aliceSafe), amounts[1]);
-
-        uint256 finalizeTime = block.timestamp + cashDataProvider.delay();
-
-        vm.expectEmit(true, true, true, true);
-        emit IUserSafe.WithdrawalRequested(
-            tokens,
-            amounts,
-            recipient,
-            finalizeTime
-        );
-        aliceSafe.requestWithdrawal(tokens, amounts, recipient);
-
-        UserSafe.WithdrawalRequest memory pendingWithdrawalRequest = aliceSafe
-            .pendingWithdrawalRequest();
-        assertEq(pendingWithdrawalRequest.tokens.length, 2);
-        assertEq(pendingWithdrawalRequest.tokens[0], tokens[0]);
-        assertEq(pendingWithdrawalRequest.tokens[1], tokens[1]);
-
-        assertEq(pendingWithdrawalRequest.amounts.length, 2);
-        assertEq(pendingWithdrawalRequest.amounts[0], amounts[0]);
-        assertEq(pendingWithdrawalRequest.amounts[1], amounts[1]);
-
-        assertEq(pendingWithdrawalRequest.recipient, recipient);
-        assertEq(pendingWithdrawalRequest.finalizeTime, finalizeTime);
-
-        vm.stopPrank();
-    }
-
-    function test_OnlyOwnerCanRequestWithdrawal() public {
-        address[] memory tokens = new address[](2);
-        tokens[0] = address(usdc);
-        tokens[1] = address(weETH);
-
-        uint256[] memory amounts = new uint256[](2);
-        amounts[0] = 100e6;
-        amounts[1] = 1 ether;
-
-        address recipient = notOwner;
-
-        vm.prank(notOwner);
-        vm.expectRevert(abi.encodeWithSelector(OwnerLib.OnlyOwner.selector));
-        aliceSafe.requestWithdrawal(tokens, amounts, recipient);
-    }
-
     function test_RequestWithdrawalWithPermit() public {
         address[] memory tokens = new address[](2);
         tokens[0] = address(usdc);
@@ -117,12 +59,7 @@ contract UserSafeWithdrawalTest is UserSafeSetup {
         );
         bytes memory signature = abi.encodePacked(r, s, v);
 
-        aliceSafe.requestWithdrawalWithPermit(
-            tokens,
-            amounts,
-            recipient,
-            signature
-        );
+        aliceSafe.requestWithdrawal(tokens, amounts, recipient, signature);
 
         UserSafe.WithdrawalRequest
             memory pendingWithdrawalRequestAfter = aliceSafe
@@ -156,7 +93,8 @@ contract UserSafeWithdrawalTest is UserSafeSetup {
         weETH.transfer(address(aliceSafe), amounts[1]);
 
         uint256 finalizeTime = block.timestamp + cashDataProvider.delay();
-        aliceSafe.requestWithdrawal(tokens, amounts, recipient);
+        bytes memory signature = _requestWithdrawal(tokens, amounts, recipient);
+        aliceSafe.requestWithdrawal(tokens, amounts, recipient, signature);
 
         uint256 recipientUsdcBalBefore = usdc.balanceOf(recipient);
         uint256 recipientWeETHBalBefore = usdc.balanceOf(recipient);
@@ -191,7 +129,8 @@ contract UserSafeWithdrawalTest is UserSafeSetup {
         weETH.transfer(address(aliceSafe), amounts[1]);
 
         uint256 finalizeTime = block.timestamp + cashDataProvider.delay();
-        aliceSafe.requestWithdrawal(tokens, amounts, recipient);
+        bytes memory signature = _requestWithdrawal(tokens, amounts, recipient);
+        aliceSafe.requestWithdrawal(tokens, amounts, recipient, signature);
 
         vm.warp(finalizeTime - 1);
         vm.expectRevert(IUserSafe.CannotWithdrawYet.selector);
@@ -217,6 +156,7 @@ contract UserSafeWithdrawalTest is UserSafeSetup {
 
         uint256 finalizeTime = block.timestamp + cashDataProvider.delay();
 
+        bytes memory signature = _requestWithdrawal(tokens, amounts, recipient);
         vm.expectEmit(true, true, true, true);
         emit IUserSafe.WithdrawalRequested(
             tokens,
@@ -224,7 +164,7 @@ contract UserSafeWithdrawalTest is UserSafeSetup {
             recipient,
             finalizeTime
         );
-        aliceSafe.requestWithdrawal(tokens, amounts, recipient);
+        aliceSafe.requestWithdrawal(tokens, amounts, recipient, signature);
 
         IUserSafe.WithdrawalRequest memory pendingWithdrawalRequest = aliceSafe
             .pendingWithdrawalRequest();
@@ -247,6 +187,7 @@ contract UserSafeWithdrawalTest is UserSafeSetup {
 
         address newRecipient = owner;
 
+        signature = _requestWithdrawal(newTokens, newAmounts, newRecipient);
         vm.expectEmit(true, true, true, true);
         emit IUserSafe.WithdrawalCancelled(tokens, amounts, recipient);
         vm.expectEmit(true, true, true, true);
@@ -256,7 +197,12 @@ contract UserSafeWithdrawalTest is UserSafeSetup {
             newRecipient,
             finalizeTime
         );
-        aliceSafe.requestWithdrawal(newTokens, newAmounts, newRecipient);
+        aliceSafe.requestWithdrawal(
+            newTokens,
+            newAmounts,
+            newRecipient,
+            signature
+        );
 
         UserSafe.WithdrawalRequest memory newWithdrawalRequest = aliceSafe
             .pendingWithdrawalRequest();
@@ -286,8 +232,9 @@ contract UserSafeWithdrawalTest is UserSafeSetup {
         vm.startPrank(alice);
         usdc.transfer(address(aliceSafe), amounts[0]);
 
+        bytes memory signature = _requestWithdrawal(tokens, amounts, recipient);
         vm.expectRevert(IUserSafe.InsufficientBalance.selector);
-        aliceSafe.requestWithdrawal(tokens, amounts, recipient);
+        aliceSafe.requestWithdrawal(tokens, amounts, recipient, signature);
         vm.stopPrank();
     }
 
@@ -304,7 +251,8 @@ contract UserSafeWithdrawalTest is UserSafeSetup {
 
         vm.startPrank(alice);
         usdc.transfer(address(aliceSafe), amounts[0]);
-        aliceSafe.requestWithdrawal(tokens, amounts, recipient);
+        bytes memory signature = _requestWithdrawal(tokens, amounts, recipient);
+        aliceSafe.requestWithdrawal(tokens, amounts, recipient, signature);
         vm.stopPrank();
 
         vm.prank(etherFiWallet);
@@ -314,5 +262,33 @@ contract UserSafeWithdrawalTest is UserSafeSetup {
             .pendingWithdrawalRequest();
         assertEq(withdrawalData.tokens[0], address(usdc));
         assertEq(withdrawalData.amounts[0], amounts[0] - amountToTransfer);
+    }
+
+    function _requestWithdrawal(
+        address[] memory tokens,
+        uint256[] memory amounts,
+        address recipient
+    ) internal view returns (bytes memory) {
+        uint256 nonce = aliceSafe.nonce() + 1;
+
+        bytes32 msgHash = keccak256(
+            abi.encode(
+                UserSafeLib.REQUEST_WITHDRAWAL_METHOD,
+                block.chainid,
+                address(aliceSafe),
+                nonce,
+                tokens,
+                amounts,
+                recipient
+            )
+        );
+
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(
+            alicePk,
+            msgHash.toEthSignedMessageHash()
+        );
+
+        bytes memory signature = abi.encodePacked(r, s, v);
+        return signature;
     }
 }

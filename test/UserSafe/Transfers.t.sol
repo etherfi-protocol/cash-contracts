@@ -1,11 +1,13 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import {IUserSafe, OwnerLib, UserSafe} from "../../src/user-safe/UserSafe.sol";
+import {IUserSafe, OwnerLib, UserSafe, UserSafeLib} from "../../src/user-safe/UserSafe.sol";
 import {MessageHashUtils} from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
 import {ERC20, UserSafeSetup} from "./UserSafeSetup.t.sol";
 
 contract UserSafeTransfersTest is UserSafeSetup {
+    using MessageHashUtils for bytes32;
+
     uint256 aliceSafeUsdcBalanceBefore;
     uint256 aliceSafeWeETHBalanceBefore;
     function setUp() public override {
@@ -40,7 +42,7 @@ contract UserSafeTransfersTest is UserSafeSetup {
     function test_CannotTransferForSpendingWhenBalanceIsInsufficient() public {
         uint256 amount = aliceSafeUsdcBalanceBefore + 1;
         vm.prank(alice);
-        aliceSafe.updateSpendingLimit(amount);
+        _updateSpendingLimit(amount);
 
         vm.warp(block.timestamp + delay + 1);
         vm.prank(etherFiWallet);
@@ -109,8 +111,8 @@ contract UserSafeTransfersTest is UserSafeSetup {
         );
 
         // test_CannotSwapWeEthToUsdcAndTransferIfAmountReceivedIsLess
-        vm.prank(alice);
-        aliceSafe.resetSpendingLimit(
+
+        _resetSpendingLimit(
             uint8(IUserSafe.SpendingLimitTypes.Monthly),
             100000e6
         );
@@ -129,8 +131,7 @@ contract UserSafeTransfersTest is UserSafeSetup {
         );
 
         // test_CannotGoOverSpendingLimit
-        vm.prank(alice);
-        aliceSafe.resetSpendingLimit(
+        _resetSpendingLimit(
             uint8(IUserSafe.SpendingLimitTypes.Monthly),
             1000e6
         );
@@ -203,7 +204,7 @@ contract UserSafeTransfersTest is UserSafeSetup {
     function test_CannotAddCollateralIfBalanceIsInsufficient() public {
         uint256 amount = aliceSafeWeETHBalanceBefore + 1;
         vm.prank(alice);
-        aliceSafe.setCollateralLimit(amount);
+        _setCollateralLimit(amount);
 
         vm.warp(block.timestamp + delay + 1);
         vm.prank(etherFiWallet);
@@ -244,5 +245,89 @@ contract UserSafeTransfersTest is UserSafeSetup {
         vm.prank(etherFiWallet);
         vm.expectRevert(IUserSafe.UnsupportedToken.selector);
         aliceSafe.addCollateral(unsupportedToken, amount);
+    }
+
+    function _updateSpendingLimit(uint256 spendingLimitInUsd) internal {
+        uint256 nonce = aliceSafe.nonce() + 1;
+
+        bytes32 msgHash = keccak256(
+            abi.encode(
+                UserSafeLib.UPDATE_SPENDING_LIMIT_METHOD,
+                block.chainid,
+                address(aliceSafe),
+                nonce,
+                spendingLimitInUsd
+            )
+        );
+
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(
+            alicePk,
+            msgHash.toEthSignedMessageHash()
+        );
+        bytes memory signature = abi.encodePacked(r, s, v);
+
+        aliceSafe.updateSpendingLimit(spendingLimitInUsd, signature);
+    }
+
+    function _resetSpendingLimit(
+        uint8 spendingLimitType,
+        uint256 spendingLimitInUsd
+    ) internal {
+        uint256 nonce = aliceSafe.nonce() + 1;
+
+        bytes32 msgHash = keccak256(
+            abi.encode(
+                UserSafeLib.RESET_SPENDING_LIMIT_METHOD,
+                block.chainid,
+                address(aliceSafe),
+                nonce,
+                spendingLimitType,
+                spendingLimitInUsd
+            )
+        );
+
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(
+            alicePk,
+            msgHash.toEthSignedMessageHash()
+        );
+
+        bytes memory signature = abi.encodePacked(r, s, v);
+
+        aliceSafe.resetSpendingLimit(
+            spendingLimitType,
+            spendingLimitInUsd,
+            signature
+        );
+    }
+
+    function _setCollateralLimit(uint256 newCollateralLimit) internal {
+        uint256 delayedTime = block.timestamp + delay + 1;
+        uint256 nonce = aliceSafe.nonce() + 1;
+
+        bytes32 msgHash = keccak256(
+            abi.encode(
+                UserSafeLib.SET_COLLATERAL_LIMIT_METHOD,
+                block.chainid,
+                address(aliceSafe),
+                nonce,
+                newCollateralLimit
+            )
+        );
+
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(
+            alicePk,
+            msgHash.toEthSignedMessageHash()
+        );
+        bytes memory signature = abi.encodePacked(r, s, v);
+
+        uint256 collateralLimitBefore = aliceSafe.applicableCollateralLimit();
+
+        vm.expectEmit(true, true, true, true);
+        emit IUserSafe.SetCollateralLimit(
+            collateralLimitBefore,
+            newCollateralLimit,
+            delayedTime - 1
+        );
+        aliceSafe.setCollateralLimit(newCollateralLimit, signature);
     }
 }
