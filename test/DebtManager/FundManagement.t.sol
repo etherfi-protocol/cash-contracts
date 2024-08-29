@@ -26,6 +26,31 @@ contract DebtManagerFundManagementTest is DebtManagerSetup {
         vm.stopPrank();
     }
 
+    function test_supplier() public {
+        uint256 principle = 0.01 ether;
+
+        vm.startPrank(owner);
+        usdc.forceApprove(address(debtManager), principle);
+        debtManager.supply(address(usdc), principle);
+        vm.stopPrank();
+
+        assertApproxEqAbs(debtManager.withdrawableBorrowToken(address(usdc), owner), principle, principle);
+
+        // TODO: replace the below with more realistic borrow-repay flow with >0 revenue.
+        address syko = makeAddr("syko");
+        uint256 earnings = 1 ether;
+        deal(address(usdc), syko, earnings);
+        vm.prank(syko);
+        usdc.safeTransfer(address(debtManager), earnings);
+
+        assertApproxEqAbs(debtManager.withdrawableBorrowToken(address(usdc), owner), principle, principle + earnings);
+
+        vm.startPrank(owner);
+        debtManager.withdrawBorrowToken(address(usdc), earnings + principle);
+
+        assertApproxEqAbs(debtManager.withdrawableBorrowToken(address(usdc), owner), 0, 0);
+    }
+
     function test_FundsManagementOnAave() public {
         vm.startPrank(owner);
 
