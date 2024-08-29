@@ -48,7 +48,7 @@ contract DebtManagerSetup is Utils {
     address swapper = makeAddr("swapper");
 
     function setUp() public virtual {
-        chainId = '42161';
+        chainId = vm.envString("TEST_CHAIN");
 
         vm.startPrank(owner);
 

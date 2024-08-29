@@ -62,31 +62,6 @@ contract L2DebtManager is
     mapping(address borrowToken => mapping(address supplier => uint256 shares)) public sharesOfBorrowTokens;
     mapping(address borrowToken => uint256 totalShares) public totalSharesOfBorrowTokens;
 
-    function supply(address borrowToken, uint256 amount) external {
-        uint256 shares = (totalSharesOfBorrowTokens[borrowToken] == 0)
-            ? amount
-            : (amount * totalSharesOfBorrowTokens[borrowToken]) / IERC20(borrowToken).balanceOf(address(this));
-        
-        sharesOfBorrowTokens[borrowToken][msg.sender] += shares;
-        totalSharesOfBorrowTokens[borrowToken] += shares;
-
-        IERC20(borrowToken).safeTransferFrom(msg.sender, address(this), amount);
-    }
-
-    function withdrawBorrowToken(address borrowToken, uint256 amount) external {
-        uint256 shares = (amount * totalSharesOfBorrowTokens[borrowToken]) / IERC20(borrowToken).balanceOf(address(this));
-        
-        sharesOfBorrowTokens[borrowToken][msg.sender] -= shares;
-        totalSharesOfBorrowTokens[borrowToken] -= shares;
-
-        IERC20(borrowToken).safeTransfer(msg.sender, amount);
-    }
-
-    function withdrawableBorrowToken(address borrowToken, address supplier) external view returns (uint256) {
-        if (totalSharesOfBorrowTokens[borrowToken] == 0) return 0;
-        return (sharesOfBorrowTokens[borrowToken][supplier] * IERC20(borrowToken).balanceOf(address(this))) / totalSharesOfBorrowTokens[borrowToken];
-    }
-
     constructor(address __cashDataProvider) {
         _cashDataProvider = ICashDataProvider(__cashDataProvider);
     }
@@ -465,6 +440,12 @@ contract L2DebtManager is
         return userCollateralInUsd;
     }
 
+
+    function withdrawableBorrowToken(address borrowToken, address supplier) external view returns (uint256) {
+        if (totalSharesOfBorrowTokens[borrowToken] == 0) return 0;
+        return (sharesOfBorrowTokens[borrowToken][supplier] * IERC20(borrowToken).balanceOf(address(this))) / totalSharesOfBorrowTokens[borrowToken];
+    }
+
     /**
      * @inheritdoc IL2DebtManager
      */
@@ -563,6 +544,27 @@ contract L2DebtManager is
         uint256 newThreshold
     ) external onlyRole(ADMIN_ROLE) {
         _setLiquidationThreshold(newThreshold);
+    }
+
+
+    function supply(address borrowToken, uint256 amount) external {
+        uint256 shares = (totalSharesOfBorrowTokens[borrowToken] == 0)
+            ? amount
+            : (amount * totalSharesOfBorrowTokens[borrowToken]) / IERC20(borrowToken).balanceOf(address(this));
+        
+        sharesOfBorrowTokens[borrowToken][msg.sender] += shares;
+        totalSharesOfBorrowTokens[borrowToken] += shares;
+
+        IERC20(borrowToken).safeTransferFrom(msg.sender, address(this), amount);
+    }
+
+    function withdrawBorrowToken(address borrowToken, uint256 amount) external {
+        uint256 shares = (amount * totalSharesOfBorrowTokens[borrowToken]) / IERC20(borrowToken).balanceOf(address(this));
+        
+        sharesOfBorrowTokens[borrowToken][msg.sender] -= shares;
+        totalSharesOfBorrowTokens[borrowToken] -= shares;
+
+        IERC20(borrowToken).safeTransfer(msg.sender, amount);
     }
 
     /**
