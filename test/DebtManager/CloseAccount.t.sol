@@ -29,10 +29,6 @@ contract DebtManagerCloseAccountTest is DebtManagerSetup {
         vm.startPrank(alice);
         weETH.safeIncreaseAllowance(address(debtManager), collateralAmount);
         debtManager.depositCollateral(address(weETH), alice, collateralAmount);
-
-        borrowAmt = debtManager.remainingBorrowingCapacityInUSDC(alice) / 2;
-
-        debtManager.borrow(address(usdc), borrowAmt);
         vm.stopPrank();
     }
 
@@ -41,29 +37,23 @@ contract DebtManagerCloseAccountTest is DebtManagerSetup {
             memory tokenData = new IL2DebtManager.TokenData[](1);
         tokenData[0] = IL2DebtManager.TokenData({
             token: address(weETH),
-            amount: debtManager.convertUsdcToCollateralToken(
-                address(weETH),
-                (debtManager.getCollateralValueInUsdc(alice) - borrowAmt)
-            )
+            amount: collateralAmount
         });
 
-        uint256 aliceDebtBefore = debtManager.borrowingOf(alice);
         uint256 aliceCollateralBefore = debtManager.getCollateralValueInUsdc(
             alice
         );
 
         // Can easily withdraw the amount till liquidation threshold
-        vm.prank(alice);
+        vm.startPrank(alice);
         vm.expectEmit(true, true, true, true);
-        emit IL2DebtManager.AccountClosed(alice, borrowAmt, tokenData);
+        emit IL2DebtManager.AccountClosed(alice, tokenData);
         debtManager.closeAccount();
+        vm.stopPrank();
 
-        uint256 aliceDebtAfter = debtManager.borrowingOf(alice);
         uint256 aliceCollateralAfter = debtManager.getCollateralValueInUsdc(
             alice
         );
-        assertEq(aliceDebtBefore, borrowAmt);
-        assertEq(aliceDebtAfter, 0);
         assertEq(
             aliceCollateralBefore,
             debtManager.convertCollateralTokenToUsdc(
@@ -71,12 +61,6 @@ contract DebtManagerCloseAccountTest is DebtManagerSetup {
                 collateralAmount
             )
         );
-        assertEq(
-            aliceCollateralAfter,
-            debtManager.convertCollateralTokenToUsdc(
-                address(weETH),
-                collateralAmount
-            ) - borrowAmt
-        );
+        assertEq(aliceCollateralAfter, 0);
     }
 }

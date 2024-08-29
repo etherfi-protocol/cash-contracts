@@ -11,6 +11,7 @@ import {IPriceProvider} from "./interfaces/IPriceProvider.sol";
 import {IEtherFiCashAaveV3Adapter} from "./interfaces/IEtherFiCashAaveV3Adapter.sol";
 import {ICashDataProvider} from "./interfaces/ICashDataProvider.sol";
 import {AaveLib} from "./libraries/AaveLib.sol";
+import "forge-std/console.sol";
 
 /**
  * @title L2 Debt Manager
@@ -65,81 +66,6 @@ contract L2DebtManager is
 
     uint256 public constant ONE_SHARE = 1 ether;
     uint256 public constant ONE_BORROW_TOKEN = 1e6;
-
-    function supply(
-        address user,
-        address borrowToken,
-        uint256 amount
-    ) external {
-        uint256 shares = _convertBorrowToShare(
-            (totalSharesOfBorrowTokens == 0)
-                ? amount
-                : (amount * totalSharesOfBorrowTokens) /
-                    _getTotalBorrowTokenAmount()
-        );
-
-        // Moving this before state update to prevent reentrancy
-        IERC20(borrowToken).safeTransferFrom(msg.sender, address(this), amount);
-
-        sharesOfBorrowTokens[user] += shares;
-        totalSharesOfBorrowTokens += shares;
-
-        emit Supplied(msg.sender, user, borrowToken, amount);
-    }
-
-    function withdrawBorrowToken(address borrowToken, uint256 amount) external {
-        uint256 totalBorrowTokenAmt = _getTotalBorrowTokenAmount();
-        if (totalBorrowTokenAmt == 0) revert ZeroTotalBorrowTokens();
-
-        uint256 shares = (amount * totalSharesOfBorrowTokens) /
-            totalBorrowTokenAmt;
-
-        if (sharesOfBorrowTokens[msg.sender] < shares)
-            revert InsufficientBorrowShares();
-
-        sharesOfBorrowTokens[msg.sender] -= shares;
-        totalSharesOfBorrowTokens -= shares;
-
-        IERC20(borrowToken).safeTransfer(msg.sender, amount);
-    }
-
-    function withdrawableBorrowToken(
-        address supplier
-    ) external view returns (uint256) {
-        if (totalSharesOfBorrowTokens == 0) return 0;
-
-        return
-            (sharesOfBorrowTokens[supplier] * _getTotalBorrowTokenAmount()) /
-            totalSharesOfBorrowTokens;
-    }
-
-    function _convertBorrowToShare(
-        uint256 amount
-    ) internal pure returns (uint256) {
-        return (amount * ONE_SHARE) / ONE_BORROW_TOKEN;
-    }
-
-    function _convertShareToBorrow(
-        uint256 amount
-    ) internal pure returns (uint256) {
-        return (amount * ONE_BORROW_TOKEN) / ONE_SHARE;
-    }
-
-    function _getTotalBorrowTokenAmount() internal view returns (uint256) {
-        uint256 totalAmount = totalBorrowingAmount();
-        uint256 len = _supportedBorrowTokens.length;
-        for (uint256 i = 0; i < len; ) {
-            totalAmount += _convertToSixDecimals(
-                _supportedBorrowTokens[i],
-                IERC20(_supportedBorrowTokens[i]).balanceOf(address(this))
-            );
-            unchecked {
-                ++i;
-            }
-        }
-
-        return totalAmount;
-    }
 
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor(address __cashDataProvider) {
@@ -468,6 +394,19 @@ contract L2DebtManager is
     /**
      * @inheritdoc IL2DebtManager
      */
+    function withdrawableBorrowToken(
+        address supplier
+    ) external view returns (uint256) {
+        if (totalSharesOfBorrowTokens == 0) return 0;
+
+        return
+            (sharesOfBorrowTokens[supplier] * _getTotalBorrowTokenAmount()) /
+            totalSharesOfBorrowTokens;
+    }
+
+    /**
+     * @inheritdoc IL2DebtManager
+     */
     function convertUsdcToCollateralToken(
         address collateralToken,
         uint256 debtUsdcAmount
@@ -624,6 +563,49 @@ contract L2DebtManager is
     /**
      * @inheritdoc IL2DebtManager
      */
+    function supply(
+        address user,
+        address borrowToken,
+        uint256 amount
+    ) external {
+        uint256 shares = _convertBorrowToShare(
+            (totalSharesOfBorrowTokens == 0)
+                ? amount
+                : (amount * totalSharesOfBorrowTokens) /
+                    _getTotalBorrowTokenAmount()
+        );
+
+        // Moving this before state update to prevent reentrancy
+        IERC20(borrowToken).safeTransferFrom(msg.sender, address(this), amount);
+
+        sharesOfBorrowTokens[user] += shares;
+        totalSharesOfBorrowTokens += shares;
+
+        emit Supplied(msg.sender, user, borrowToken, amount);
+    }
+
+    /**
+     * @inheritdoc IL2DebtManager
+     */
+    function withdrawBorrowToken(address borrowToken, uint256 amount) external {
+        uint256 totalBorrowTokenAmt = _getTotalBorrowTokenAmount();
+        if (totalBorrowTokenAmt == 0) revert ZeroTotalBorrowTokens();
+
+        uint256 shares = (amount * totalSharesOfBorrowTokens) /
+            totalBorrowTokenAmt;
+
+        if (sharesOfBorrowTokens[msg.sender] < shares)
+            revert InsufficientBorrowShares();
+
+        sharesOfBorrowTokens[msg.sender] -= shares;
+        totalSharesOfBorrowTokens -= shares;
+
+        IERC20(borrowToken).safeTransfer(msg.sender, amount);
+    }
+
+    /**
+     * @inheritdoc IL2DebtManager
+     */
     function depositCollateral(
         address token,
         address user,
@@ -676,26 +658,10 @@ contract L2DebtManager is
         uint256 repayDebtUsdcAmt
     ) external updateBorrowings(user) {
         if (_userBorrowings[user] < repayDebtUsdcAmt)
-            revert CannotPayMoreThanDebtIncurred();
+            repayDebtUsdcAmt = _userBorrowings[user];
+        if (!isBorrowToken(token)) revert UnsupportedRepayToken();
 
-        if (isBorrowToken(token))
-            _repayWithBorrowToken(token, user, repayDebtUsdcAmt);
-        else if (isCollateralToken(token)) {
-            if (msg.sender != user) revert OnlyUserCanRepayWithCollateral();
-            _repayWithCollateralToken(user, token, repayDebtUsdcAmt);
-        } else revert UnsupportedRepayToken();
-    }
-
-    /**
-     * @inheritdoc IL2DebtManager
-     */
-    function repayWithCollateral(
-        address user,
-        uint256 repayDebtUsdcAmt
-    ) external updateBorrowings(user) {
-        if (msg.sender != user) revert OnlyUserCanRepayWithCollateral();
-
-        _repayWithCollateral(user, repayDebtUsdcAmt);
+        _repayWithBorrowToken(token, user, repayDebtUsdcAmt);
     }
 
     /**
@@ -722,8 +688,8 @@ contract L2DebtManager is
      * @inheritdoc IL2DebtManager
      */
     function closeAccount() external updateBorrowings(msg.sender) {
-        uint256 totalUserBorrowing = _userBorrowings[msg.sender];
-        _repayWithCollateral(msg.sender, totalUserBorrowing);
+        if (_userBorrowings[msg.sender] != 0)
+            revert TotalBorrowingsForUserNotZero();
 
         (TokenData[] memory tokenData, ) = collateralOf(msg.sender);
         uint256 len = tokenData.length;
@@ -733,6 +699,10 @@ contract L2DebtManager is
                 IERC20(tokenData[i].token).balanceOf(address(this)) <
                 tokenData[i].amount
             ) revert InsufficientLiquidityPleaseTryAgainLater();
+
+            _userCollateral[msg.sender][tokenData[i].token] -= tokenData[i]
+                .amount;
+            _totalCollateralAmounts[tokenData[i].token] -= tokenData[i].amount;
 
             IERC20(tokenData[i].token).safeTransfer(
                 msg.sender,
@@ -744,7 +714,7 @@ contract L2DebtManager is
             }
         }
 
-        emit AccountClosed(msg.sender, totalUserBorrowing, tokenData);
+        emit AccountClosed(msg.sender, tokenData);
     }
 
     // https://docs.aave.com/faq/liquidations
@@ -752,20 +722,65 @@ contract L2DebtManager is
      * @inheritdoc IL2DebtManager
      */
     function liquidate(
-        address user
-    ) external onlyRole(ADMIN_ROLE) updateBorrowings(user) {
+        address user,
+        address debtToken,
+        uint256 debtAmountInUsdc
+    ) external updateBorrowings(user) {
         if (!liquidatable(user)) revert CannotLiquidateYet();
+        if (!isBorrowToken(debtToken)) revert UnsupportedBorrowToken();
 
         uint256 beforeDebtAmount = _userBorrowings[user];
+
+        if (!liquidatable(user)) revert CannotLiquidateYet();
+
+        IERC20(debtToken).safeTransferFrom(
+            msg.sender,
+            address(this),
+            debtAmountInUsdc
+        );
+
         (TokenData[] memory beforeCollateralAmounts, ) = collateralOf(user);
-        _repayWithCollateral(user, beforeDebtAmount); // force to repay the entire debt using the collateral
-        (TokenData[] memory afterCollateralAmounts, ) = collateralOf(user);
+
+        TokenData[]
+            memory collateralTokensToSend = _getCollateralTokensForDebtAmount(
+                user,
+                debtAmountInUsdc
+            );
+
+        uint256 len = collateralTokensToSend.length;
+
+        for (uint256 i = 0; i < len; ) {
+            _userCollateral[user][
+                collateralTokensToSend[i].token
+            ] -= collateralTokensToSend[i].amount;
+            _totalCollateralAmounts[
+                collateralTokensToSend[i].token
+            ] -= collateralTokensToSend[i].amount;
+
+            IERC20(collateralTokensToSend[i].token).safeTransfer(
+                msg.sender,
+                collateralTokensToSend[i].amount
+            );
+
+            unchecked {
+                ++i;
+            }
+        }
+
+        _userBorrowings[user] -= debtAmountInUsdc;
+        _totalBorrowingAmount -= debtAmountInUsdc;
+
+        if (liquidatable(user))
+            revert PartialLiquidationShouldOverCollaterallizeTheUser();
 
         emit Liquidated(
+            msg.sender,
             user,
+            debtToken,
             beforeCollateralAmounts,
-            afterCollateralAmounts,
-            beforeDebtAmount
+            collateralTokensToSend,
+            beforeDebtAmount,
+            debtAmountInUsdc
         );
     }
 
@@ -780,27 +795,6 @@ contract L2DebtManager is
         AaveLib.aaveOperation(aaveV3Adapter, marketOperationType, data);
     }
 
-    /**
-     * @inheritdoc IL2DebtManager
-     */
-    function adminWithdrawFunds(
-        address token,
-        uint256 amount
-    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        if (isCollateralToken(token)) {
-            uint256 liquidTokenAmt = IERC20(token).balanceOf(address(this)) -
-                _totalCollateralAmounts[token];
-            if (liquidTokenAmt < amount)
-                revert LiquidAmountLesserThanRequired();
-        }
-
-        IERC20(token).safeTransfer(
-            _cashDataProvider.etherFiCashMultiSig(),
-            amount
-        );
-        emit AdminWithdrawFunds(token, amount);
-    }
-
     /// Users repay the borrowed USDC in USDC
     function _repayWithBorrowToken(
         address token,
@@ -812,6 +806,7 @@ contract L2DebtManager is
             address(this),
             _convertToSixDecimals(token, repayDebtUsdcAmt)
         );
+
         _userBorrowings[user] -= repayDebtUsdcAmt;
         _totalBorrowingAmount -= repayDebtUsdcAmt;
 
@@ -853,11 +848,10 @@ contract L2DebtManager is
         );
     }
 
-    // Use the deposited collateral to pay the debt
-    function _repayWithCollateral(
+    function _getCollateralTokensForDebtAmount(
         address user,
         uint256 repayDebtUsdcAmt
-    ) internal {
+    ) internal view returns (TokenData[] memory) {
         uint256 len = _supportedCollateralTokens.length;
         TokenData[] memory collateral = new TokenData[](len);
 
@@ -881,29 +875,12 @@ contract L2DebtManager is
                     _userCollateral[user][collateralToken]
                 );
 
-                _totalCollateralAmounts[collateralToken] -= _userCollateral[
-                    user
-                ][collateralToken];
-                _userCollateral[user][collateralToken] = 0;
-
-                _userBorrowings[user] -= usdcValueOfCollateral;
-                _totalBorrowingAmount -= usdcValueOfCollateral;
                 repayDebtUsdcAmt -= usdcValueOfCollateral;
             } else {
                 collateral[i] = TokenData({
                     token: collateralToken,
                     amount: collateralAmountForDebt
                 });
-
-                _userBorrowings[user] -= repayDebtUsdcAmt;
-                _userCollateral[user][
-                    collateralToken
-                ] -= collateralAmountForDebt;
-
-                _totalBorrowingAmount -= repayDebtUsdcAmt;
-                _totalCollateralAmounts[
-                    collateralToken
-                ] -= collateralAmountForDebt;
 
                 repayDebtUsdcAmt = 0;
             }
@@ -922,10 +899,7 @@ contract L2DebtManager is
             }
         }
 
-        if (debtRatioOf(user) > _liquidationThreshold)
-            revert InsufficientCollateral();
-
-        emit RepaidWithCollateral(user, repayDebtUsdcAmt, collateral);
+        return collateral;
     }
 
     function _supportCollateralToken(address token) internal {
@@ -987,6 +961,34 @@ contract L2DebtManager is
             tokenDecimals == 6 ? amount : (amount * 1e6) / 10 ** tokenDecimals;
     }
 
+    function _convertBorrowToShare(
+        uint256 amount
+    ) internal pure returns (uint256) {
+        return (amount * ONE_SHARE) / ONE_BORROW_TOKEN;
+    }
+
+    function _convertShareToBorrow(
+        uint256 amount
+    ) internal pure returns (uint256) {
+        return (amount * ONE_BORROW_TOKEN) / ONE_SHARE;
+    }
+
+    function _getTotalBorrowTokenAmount() internal view returns (uint256) {
+        uint256 totalAmount = totalBorrowingAmount();
+        uint256 len = _supportedBorrowTokens.length;
+        for (uint256 i = 0; i < len; ) {
+            totalAmount += _convertToSixDecimals(
+                _supportedBorrowTokens[i],
+                IERC20(_supportedBorrowTokens[i]).balanceOf(address(this))
+            );
+            unchecked {
+                ++i;
+            }
+        }
+
+        return totalAmount;
+    }
+
     modifier updateBorrowings(address user) {
         uint256 totalBorrowingAmtBeforeInterest = _totalBorrowingAmount;
 
@@ -1006,11 +1008,12 @@ contract L2DebtManager is
             _userBorrowings[user] = borrowingOf(user);
             _usersDebtInterestIndexSnapshots[user] = _debtInterestIndexSnapshot;
 
-            emit UserInterestAdded(
-                user,
-                userBorrowingsBefore,
-                _userBorrowings[user]
-            );
+            if (userBorrowingsBefore != _userBorrowings[user])
+                emit UserInterestAdded(
+                    user,
+                    userBorrowingsBefore,
+                    _userBorrowings[user]
+                );
         }
 
         _;

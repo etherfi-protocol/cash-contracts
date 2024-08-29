@@ -52,10 +52,13 @@ interface IL2DebtManager {
         TokenData[] collateralUsed
     );
     event Liquidated(
+        address indexed liquidator,
         address indexed user,
+        address indexed debtTokenToLiquidate,
         TokenData[] beforeCollateralAmount,
-        TokenData[] afterCollateralAmount,
-        uint256 beforeDebtAmount
+        TokenData[] userCollateralLiquidated,
+        uint256 beforeDebtAmount,
+        uint256 debtAmountLiquidated
     );
     event LiquidationThresholdUpdated(
         uint256 oldThreshold,
@@ -80,12 +83,7 @@ interface IL2DebtManager {
         address indexed token,
         uint256 amount
     );
-    event AccountClosed(
-        address indexed user,
-        uint256 borrowingsRepaid,
-        TokenData[] collateralWithdrawal
-    );
-    event AdminWithdrawFunds(address token, uint256 amount);
+    event AccountClosed(address indexed user, TokenData[] collateralWithdrawal);
 
     error UnsupportedCollateralToken();
     error UnsupportedRepayToken();
@@ -95,7 +93,6 @@ interface IL2DebtManager {
     error InsufficientLiquidity();
     error CannotLiquidateYet();
     error ZeroCollateralValue();
-    error CannotPayMoreThanDebtIncurred();
     error OnlyUserCanRepayWithCollateral();
     error InvalidValue();
     error AlreadyCollateralToken();
@@ -111,6 +108,8 @@ interface IL2DebtManager {
     error LiquidAmountLesserThanRequired();
     error ZeroTotalBorrowTokens();
     error InsufficientBorrowShares();
+    error PartialLiquidationShouldOverCollaterallizeTheUser();
+    error TotalBorrowingsForUserNotZero();
 
     /**
      * @notice Function to fetch the address of the Cash Data Provider.
@@ -189,6 +188,21 @@ interface IL2DebtManager {
     function unsupportBorrowToken(address token) external;
 
     /**
+     * @notice Function to supply borrow tokens to the debt manager.
+     * @param  user Address of the user to register for supply.
+     * @param  borrowToken Address of the borrow token to supply.
+     * @param  amount Amount of the borrow token to supply.
+     */
+    function supply(address user, address borrowToken, uint256 amount) external;
+
+    /**
+     * @notice Function to withdraw the borrow tokens.
+     * @param  borrowToken Address of the borrow token.
+     * @param  amount Amount of the borrow token to withdraw.
+     */
+    function withdrawBorrowToken(address borrowToken, uint256 amount) external;
+
+    /**
      * @notice Function to deposit collateral into this contract.
      * @param  token Address of the token to deposit.
      * @param  user Address of the user safe to deposit collateral for.
@@ -221,16 +235,6 @@ interface IL2DebtManager {
     ) external;
 
     /**
-     * @notice Function for users to repay the borrowed funds back to the debt manager using all the collateral user has.
-     * @param  user Address of the user safe for whom the payment is made.
-     * @param  repayDebtUsdcAmt Amount of debt to be repaid in USDC terms.
-     */
-    function repayWithCollateral(
-        address user,
-        uint256 repayDebtUsdcAmt
-    ) external;
-
-    /**
      * @notice Function to withdraw collateral from the Debt Manager.
      * @param  token Address of the collateral token to withdraw.
      * @param  amount Amount of the collateral token to withdraw.
@@ -239,7 +243,8 @@ interface IL2DebtManager {
 
     /**
      * @notice Function to close account with the Debt Manager.
-     * @notice Repays all the debt with user's collateral and withdraws the remaining collateral to the User Safe.
+     * @notice All the debt should already be repaid before this function can be called.
+     * @notice Withdraws the remaining user's collateral to the User Safe.
      */
     function closeAccount() external;
 
@@ -248,8 +253,14 @@ interface IL2DebtManager {
      * @notice Liquidate the user's debt by repaying the entire debt using the collateral.
      * @dev do we need to add penalty?
      * @param  user Address of the user to liquidate.
+     * @param  debtToken Debt token address to liquidate.
+     * @param  debtAmountInUsdc Debt amount in USDC to liquidate. This is to support partial liquidations.
      */
-    function liquidate(address user) external;
+    function liquidate(
+        address user,
+        address debtToken,
+        uint256 debtAmountInUsdc
+    ) external;
 
     /**
      * @notice Function to determine if a user is liquidatable.
@@ -309,6 +320,15 @@ interface IL2DebtManager {
      * @return Liquid stable amount.
      */
     function liquidStableAmount() external view returns (uint256);
+
+    /**
+     * @notice Function to get the withdrawable amount of borrow tokens for a supplier.
+     * @param  supplier Address of the supplier.
+     * @return Amount of borrow tokens the supplier can withdraw.
+     */
+    function withdrawableBorrowToken(
+        address supplier
+    ) external view returns (uint256);
 
     /**
      * @notice Function to convert collateral token amount to equivalent USDC amount.
@@ -409,12 +429,4 @@ interface IL2DebtManager {
             TokenData[] memory totalLiquidCollateralAmounts,
             uint256 totalLiquidStableAmounts
         );
-
-    /**
-     * @notice Function to withdraw funds from this contract to the etherFiCashMultiSig.
-     * @notice Can only be called by the DEFAULT ADMIN.
-     * @param  token Address of the token to withdraw.
-     * @param  amount Amount of the token to withdraw.
-     */
-    function adminWithdrawFunds(address token, uint256 amount) external;
 }

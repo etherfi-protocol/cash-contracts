@@ -173,46 +173,6 @@ contract IntegrationTest is IntegrationTestSetup {
         vm.stopPrank();
     }
 
-    function test_RepayUsingWeETH() public {
-        uint256 supplyAmt = 0.01 ether;
-        uint256 borrowAmt = 1e6;
-        uint256 repayAmt = 1e6;
-
-        deal(address(weETH), address(aliceSafe), supplyAmt);
-        deal(address(usdc), address(aliceSafe), repayAmt);
-
-        vm.startPrank(etherFiWallet);
-        aliceSafe.addCollateralAndBorrow(
-            address(weETH),
-            supplyAmt,
-            address(usdc),
-            borrowAmt
-        );
-
-        uint256 aliceSafeCollateralBefore = etherFiCashDebtManager
-            .getCollateralValueInUsdc(address(aliceSafe));
-        uint256 aliceSafeDebtBefore = etherFiCashDebtManager.borrowingOf(
-            address(aliceSafe)
-        );
-        assertEq(aliceSafeDebtBefore, borrowAmt);
-
-        aliceSafe.repay(address(weETH), repayAmt);
-
-        uint256 aliceSafeCollateralAfter = etherFiCashDebtManager
-            .getCollateralValueInUsdc(address(aliceSafe));
-
-        uint256 aliceSafeDebtAfter = etherFiCashDebtManager.borrowingOf(
-            address(aliceSafe)
-        );
-        assertEq(aliceSafeDebtAfter, 0);
-        assertEq(
-            aliceSafeCollateralBefore - aliceSafeCollateralAfter,
-            repayAmt
-        );
-
-        vm.stopPrank();
-    }
-
     function test_WithdrawCollateral() public {
         uint256 supplyAmt = 0.01 ether;
         uint256 borrowAmt = 1e6;
@@ -246,7 +206,7 @@ contract IntegrationTest is IntegrationTestSetup {
 
         deal(address(weETH), address(aliceSafe), supplyAmt);
 
-        vm.startPrank(etherFiWallet);
+        vm.prank(etherFiWallet);
         aliceSafe.addCollateralAndBorrow(
             address(weETH),
             supplyAmt,
@@ -254,26 +214,23 @@ contract IntegrationTest is IntegrationTestSetup {
             borrowAmt
         );
 
-        uint256 aliceSafeWeEthBalBefore = weETH.balanceOf(address(aliceSafe));
-        uint256 aliceSafeDebtBefore = etherFiCashDebtManager.borrowingOf(
-            address(aliceSafe)
+        vm.startPrank(alice);
+        deal(address(usdc), alice, borrowAmt);
+        usdc.approve(address(etherFiCashDebtManager), borrowAmt);
+        etherFiCashDebtManager.repay(
+            address(aliceSafe),
+            address(usdc),
+            borrowAmt
         );
+        vm.stopPrank();
 
+        uint256 aliceSafeWeEthBalBefore = weETH.balanceOf(address(aliceSafe));
+
+        vm.prank(etherFiWallet);
         aliceSafe.closeAccountWithDebtManager();
 
         uint256 aliceSafeWeEthBalAfter = weETH.balanceOf(address(aliceSafe));
-        uint256 aliceSafeDebtAfter = etherFiCashDebtManager.borrowingOf(
-            address(aliceSafe)
-        );
 
-        uint256 debtInWeETH = etherFiCashDebtManager
-            .convertUsdcToCollateralToken(address(weETH), borrowAmt);
-
-        assertEq(aliceSafeDebtBefore, borrowAmt);
-        assertEq(aliceSafeDebtAfter, 0);
-        assertEq(
-            aliceSafeWeEthBalAfter - aliceSafeWeEthBalBefore,
-            supplyAmt - debtInWeETH
-        );
+        assertEq(aliceSafeWeEthBalAfter - aliceSafeWeEthBalBefore, supplyAmt);
     }
 }
