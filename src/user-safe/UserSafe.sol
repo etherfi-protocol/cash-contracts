@@ -50,12 +50,14 @@ contract UserSafe is IUserSafe, Initializable, UserSafeRecovery {
     // Incoming collateral limit start timestamp
     uint256 private _incomingCollateralLimitStartTime;
 
+    /// @custom:oz-upgrades-unsafe-allow constructor
     constructor(
         address __cashDataProvider,
         address __etherFiRecoverySigner,
         address __thirdPartyRecoverySigner
     ) UserSafeRecovery(__etherFiRecoverySigner, __thirdPartyRecoverySigner) {
         _cashDataProvider = ICashDataProvider(__cashDataProvider);
+        _disableInitializers();
     }
 
     function initialize(

@@ -22,6 +22,12 @@ interface IL2DebtManager {
         address indexed token,
         uint256 amount
     );
+    event Supplied(
+        address indexed sender,
+        address indexed user,
+        address indexed token,
+        uint256 amount
+    );
     event Borrowed(
         address indexed user,
         address indexed token,
@@ -103,6 +109,8 @@ interface IL2DebtManager {
     error TotalCollateralAmountNotZero();
     error InsufficientLiquidityPleaseTryAgainLater();
     error LiquidAmountLesserThanRequired();
+    error ZeroTotalBorrowTokens();
+    error InsufficientBorrowShares();
 
     /**
      * @notice Function to fetch the address of the Cash Data Provider.

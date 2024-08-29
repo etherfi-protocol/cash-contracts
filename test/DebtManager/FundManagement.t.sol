@@ -31,24 +31,25 @@ contract DebtManagerFundManagementTest is DebtManagerSetup {
 
         vm.startPrank(owner);
         usdc.forceApprove(address(debtManager), principle);
-        debtManager.supply(address(usdc), principle);
+
+        vm.expectEmit(true, true, true, true);
+        emit IL2DebtManager.Supplied(owner, owner, address(usdc), principle);
+        debtManager.supply(owner, address(usdc), principle);
         vm.stopPrank();
 
-        assertApproxEqAbs(debtManager.withdrawableBorrowToken(address(usdc), owner), principle, principle);
+        assertEq(debtManager.withdrawableBorrowToken(owner), principle);
 
-        // TODO: replace the below with more realistic borrow-repay flow with >0 revenue.
-        address syko = makeAddr("syko");
-        uint256 earnings = 1 ether;
-        deal(address(usdc), syko, earnings);
-        vm.prank(syko);
-        usdc.safeTransfer(address(debtManager), earnings);
+        uint256 earnings = _borrowAndRepay(principle);
 
-        assertApproxEqAbs(debtManager.withdrawableBorrowToken(address(usdc), owner), principle, principle + earnings);
+        assertEq(
+            debtManager.withdrawableBorrowToken(owner),
+            principle + earnings
+        );
 
         vm.startPrank(owner);
         debtManager.withdrawBorrowToken(address(usdc), earnings + principle);
 
-        assertApproxEqAbs(debtManager.withdrawableBorrowToken(address(usdc), owner), 0, 0);
+        assertEq(debtManager.withdrawableBorrowToken(owner), 0);
     }
 
     function test_FundsManagementOnAave() public {
@@ -163,5 +164,45 @@ contract DebtManagerFundManagementTest is DebtManagerSetup {
         );
 
         vm.stopPrank();
+    }
+
+    function _borrowAndRepay(
+        uint256 collateralAmount
+    ) internal returns (uint256) {
+        deal(address(usdc), alice, 1 ether);
+        deal(address(weETH), alice, 1000 ether);
+
+        vm.startPrank(alice);
+        weETH.safeIncreaseAllowance(address(debtManager), collateralAmount);
+        debtManager.depositCollateral(address(weETH), alice, collateralAmount);
+
+        uint256 borrowAmt = debtManager.remainingBorrowingCapacityInUSDC(
+            alice
+        ) / 2;
+        debtManager.borrow(address(usdc), borrowAmt);
+
+        // 1 day after, there should be some interest accumulated
+        vm.warp(block.timestamp + 24 * 60 * 60);
+        uint256 repayAmt = debtManager.borrowingOf(alice);
+
+        usdc.forceApprove(address(debtManager), repayAmt);
+        debtManager.repay(alice, address(usdc), repayAmt);
+        vm.stopPrank();
+
+        return repayAmt - borrowAmt;
+    }
+
+    function _convertBorrowToShare(
+        uint256 amount
+    ) internal view returns (uint256) {
+        return
+            (amount * debtManager.ONE_SHARE()) / debtManager.ONE_BORROW_TOKEN();
+    }
+
+    function _convertShareToBorrow(
+        uint256 amount
+    ) internal view returns (uint256) {
+        return
+            (amount * debtManager.ONE_BORROW_TOKEN()) / debtManager.ONE_SHARE();
     }
 }

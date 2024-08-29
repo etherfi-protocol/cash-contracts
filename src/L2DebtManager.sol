@@ -58,40 +58,93 @@ contract L2DebtManager is
     // Snapshot of user's interests already paid
     mapping(address user => uint256 interestSnapshot)
         private _usersDebtInterestIndexSnapshots;
-    
-    mapping(address borrowToken => mapping(address supplier => uint256 shares)) public sharesOfBorrowTokens;
-    mapping(address borrowToken => uint256 totalShares) public totalSharesOfBorrowTokens;
 
-    function supply(address borrowToken, uint256 amount) external {
-        uint256 totalBorrowTokenAmount = totalBorrowingAmount() + IERC20(borrowToken).balanceOf(address(this));
-        uint256 shares = (totalSharesOfBorrowTokens[borrowToken] == 0)
-            ? amount
-            : (amount * totalSharesOfBorrowTokens[borrowToken]) / totalBorrowTokenAmount;
-        
-        sharesOfBorrowTokens[borrowToken][msg.sender] += shares;
-        totalSharesOfBorrowTokens[borrowToken] += shares;
+    // Shares have 18 decimals
+    mapping(address supplier => uint256 shares) public sharesOfBorrowTokens;
+    uint256 public totalSharesOfBorrowTokens;
 
+    uint256 public constant ONE_SHARE = 1 ether;
+    uint256 public constant ONE_BORROW_TOKEN = 1e6;
+
+    function supply(
+        address user,
+        address borrowToken,
+        uint256 amount
+    ) external {
+        uint256 shares = _convertBorrowToShare(
+            (totalSharesOfBorrowTokens == 0)
+                ? amount
+                : (amount * totalSharesOfBorrowTokens) /
+                    _getTotalBorrowTokenAmount()
+        );
+
+        // Moving this before state update to prevent reentrancy
         IERC20(borrowToken).safeTransferFrom(msg.sender, address(this), amount);
+
+        sharesOfBorrowTokens[user] += shares;
+        totalSharesOfBorrowTokens += shares;
+
+        emit Supplied(msg.sender, user, borrowToken, amount);
     }
 
     function withdrawBorrowToken(address borrowToken, uint256 amount) external {
-        uint256 totalBorrowTokenAmount = totalBorrowingAmount() + IERC20(borrowToken).balanceOf(address(this));
-        uint256 shares = (amount * totalSharesOfBorrowTokens[borrowToken]) / totalBorrowTokenAmount;
-        
-        sharesOfBorrowTokens[borrowToken][msg.sender] -= shares;
-        totalSharesOfBorrowTokens[borrowToken] -= shares;
+        uint256 totalBorrowTokenAmt = _getTotalBorrowTokenAmount();
+        if (totalBorrowTokenAmt == 0) revert ZeroTotalBorrowTokens();
+
+        uint256 shares = (amount * totalSharesOfBorrowTokens) /
+            totalBorrowTokenAmt;
+
+        if (sharesOfBorrowTokens[msg.sender] < shares)
+            revert InsufficientBorrowShares();
+
+        sharesOfBorrowTokens[msg.sender] -= shares;
+        totalSharesOfBorrowTokens -= shares;
 
         IERC20(borrowToken).safeTransfer(msg.sender, amount);
     }
 
-    function withdrawableBorrowToken(address borrowToken, address supplier) external view returns (uint256) {
-        if (totalSharesOfBorrowTokens[borrowToken] == 0) return 0;
-        uint256 totalBorrowTokenAmount = totalBorrowingAmount() + IERC20(borrowToken).balanceOf(address(this));
-        return (sharesOfBorrowTokens[borrowToken][supplier] * totalBorrowTokenAmount) / totalSharesOfBorrowTokens[borrowToken];
+    function withdrawableBorrowToken(
+        address supplier
+    ) external view returns (uint256) {
+        if (totalSharesOfBorrowTokens == 0) return 0;
+
+        return
+            (sharesOfBorrowTokens[supplier] * _getTotalBorrowTokenAmount()) /
+            totalSharesOfBorrowTokens;
     }
 
+    function _convertBorrowToShare(
+        uint256 amount
+    ) internal pure returns (uint256) {
+        return (amount * ONE_SHARE) / ONE_BORROW_TOKEN;
+    }
+
+    function _convertShareToBorrow(
+        uint256 amount
+    ) internal pure returns (uint256) {
+        return (amount * ONE_BORROW_TOKEN) / ONE_SHARE;
+    }
+
+    function _getTotalBorrowTokenAmount() internal view returns (uint256) {
+        uint256 totalAmount = totalBorrowingAmount();
+        uint256 len = _supportedBorrowTokens.length;
+        for (uint256 i = 0; i < len; ) {
+            totalAmount += _convertToSixDecimals(
+                _supportedBorrowTokens[i],
+                IERC20(_supportedBorrowTokens[i]).balanceOf(address(this))
+            );
+            unchecked {
+                ++i;
+            }
+        }
+
+        return totalAmount;
+    }
+
+    /// @custom:oz-upgrades-unsafe-allow constructor
     constructor(address __cashDataProvider) {
         _cashDataProvider = ICashDataProvider(__cashDataProvider);
+        _disableInitializers();
     }
 
     function initialize(
