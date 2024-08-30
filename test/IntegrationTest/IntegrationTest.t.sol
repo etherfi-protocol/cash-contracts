@@ -71,7 +71,8 @@ contract IntegrationTest is IntegrationTestSetup {
         assertEq(aliceSafeCollateralBefore, 0);
 
         uint256 aliceSafeDebtBefore = etherFiCashDebtManager.borrowingOf(
-            address(aliceSafe)
+            address(aliceSafe),
+            address(usdc)
         );
         assertEq(aliceSafeDebtBefore, 0);
 
@@ -106,7 +107,8 @@ contract IntegrationTest is IntegrationTestSetup {
         );
 
         uint256 aliceSafeDebtAfter = etherFiCashDebtManager.borrowingOf(
-            address(aliceSafe)
+            address(aliceSafe),
+            address(usdc)
         );
         assertEq(aliceSafeDebtAfter, borrowAmt);
 
@@ -152,7 +154,8 @@ contract IntegrationTest is IntegrationTestSetup {
             address(etherFiCashDebtManager)
         );
         uint256 aliceSafeDebtBefore = etherFiCashDebtManager.borrowingOf(
-            address(aliceSafe)
+            address(aliceSafe),
+            address(usdc)
         );
         assertEq(aliceSafeDebtBefore, borrowAmt);
 
@@ -164,7 +167,8 @@ contract IntegrationTest is IntegrationTestSetup {
         );
 
         uint256 aliceSafeDebtAfter = etherFiCashDebtManager.borrowingOf(
-            address(aliceSafe)
+            address(aliceSafe),
+            address(usdc)
         );
         assertEq(aliceSafeDebtAfter, 0);
         assertEq(aliceSafeUsdcBalBefore - aliceSafeUsdcBalAfter, repayAmt);

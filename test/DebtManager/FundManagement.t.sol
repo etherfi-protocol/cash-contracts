@@ -37,19 +37,22 @@ contract DebtManagerFundManagementTest is DebtManagerSetup {
         debtManager.supply(owner, address(usdc), principle);
         vm.stopPrank();
 
-        assertEq(debtManager.withdrawableBorrowToken(owner), principle);
+        assertEq(
+            debtManager.withdrawableBorrowToken(owner, address(usdc)),
+            principle
+        );
 
         uint256 earnings = _borrowAndRepay(principle);
 
         assertEq(
-            debtManager.withdrawableBorrowToken(owner),
+            debtManager.withdrawableBorrowToken(owner, address(usdc)),
             principle + earnings
         );
 
         vm.startPrank(owner);
         debtManager.withdrawBorrowToken(address(usdc), earnings + principle);
 
-        assertEq(debtManager.withdrawableBorrowToken(owner), 0);
+        assertEq(debtManager.withdrawableBorrowToken(owner, address(usdc)), 0);
     }
 
     function test_FundsManagementOnAave() public {
@@ -183,7 +186,7 @@ contract DebtManagerFundManagementTest is DebtManagerSetup {
 
         // 1 day after, there should be some interest accumulated
         vm.warp(block.timestamp + 24 * 60 * 60);
-        uint256 repayAmt = debtManager.borrowingOf(alice);
+        uint256 repayAmt = debtManager.borrowingOf(alice, address(usdc));
 
         usdc.forceApprove(address(debtManager), repayAmt);
         debtManager.repay(alice, address(usdc), repayAmt);

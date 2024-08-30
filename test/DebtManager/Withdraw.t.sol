@@ -76,7 +76,7 @@ contract DebtManagerWithdrawTest is DebtManagerSetup {
         uint256 unhealthyWithdrawAmt = (collateralAmount * 2) / 3;
 
         vm.prank(alice);
-        vm.expectRevert(IL2DebtManager.InsufficientCollateral.selector);
+        vm.expectRevert(IL2DebtManager.AccountUnhealthy.selector);
         debtManager.withdrawCollateral(address(weETH), unhealthyWithdrawAmt);
     }
 }

@@ -9,6 +9,9 @@ import {IERC20Errors} from "@openzeppelin/contracts/interfaces/draft-IERC6093.so
 contract DebtManagerCollateralTest is DebtManagerSetup {
     using SafeERC20 for IERC20;
 
+    uint256 newLtv = 80e18;
+    uint256 newLiquidationThreshold = 85e18;
+
     function setUp() public override {
         super.setUp();
 
@@ -20,7 +23,17 @@ contract DebtManagerCollateralTest is DebtManagerSetup {
         address newCollateralToken = address(usdc);
 
         vm.startPrank(owner);
-        debtManager.supportCollateralToken(newCollateralToken);
+        debtManager.supportCollateralToken(
+            newCollateralToken,
+            newLtv,
+            newLiquidationThreshold
+        );
+
+        (uint256 _ltv, uint256 _liquidationThreshold) = debtManager
+            .collateralTokenConfig(newCollateralToken);
+
+        assertEq(_ltv, newLtv);
+        assertEq(_liquidationThreshold, newLiquidationThreshold);
 
         assertEq(debtManager.getCollateralTokens().length, 2);
         assertEq(debtManager.getCollateralTokens()[0], address(weETH));
@@ -29,6 +42,10 @@ contract DebtManagerCollateralTest is DebtManagerSetup {
         debtManager.unsupportCollateralToken(address(weETH));
         assertEq(debtManager.getCollateralTokens().length, 1);
         assertEq(debtManager.getCollateralTokens()[0], newCollateralToken);
+        (uint256 _ltvWeETH, uint256 _liquidationThresholdWeETH) = debtManager
+            .collateralTokenConfig(address(weETH));
+        assertEq(_ltvWeETH, 0);
+        assertEq(_liquidationThresholdWeETH, 0);
 
         vm.stopPrank();
     }
@@ -40,7 +57,7 @@ contract DebtManagerCollateralTest is DebtManagerSetup {
         vm.expectRevert(
             buildAccessControlRevertData(alice, debtManager.ADMIN_ROLE())
         );
-        debtManager.supportCollateralToken(newCollateralToken);
+        debtManager.supportCollateralToken(newCollateralToken, 1, 1);
         vm.expectRevert(
             buildAccessControlRevertData(alice, debtManager.ADMIN_ROLE())
         );
@@ -51,14 +68,14 @@ contract DebtManagerCollateralTest is DebtManagerSetup {
     function test_CannotAddCollateralTokenIfAlreadySupported() public {
         vm.startPrank(owner);
         vm.expectRevert(IL2DebtManager.AlreadyCollateralToken.selector);
-        debtManager.supportCollateralToken(address(weETH));
+        debtManager.supportCollateralToken(address(weETH), 1, 1);
         vm.stopPrank();
     }
 
     function test_CannotAddNullAddressAsCollateralToken() public {
         vm.startPrank(owner);
         vm.expectRevert(IL2DebtManager.InvalidValue.selector);
-        debtManager.supportCollateralToken(address(0));
+        debtManager.supportCollateralToken(address(0), 1, 1);
         vm.stopPrank();
     }
 

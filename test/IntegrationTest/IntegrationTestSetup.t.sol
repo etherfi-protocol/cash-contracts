@@ -5,7 +5,7 @@ import {Test, console, stdError} from "forge-std/Test.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {UserSafeFactory} from "../../src/user-safe/UserSafeFactory.sol";
 import {UserSafe} from "../../src//user-safe/UserSafe.sol";
-import {L2DebtManager} from "../../src/L2DebtManager.sol";
+import {IL2DebtManager, L2DebtManager} from "../../src/L2DebtManager.sol";
 import {UserSafeV2Mock} from "../../src/mocks/UserSafeV2Mock.sol";
 import {Swapper1InchV6} from "../../src/utils/Swapper1InchV6.sol";
 import {PriceProvider} from "../../src/oracle/PriceProvider.sol";
@@ -71,6 +71,7 @@ contract IntegrationTestSetup is Utils {
 
     L2DebtManager etherFiCashDebtManager;
 
+    uint256 ltv = 50e18; //50%
     uint256 liquidationThreshold = 60e18; // 60%
     uint256 borrowApy = 1000; // 10%
 
@@ -135,6 +136,17 @@ contract IntegrationTestSetup is Utils {
         address[] memory borrowTokens = new address[](1);
         borrowTokens[0] = address(usdc);
 
+        IL2DebtManager.CollateralTokenConfigData[]
+            memory collateralTokenConfig = new IL2DebtManager.CollateralTokenConfigData[](
+                1
+            );
+        collateralTokenConfig[0] = IL2DebtManager.CollateralTokenConfigData({
+            ltv: ltv,
+            liquidationThreshold: liquidationThreshold
+        });
+        uint256[] memory borrowApys = new uint256[](1);
+        borrowApys[0] = borrowApy;
+
         address debtManagerImpl = address(
             new L2DebtManager(address(cashDataProvider))
         );
@@ -143,13 +155,13 @@ contract IntegrationTestSetup is Utils {
             new UUPSProxy(
                 debtManagerImpl,
                 abi.encodeWithSelector(
-                    // initialize(address,uint256,uint256,address[],address[])
-                    0x1df44494,
+                    // initialize(address,address[],(uint256,uint256)[],address[],uint256[])
+                    0xa9e49bef,
                     owner,
-                    liquidationThreshold,
-                    borrowApy,
                     collateralTokens,
-                    borrowTokens
+                    collateralTokenConfig,
+                    borrowTokens,
+                    borrowApys
                 )
             )
         );

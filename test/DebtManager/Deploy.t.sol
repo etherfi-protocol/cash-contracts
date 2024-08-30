@@ -23,8 +23,15 @@ contract DebtManagerDeployTest is DebtManagerSetup {
             debtManager.hasRole(debtManager.ADMIN_ROLE(), notOwner),
             false
         );
-        assertEq(debtManager.liquidationThreshold(), liquidationThreshold);
-        assertEq(debtManager.borrowApyPerSecond(), borrowApyPerSecond);
+
+        (uint256 _ltv, uint256 _liquidationThreshold) = debtManager
+            .collateralTokenConfig(address(weETH));
+        assertEq(_ltv, ltv);
+        assertEq(_liquidationThreshold, liquidationThreshold);
+        assertEq(
+            debtManager.borrowApyPerSecond(address(usdc)),
+            borrowApyPerSecond
+        );
 
         assertEq(debtManager.getCollateralTokens().length, 1);
         assertEq(debtManager.getCollateralTokens()[0], address(weETH));

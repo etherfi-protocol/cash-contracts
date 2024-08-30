@@ -631,10 +631,6 @@ contract UserSafe is IUserSafe, Initializable, UserSafeRecovery {
             revert ExceededCollateralLimit();
     }
 
-    function _incrementNonce() private {
-        _nonce++;
-    }
-
     function _addCollateral(
         address debtManager,
         address token,
@@ -674,9 +670,7 @@ contract UserSafe is IUserSafe, Initializable, UserSafeRecovery {
         uint256 repayDebtUsdcAmt
     ) internal {
         // Repay token can either be borrow token or collateral token
-        if (_isBorrowToken(token))
-            IERC20(token).forceApprove(debtManager, repayDebtUsdcAmt);
-        else if (!_isCollateralToken(token)) revert UnsupportedToken();
+        IERC20(token).forceApprove(debtManager, repayDebtUsdcAmt);
 
         IL2DebtManager(debtManager).repay(
             address(this),
@@ -769,13 +763,8 @@ contract UserSafe is IUserSafe, Initializable, UserSafeRecovery {
         _;
     }
 
-    modifier onlyOwner() {
-        _ownerBytes._onlyOwner();
-        _;
-    }
-
     modifier incrementNonce() {
-        _incrementNonce();
+        _nonce++;
         _;
     }
 }

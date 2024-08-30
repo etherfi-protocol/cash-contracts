@@ -40,9 +40,12 @@ contract DebtManagerLiquidateTest is DebtManagerSetup {
     function test_SetLiquidationThreshold() public {
         uint256 newThreshold = 70e18;
         vm.prank(owner);
-        debtManager.setLiquidationThreshold(newThreshold);
+        debtManager.setLiquidationThreshold(address(weETH), newThreshold);
+        (, uint256 _liquidationThreshold) = debtManager.collateralTokenConfig(
+            address(weETH)
+        );
 
-        assertEq(debtManager.liquidationThreshold(), newThreshold);
+        assertEq(_liquidationThreshold, newThreshold);
     }
 
     function test_OnlyAdminCanSetLiquidationThreshold() public {
@@ -51,7 +54,7 @@ contract DebtManagerLiquidateTest is DebtManagerSetup {
         vm.expectRevert(
             buildAccessControlRevertData(notOwner, debtManager.ADMIN_ROLE())
         );
-        debtManager.setLiquidationThreshold(newThreshold);
+        debtManager.setLiquidationThreshold(address(weETH), newThreshold);
 
         vm.stopPrank();
     }
@@ -61,7 +64,7 @@ contract DebtManagerLiquidateTest is DebtManagerSetup {
 
         uint256 liquidatorWeEthBalBefore = weETH.balanceOf(owner);
 
-        debtManager.setLiquidationThreshold(10e18);
+        debtManager.setLiquidationThreshold(address(weETH), 10e18);
         assertEq(debtManager.liquidatable(alice), true);
 
         usdc.forceApprove(address(debtManager), borrowAmt);
@@ -72,7 +75,7 @@ contract DebtManagerLiquidateTest is DebtManagerSetup {
         uint256 aliceCollateralAfter = debtManager.getCollateralValueInUsdc(
             alice
         );
-        uint256 aliceDebtAfter = debtManager.borrowingOf(alice);
+        uint256 aliceDebtAfter = debtManager.borrowingOf(alice, address(usdc));
         uint256 liquidatorWeEthBalAfter = weETH.balanceOf(owner);
 
         assertEq(
@@ -89,7 +92,7 @@ contract DebtManagerLiquidateTest is DebtManagerSetup {
     function test_PartialLiquidate() public {
         vm.startPrank(owner);
 
-        debtManager.setLiquidationThreshold(10e18);
+        debtManager.setLiquidationThreshold(address(weETH), 10e18);
         assertEq(debtManager.liquidatable(alice), true);
 
         // since we will be setting the liquidation threshold to 10%
@@ -105,7 +108,7 @@ contract DebtManagerLiquidateTest is DebtManagerSetup {
         uint256 aliceCollateralAfter = debtManager.getCollateralValueInUsdc(
             alice
         );
-        uint256 aliceDebtAfter = debtManager.borrowingOf(alice);
+        uint256 aliceDebtAfter = debtManager.borrowingOf(alice, address(usdc));
         uint256 liquidatorWeEthBalAfter = weETH.balanceOf(owner);
 
         assertApproxEqAbs(

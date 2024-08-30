@@ -40,7 +40,7 @@ contract DebtManagerRepayTest is DebtManagerSetup {
     }
 
     function test_RepayWithUsdc() public {
-        uint256 debtAmtBefore = debtManager.borrowingOf(alice);
+        uint256 debtAmtBefore = debtManager.borrowingOf(alice, address(usdc));
         assertGt(debtAmtBefore, 0);
 
         uint256 repayAmt = debtAmtBefore;
@@ -50,7 +50,7 @@ contract DebtManagerRepayTest is DebtManagerSetup {
         debtManager.repay(alice, address(usdc), repayAmt);
         vm.stopPrank();
 
-        uint256 debtAmtAfter = debtManager.borrowingOf(alice);
+        uint256 debtAmtAfter = debtManager.borrowingOf(alice, address(usdc));
         assertEq(debtAmtBefore - debtAmtAfter, repayAmt);
     }
 
@@ -65,7 +65,7 @@ contract DebtManagerRepayTest is DebtManagerSetup {
         uint256 debtAmtBefore = borrowAmt + expectedInterest;
         console.log(debtAmtBefore);
 
-        assertEq(debtManager.borrowingOf(alice), debtAmtBefore);
+        assertEq(debtManager.borrowingOf(alice, address(usdc)), debtAmtBefore);
         uint256 repayAmt = debtAmtBefore;
 
         vm.startPrank(alice);
@@ -73,7 +73,7 @@ contract DebtManagerRepayTest is DebtManagerSetup {
         debtManager.repay(alice, address(usdc), repayAmt);
         vm.stopPrank();
 
-        uint256 debtAmtAfter = debtManager.borrowingOf(alice);
+        uint256 debtAmtAfter = debtManager.borrowingOf(alice, address(usdc));
         console.log(debtAmtAfter);
         assertEq(debtAmtBefore - debtAmtAfter, repayAmt);
     }
@@ -118,7 +118,7 @@ contract DebtManagerRepayTest is DebtManagerSetup {
     }
 
     function test_CanRepayForOtherUser() public {
-        uint256 debtAmtBefore = debtManager.borrowingOf(alice);
+        uint256 debtAmtBefore = debtManager.borrowingOf(alice, address(usdc));
         assertGt(debtAmtBefore, 0);
 
         uint256 repayAmt = debtAmtBefore;
@@ -129,7 +129,7 @@ contract DebtManagerRepayTest is DebtManagerSetup {
         debtManager.repay(alice, address(usdc), repayAmt);
         vm.stopPrank();
 
-        uint256 debtAmtAfter = debtManager.borrowingOf(alice);
+        uint256 debtAmtAfter = debtManager.borrowingOf(alice, address(usdc));
         assertEq(debtAmtBefore - debtAmtAfter, repayAmt);
     }
 }
