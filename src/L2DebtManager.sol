@@ -59,7 +59,6 @@ contract L2DebtManager is
         private _sharesOfBorrowTokens;
 
     uint256 public constant ONE_SHARE = 1 ether;
-    uint256 public constant ONE_BORROW_TOKEN = 1e6;
 
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor(address __cashDataProvider) {
@@ -85,14 +84,12 @@ contract L2DebtManager is
 
         for (uint256 i = 0; i < len; ) {
             _supportCollateralToken(__supportedCollateralTokens[i]);
-            _setLtv(
+            _setLtvAndLiquidationThreshold(
                 __supportedCollateralTokens[i],
-                __collateralTokenConfigs[i].ltv
-            );
-            _setLiquidationThreshold(
-                __supportedCollateralTokens[i],
+                __collateralTokenConfigs[i].ltv,
                 __collateralTokenConfigs[i].liquidationThreshold
             );
+
             unchecked {
                 ++i;
             }
@@ -610,11 +607,10 @@ contract L2DebtManager is
     function supportCollateralToken(
         address token,
         uint256 ltv,
-        uint256 liqudiationThreshold
+        uint256 liquidationThreshold
     ) external onlyRole(ADMIN_ROLE) {
         _supportCollateralToken(token);
-        _setLtv(token, ltv);
-        _setLiquidationThreshold(token, liqudiationThreshold);
+        _setLtvAndLiquidationThreshold(token, ltv, liquidationThreshold);
     }
 
     /**
@@ -645,8 +641,7 @@ contract L2DebtManager is
         _supportedCollateralTokens.pop();
         delete _collateralTokenIndexPlusOne[token];
 
-        _setLtv(token, 0);
-        _setLiquidationThreshold(token, 0);
+        _setLtvAndLiquidationThreshold(token, 0, 0);
 
         emit CollateralTokenRemoved(token);
     }
@@ -694,21 +689,16 @@ contract L2DebtManager is
     /**
      * @inheritdoc IL2DebtManager
      */
-    function setLiquidationThreshold(
+    function setLtvAndLiquidationThreshold(
         address __collateralToken,
+        uint256 __ltv,
         uint256 __liquidationThreshold
     ) external onlyRole(ADMIN_ROLE) {
-        _setLiquidationThreshold(__collateralToken, __liquidationThreshold);
-    }
-
-    /**
-     * @inheritdoc IL2DebtManager
-     */
-    function setLtv(
-        address __collateralToken,
-        uint256 __ltv
-    ) external onlyRole(ADMIN_ROLE) {
-        _setLtv(__collateralToken, __ltv);
+        _setLtvAndLiquidationThreshold(
+            __collateralToken,
+            __ltv,
+            __liquidationThreshold
+        );
     }
 
     /**
@@ -730,6 +720,7 @@ contract L2DebtManager is
         uint256 amount
     ) external {
         uint256 shares = _convertBorrowToShare(
+            borrowToken,
             (_borrowTokenConfig[borrowToken].totalSharesOfBorrowTokens == 0)
                 ? amount
                 : (amount *
@@ -959,20 +950,21 @@ contract L2DebtManager is
         AaveLib.aaveOperation(aaveV3Adapter, marketOperationType, data);
     }
 
-    function _setLtv(address collateralToken, uint256 ltv) internal {
-        emit LtvSet(collateralToken, _ltv[collateralToken], ltv);
-        _ltv[collateralToken] = ltv;
-    }
-
-    function _setLiquidationThreshold(
+    function _setLtvAndLiquidationThreshold(
         address collateralToken,
+        uint256 ltv,
         uint256 liquidationThreshold
     ) internal {
+        if (ltv > liquidationThreshold)
+            revert LtvCannotBeGreaterThanLiquidationThreshold();
+        emit LtvSet(collateralToken, _ltv[collateralToken], ltv);
         emit LiquidationThresholdSet(
             collateralToken,
             _liquidationThreshold[collateralToken],
             liquidationThreshold
         );
+
+        _ltv[collateralToken] = ltv;
         _liquidationThreshold[collateralToken] = liquidationThreshold;
     }
 
@@ -1192,15 +1184,10 @@ contract L2DebtManager is
     }
 
     function _convertBorrowToShare(
+        address borrowToken,
         uint256 amount
-    ) internal pure returns (uint256) {
-        return (amount * ONE_SHARE) / ONE_BORROW_TOKEN;
-    }
-
-    function _convertShareToBorrow(
-        uint256 amount
-    ) internal pure returns (uint256) {
-        return (amount * ONE_BORROW_TOKEN) / ONE_SHARE;
+    ) internal view returns (uint256) {
+        return (amount * ONE_SHARE) / 10 ** _getDecimals(borrowToken);
     }
 
     function _authorizeUpgrade(

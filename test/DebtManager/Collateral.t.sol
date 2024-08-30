@@ -19,6 +19,15 @@ contract DebtManagerCollateralTest is DebtManagerSetup {
         deal(address(weETH), alice, 1000 ether);
     }
 
+    function test_LtvCannotBeGreaterThanLiquidationThreshold() public {
+        vm.startPrank(owner);
+        vm.expectRevert(
+            IL2DebtManager.LtvCannotBeGreaterThanLiquidationThreshold.selector
+        );
+        debtManager.setLtvAndLiquidationThreshold(address(weETH), 90e18, 80e18);
+        vm.stopPrank();
+    }
+
     function test_CanAddOrRemoveSupportedCollateralTokens() public {
         address newCollateralToken = address(usdc);
 

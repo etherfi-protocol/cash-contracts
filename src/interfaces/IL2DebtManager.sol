@@ -146,6 +146,7 @@ interface IL2DebtManager {
     error BorrowTokenStillInTheSystem();
     error RepaymentAmountIsZero();
     error DebtAmountInUsdcIsZero();
+    error LtvCannotBeGreaterThanLiquidationThreshold();
 
     /**
      * @notice Function to fetch the address of the Cash Data Provider.
@@ -216,21 +217,16 @@ interface IL2DebtManager {
     function setBorrowApy(address token, uint256 apy) external;
 
     /**
-     * @notice Function to set the liquidation threshold for a collateral token.
-     * @param __collateralToken Address of the collateral token.
-     * @param __liquidationThreshold Liquidation threshold with 18 decimals.
-     */
-    function setLiquidationThreshold(
-        address __collateralToken,
-        uint256 __liquidationThreshold
-    ) external;
-
-    /**
      * @notice Function to set the LTV for a collateral token.
      * @param __collateralToken Address of the collateral token.
      * @param __ltv LTV with 18 decimals.
+     * @param __liquidationThreshold Liquidation threshold with 18 decimals.
      */
-    function setLtv(address __collateralToken, uint256 __ltv) external;
+    function setLtvAndLiquidationThreshold(
+        address __collateralToken,
+        uint256 __ltv,
+        uint256 __liquidationThreshold
+    ) external;
 
     /**
      * @notice Function to remove support for a collateral token.

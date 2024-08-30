@@ -5,6 +5,7 @@ import {DebtManagerSetup} from "./DebtManagerSetup.t.sol";
 import {IL2DebtManager} from "../../src/interfaces/IL2DebtManager.sol";
 import {AaveLib} from "../../src/libraries/AaveLib.sol";
 import {SafeERC20, IERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import {IERC20Errors} from "@openzeppelin/contracts/interfaces/draft-IERC6093.sol";
 import {stdStorage, StdStorage} from "forge-std/Test.sol";
 import {IAccessControl} from "@openzeppelin/contracts/access/IAccessControl.sol";
@@ -196,16 +197,20 @@ contract DebtManagerFundManagementTest is DebtManagerSetup {
     }
 
     function _convertBorrowToShare(
+        address borrowToken,
         uint256 amount
     ) internal view returns (uint256) {
         return
-            (amount * debtManager.ONE_SHARE()) / debtManager.ONE_BORROW_TOKEN();
+            (amount * debtManager.ONE_SHARE()) /
+            IERC20Metadata(borrowToken).decimals();
     }
 
     function _convertShareToBorrow(
+        address borrowToken,
         uint256 amount
     ) internal view returns (uint256) {
         return
-            (amount * debtManager.ONE_BORROW_TOKEN()) / debtManager.ONE_SHARE();
+            (amount * IERC20Metadata(borrowToken).decimals()) /
+            debtManager.ONE_SHARE();
     }
 }

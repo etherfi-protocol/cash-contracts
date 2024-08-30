@@ -40,7 +40,11 @@ contract DebtManagerLiquidateTest is DebtManagerSetup {
     function test_SetLiquidationThreshold() public {
         uint256 newThreshold = 70e18;
         vm.prank(owner);
-        debtManager.setLiquidationThreshold(address(weETH), newThreshold);
+        debtManager.setLtvAndLiquidationThreshold(
+            address(weETH),
+            ltv,
+            newThreshold
+        );
         (, uint256 _liquidationThreshold) = debtManager.collateralTokenConfig(
             address(weETH)
         );
@@ -54,7 +58,11 @@ contract DebtManagerLiquidateTest is DebtManagerSetup {
         vm.expectRevert(
             buildAccessControlRevertData(notOwner, debtManager.ADMIN_ROLE())
         );
-        debtManager.setLiquidationThreshold(address(weETH), newThreshold);
+        debtManager.setLtvAndLiquidationThreshold(
+            address(weETH),
+            ltv,
+            newThreshold
+        );
 
         vm.stopPrank();
     }
@@ -64,7 +72,7 @@ contract DebtManagerLiquidateTest is DebtManagerSetup {
 
         uint256 liquidatorWeEthBalBefore = weETH.balanceOf(owner);
 
-        debtManager.setLiquidationThreshold(address(weETH), 10e18);
+        debtManager.setLtvAndLiquidationThreshold(address(weETH), 5e18, 10e18);
         assertEq(debtManager.liquidatable(alice), true);
 
         usdc.forceApprove(address(debtManager), borrowAmt);
@@ -92,7 +100,7 @@ contract DebtManagerLiquidateTest is DebtManagerSetup {
     function test_PartialLiquidate() public {
         vm.startPrank(owner);
 
-        debtManager.setLiquidationThreshold(address(weETH), 10e18);
+        debtManager.setLtvAndLiquidationThreshold(address(weETH), 5e18, 10e18);
         assertEq(debtManager.liquidatable(alice), true);
 
         // since we will be setting the liquidation threshold to 10%
