@@ -22,12 +22,6 @@ contract CashDataProvider is
     address private _etherFiWallet;
     // Address of the Cash MultiSig
     address private _etherFiCashMultiSig;
-    // Address of the Cash Debt Manager
-    address private _etherFiCashDebtManager;
-    // Address of the USDC token
-    address private _usdc;
-    // Address of the weETH token
-    address private _weETH;
     // Address of the price provider
     address private _priceProvider;
     // Address of the swapper
@@ -35,33 +29,34 @@ contract CashDataProvider is
     // Address of aave adapter
     address private _aaveAdapter;
 
+    address[] private _collateralTokens;
+    address[] private _borrowTokens;
+    mapping(address token => uint256 index)
+        private _collateralTokenIndexPlusOne;
+    mapping(address token => uint256 index) private _borrowTokenIndexPlusOne;
+
     function intiailize(
         address __owner,
         uint64 __delay,
         address __etherFiWallet,
         address __etherFiCashMultiSig,
-        address __etherFiCashDebtManager,
-        address __usdc,
-        address __weETH,
         address __priceProvider,
         address __swapper,
-        address __aaveAdapter
+        address __aaveAdapter,
+        address[] memory __collateralTokens,
+        address[] memory __borrowTokens
     ) external initializer {
         __Ownable_init(__owner);
         _delay = __delay;
         _etherFiWallet = __etherFiWallet;
         _etherFiCashMultiSig = __etherFiCashMultiSig;
-        _etherFiCashDebtManager = __etherFiCashDebtManager;
-        _usdc = __usdc;
-        _weETH = __weETH;
         _priceProvider = __priceProvider;
         _swapper = __swapper;
         _aaveAdapter = __aaveAdapter;
-    }
 
-    function _authorizeUpgrade(
-        address newImplementation
-    ) internal override onlyOwner {}
+        supportCollateralToken(__collateralTokens);
+        supportBorrowToken(__borrowTokens);
+    }
 
     /**
      * @inheritdoc ICashDataProvider
@@ -87,22 +82,15 @@ contract CashDataProvider is
     /**
      * @inheritdoc ICashDataProvider
      */
-    function etherFiCashDebtManager() external view returns (address) {
-        return _etherFiCashDebtManager;
+    function collateralTokens() external view returns (address[] memory) {
+        return _collateralTokens;
     }
 
     /**
      * @inheritdoc ICashDataProvider
      */
-    function usdc() external view returns (address) {
-        return _usdc;
-    }
-
-    /**
-     * @inheritdoc ICashDataProvider
-     */
-    function weETH() external view returns (address) {
-        return _weETH;
+    function borrowTokens() external view returns (address[] memory) {
+        return _borrowTokens;
     }
 
     /**
@@ -124,6 +112,40 @@ contract CashDataProvider is
      */
     function aaveAdapter() external view returns (address) {
         return _aaveAdapter;
+    }
+
+    /**
+     * @inheritdoc ICashDataProvider
+     */
+    function isCollateralToken(address token) external view returns (bool) {
+        return _collateralTokenIndexPlusOne[token] != 0;
+    }
+
+    /**
+     * @inheritdoc ICashDataProvider
+     */
+    function isBorrowToken(address token) public view returns (bool) {
+        return _borrowTokenIndexPlusOne[token] != 0;
+    }
+
+    function supportCollateralToken(address[] memory tokens) public onlyOwner {
+        uint256 len = tokens.length;
+        for (uint256 i = 0; i < len; ) {
+            _supportCollateralToken(tokens[i]);
+            unchecked {
+                ++i;
+            }
+        }
+    }
+
+    function supportBorrowToken(address[] memory tokens) public onlyOwner {
+        uint256 len = tokens.length;
+        for (uint256 i = 0; i < len; ) {
+            _supportBorrowToken(tokens[i]);
+            unchecked {
+                ++i;
+            }
+        }
     }
 
     /**
@@ -158,35 +180,6 @@ contract CashDataProvider is
     /**
      * @inheritdoc ICashDataProvider
      */
-    function setEtherFiCashDebtManager(
-        address cashDebtManager
-    ) external onlyOwner {
-        if (cashDebtManager == address(0)) revert InvalidValue();
-
-        emit CashDebtManagerUpdated(_etherFiCashDebtManager, cashDebtManager);
-        _etherFiCashDebtManager = cashDebtManager;
-    }
-
-    /**
-     * @inheritdoc ICashDataProvider
-     */
-    function setUsdcAddress(address usdcAddr) external onlyOwner {
-        if (_usdc == address(0)) revert InvalidValue();
-        emit UsdcAddressUpdated(_usdc, usdcAddr);
-        _usdc = usdcAddr;
-    }
-    /**
-     * @inheritdoc ICashDataProvider
-     */
-    function setWeETHAddress(address weETHAddr) external onlyOwner {
-        if (_weETH == address(0)) revert InvalidValue();
-        emit WeETHAddressUpdated(_weETH, weETHAddr);
-        _weETH = weETHAddr;
-    }
-
-    /**
-     * @inheritdoc ICashDataProvider
-     */
     function setPriceProvider(address priceProviderAddr) external onlyOwner {
         if (_priceProvider == address(0)) revert InvalidValue();
         emit PriceProviderUpdated(_priceProvider, priceProviderAddr);
@@ -210,4 +203,31 @@ contract CashDataProvider is
         emit AaveAdapterUpdated(_aaveAdapter, adapter);
         _aaveAdapter = adapter;
     }
+
+    function _supportCollateralToken(address token) internal {
+        if (token == address(0)) revert InvalidValue();
+
+        if (_collateralTokenIndexPlusOne[token] != 0)
+            revert AlreadyCollateralToken();
+
+        _collateralTokens.push(token);
+        _collateralTokenIndexPlusOne[token] = _collateralTokens.length;
+
+        emit CollateralTokenAdded(token);
+    }
+
+    function _supportBorrowToken(address token) internal {
+        if (token == address(0)) revert InvalidValue();
+
+        if (_borrowTokenIndexPlusOne[token] != 0) revert AlreadyBorrowToken();
+
+        _borrowTokens.push(token);
+        _borrowTokenIndexPlusOne[token] = _borrowTokens.length;
+
+        emit BorrowTokenAdded(token);
+    }
+
+    function _authorizeUpgrade(
+        address newImplementation
+    ) internal override onlyOwner {}
 }

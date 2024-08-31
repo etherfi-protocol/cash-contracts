@@ -69,12 +69,6 @@ contract IntegrationTestSetup is Utils {
     uint256 interestRateMode = 2;
     uint16 aaveReferralCode = 0;
 
-    L2DebtManager etherFiCashDebtManager;
-
-    uint256 ltv = 50e18; //50%
-    uint256 liquidationThreshold = 60e18; // 60%
-    uint256 borrowApy = 1000; // 10%
-
     function setUp() public virtual {
         chainId = vm.envString("TEST_CHAIN");
 
@@ -136,51 +130,19 @@ contract IntegrationTestSetup is Utils {
         address[] memory borrowTokens = new address[](1);
         borrowTokens[0] = address(usdc);
 
-        IL2DebtManager.CollateralTokenConfigData[]
-            memory collateralTokenConfig = new IL2DebtManager.CollateralTokenConfigData[](
-                1
-            );
-        collateralTokenConfig[0] = IL2DebtManager.CollateralTokenConfigData({
-            ltv: ltv,
-            liquidationThreshold: liquidationThreshold
-        });
-        uint256[] memory borrowApys = new uint256[](1);
-        borrowApys[0] = borrowApy;
-
-        address debtManagerImpl = address(
-            new L2DebtManager(address(cashDataProvider))
-        );
-
-        address debtManagerProxy = address(
-            new UUPSProxy(
-                debtManagerImpl,
-                abi.encodeWithSelector(
-                    // initialize(address,address[],(uint256,uint256)[],address[],uint256[])
-                    0xa9e49bef,
-                    owner,
-                    collateralTokens,
-                    collateralTokenConfig,
-                    borrowTokens,
-                    borrowApys
-                )
-            )
-        );
-        etherFiCashDebtManager = L2DebtManager(debtManagerProxy);
-
         (bool success, ) = address(cashDataProvider).call(
             abi.encodeWithSelector(
-                // intiailize(address,uint64,address,address,address,address,address,address,address,address)
-                0xf86fac96,
+                // intiailize(address,uint64,address,address,address,address,address,address,address[],address[])
+                0x7b8628c9,
                 owner,
                 delay,
                 etherFiWallet,
                 etherFiCashMultisig,
-                etherFiCashDebtManager,
-                address(usdc),
-                address(weETH),
                 address(priceProvider),
                 address(swapper),
-                address(aaveV3Adapter)
+                address(aaveV3Adapter),
+                collateralTokens,
+                borrowTokens
             )
         );
 

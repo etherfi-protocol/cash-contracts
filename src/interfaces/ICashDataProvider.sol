@@ -5,10 +5,6 @@ interface ICashDataProvider {
     event DelayUpdated(uint256 oldDelay, uint256 newDelay);
     event EtherFiWalletUpdated(address oldWallet, address newWallet);
     event CashMultiSigUpdated(address oldMultiSig, address newMultiSig);
-    event CashDebtManagerUpdated(
-        address oldDebtManager,
-        address newDebtManager
-    );
     event UsdcAddressUpdated(address oldUsdc, address newUsdc);
     event WeETHAddressUpdated(address OldWeETH, address newWeETH);
     event PriceProviderUpdated(
@@ -18,8 +14,12 @@ interface ICashDataProvider {
     event SwapperUpdated(address oldSwapper, address newSwapper);
     event EtherFiRecoverySafeUpdated(address oldSafe, address newSafe);
     event AaveAdapterUpdated(address oldAdapter, address newAdapter);
+    event CollateralTokenAdded(address token);
+    event BorrowTokenAdded(address token);
 
     error InvalidValue();
+    error AlreadyCollateralToken();
+    error AlreadyBorrowToken();
 
     /**
      * @notice Function to fetch the timelock delay for tokens from User Safe
@@ -41,21 +41,16 @@ interface ICashDataProvider {
     function etherFiCashMultiSig() external view returns (address);
 
     /**
-     * @notice Function to fetch the address of the EtherFi Cash Debt Manager contract
-     * @return EtherFi Cash Debt Manager contract address
+     * @notice Function to fetch the array of addresses of all collateral tokens
+     * @return array of addresses of all collateral tokens
      */
-    function etherFiCashDebtManager() external view returns (address);
+    function collateralTokens() external view returns (address[] memory);
 
     /**
-     * @notice Function to fetch the address of the USDC contract
-     * @return USDC contract address
+     * @notice Function to fetch the array of addresses of all borrow tokens
+     * @return array of addresses of all borrow tokens
      */
-    function usdc() external view returns (address);
-
-    /**
-     * @notice Function to fetch the address of the weETH contract
-     * @return weETH contract address
-     */ function weETH() external view returns (address);
+    function borrowTokens() external view returns (address[] memory);
 
     /**
      * @notice Function to fetch the address of the Price Provider contract
@@ -83,6 +78,32 @@ interface ICashDataProvider {
     function setDelay(uint64 delay) external;
 
     /**
+     * @notice Function to check whether a token is a collateral token
+     * @return Boolean value suggesting if token is a collateral token
+     */
+    function isCollateralToken(address token) external view returns (bool);
+
+    /**
+     * @notice Function to check whether a token is a borrow token
+     * @return Boolean value suggesting if token is a borrow token
+     */
+    function isBorrowToken(address token) external view returns (bool);
+
+    /**
+     * @notice Function to add support for a new collateral token
+     * @dev Can only be called by the owner of the contract
+     * @param tokens Array of addresses of the token to be supported as collateral
+     */
+    function supportCollateralToken(address[] memory tokens) external;
+
+    /**
+     * @notice Function to add support for a new borrow token
+     * @dev Can only be called by the owner of the contract
+     * @param tokens Array of addresses of the token to be supported as debt
+     */
+    function supportBorrowToken(address[] memory tokens) external;
+
+    /**
      * @notice Function to set the address of the EtherFi wallet
      * @dev Can only be called by the owner of the contract
      * @param wallet EtherFi Cash wallet address
@@ -95,27 +116,6 @@ interface ICashDataProvider {
      * @param cashMultiSig EtherFi Cash MultiSig wallet address
      */
     function setEtherFiCashMultiSig(address cashMultiSig) external;
-
-    /**
-     * @notice Function to set the address of the EtherFi Cash Debt Manager contract
-     * @dev Can only be called by the owner of the contract
-     * @param cashDebtManager EtherFi Cash Debt Manager contract address
-     */
-    function setEtherFiCashDebtManager(address cashDebtManager) external;
-
-    /**
-     * @notice Function to set the address of USDC
-     * @dev Can only be called by the owner of the contract
-     * @param usdc USDC contract address
-     */
-    function setUsdcAddress(address usdc) external;
-
-    /**
-     * @notice Function to set the address of weETH
-     * @dev Can only be called by the owner of the contract
-     * @param weETH weETH contract address
-     */
-    function setWeETHAddress(address weETH) external;
 
     /**
      * @notice Function to set the address of PriceProvider contract

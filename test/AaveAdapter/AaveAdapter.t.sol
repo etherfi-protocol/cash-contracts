@@ -78,7 +78,7 @@ contract AaveAdapterTest is Utils {
     function test_Supply() internal returns (uint256) {
         vm.startPrank(owner);
 
-        uint256 amount = 0.01 ether;
+        uint256 amount = 0.001 ether;
         weETH.safeTransfer(address(aaveV3Adapter), amount);
         aaveV3Adapter.supply(address(weETH), amount);
 
@@ -100,7 +100,7 @@ contract AaveAdapterTest is Utils {
         vm.roll(block.number + 10);
         uint256 usdcBalBefore = usdc.balanceOf(address(aaveV3Adapter));
 
-        uint256 borrowAmt = 1e6;
+        uint256 borrowAmt = 0.1e6;
 
         if (!isFork(chainId)) {
             usdc.safeTransfer(address(aaveV3Adapter), borrowAmt);

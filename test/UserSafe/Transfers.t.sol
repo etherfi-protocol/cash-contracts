@@ -167,32 +167,6 @@ contract UserSafeTransfersTest is UserSafeSetup {
         );
     }
 
-    function test_AddCollateralToDebtManager() public {
-        uint256 amount = 1 ether;
-
-        uint256 debtManagerWeEthBalanceBefore = weETH.balanceOf(
-            etherFiCashDebtManager
-        );
-
-        vm.prank(etherFiWallet);
-        vm.expectEmit(true, true, true, true);
-        emit IUserSafe.AddCollateralToDebtManager(address(weETH), amount);
-        aliceSafe.addCollateral(address(weETH), amount);
-
-        uint256 debtManagerWeEthBalanceAfter = weETH.balanceOf(
-            etherFiCashDebtManager
-        );
-
-        assertEq(
-            aliceSafeWeETHBalanceBefore - weETH.balanceOf(address(aliceSafe)),
-            amount
-        );
-        assertEq(
-            debtManagerWeEthBalanceAfter - debtManagerWeEthBalanceBefore,
-            amount
-        );
-    }
-
     function test_OnlyCashWalletCanTransferFundsForCollateral() public {
         uint256 amount = 1 ether;
 

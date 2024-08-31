@@ -17,7 +17,7 @@ interface IUserSafe {
         bytes signature;
     }
 
-    struct FundsDetails {
+    struct TokenData {
         address token;
         uint256 amount;
     }
@@ -61,11 +61,10 @@ interface IUserSafe {
         address indexed outputToken,
         uint256 outputTokenSent
     );
-    event AddCollateralToDebtManager(address token, uint256 amount);
-    event BorrowFromDebtManager(address token, uint256 amount);
-    event RepayDebtManager(address token, uint256 debtAmount);
-    event WithdrawCollateralFromDebtManager(address token, uint256 amount);
-    event CloseAccountWithDebtManager();
+    event AddCollateral(address token, uint256 amount);
+    event Borrow(address token, uint256 amount);
+    event Repay(address token, uint256 debtAmount);
+    event WithdrawCollateral(address token, uint256 amount);
     event ResetSpendingLimit(
         uint8 spendingLimitType,
         uint256 limitInUsd,
@@ -133,6 +132,23 @@ interface IUserSafe {
      * @return Nonce
      */
     function nonce() external view returns (uint256);
+
+    /**
+     * @notice Function to fetch the total collateral of the user.
+     * @return TokenData struct containing collateral tokens and respective amounts
+     * @return Total collateral in USDC
+     */
+    function getTotalCollateral()
+        external
+        view
+        returns (TokenData[] memory, uint256);
+
+    /**
+     * @notice Function to fetch the total debt of the user.
+     * @return TokenData struct containing borrow tokens and respective amounts
+     * @return Total debt in USDC
+     */
+    function getTotalDebt() external view returns (TokenData[] memory, uint256);
 
     /**
      * @notice Function to fetch whether the recovery is active.
@@ -341,12 +357,6 @@ interface IUserSafe {
         address token,
         uint256 amount
     ) external;
-
-    /**
-     * @notice Function to close account with the Debt Manager.
-     * @notice Repays all the debt with user's collateral and withdraws the remaining collateral to the User Safe.
-     */
-    function closeAccountWithDebtManager() external;
 
     /**
      * @notice Function to swap funds to output token and transfer it to EtherFiCash Safe.

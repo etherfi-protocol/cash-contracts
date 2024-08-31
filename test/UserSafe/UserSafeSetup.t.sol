@@ -5,7 +5,6 @@ import {Test, console, stdError} from "forge-std/Test.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {UserSafeFactory} from "../../src/user-safe/UserSafeFactory.sol";
 import {UserSafe} from "../../src//user-safe/UserSafe.sol";
-import {IL2DebtManager, L2DebtManager} from "../../src/L2DebtManager.sol";
 import {UserSafeV2Mock} from "../../src/mocks/UserSafeV2Mock.sol";
 import {Swapper1InchV6} from "../../src/utils/Swapper1InchV6.sol";
 import {PriceProvider} from "../../src/oracle/PriceProvider.sol";
@@ -49,7 +48,6 @@ contract UserSafeSetup is Utils {
     uint256 collateralLimit = 10000e6;
     uint64 delay = 10;
     address etherFiCashMultisig = makeAddr("multisig");
-    address etherFiCashDebtManager;
     address etherFiWallet = makeAddr("etherFiWallet");
 
     address weEthWethOracle;
@@ -68,10 +66,6 @@ contract UserSafeSetup is Utils {
     // Interest rate mode -> Stable: 1, variable: 2
     uint256 interestRateMode = 2;
     uint16 aaveReferralCode = 0;
-
-    uint256 ltv = 50e18; // 50%
-    uint256 liquidationThreshold = 60e18; // 60%
-    uint256 borrowApy = 1000; // 10%
 
     function setUp() public virtual {
         chainId = vm.envString("TEST_CHAIN");
@@ -134,49 +128,19 @@ contract UserSafeSetup is Utils {
         address[] memory borrowTokens = new address[](1);
         borrowTokens[0] = address(usdc);
 
-        address etherFiCashDebtManagerImpl = address(
-            new L2DebtManager(address(cashDataProvider))
-        );
-        IL2DebtManager.CollateralTokenConfigData[]
-            memory collateralTokenConfig = new IL2DebtManager.CollateralTokenConfigData[](
-                1
-            );
-        collateralTokenConfig[0] = IL2DebtManager.CollateralTokenConfigData({
-            ltv: ltv,
-            liquidationThreshold: liquidationThreshold
-        });
-        uint256[] memory borrowApys = new uint256[](1);
-        borrowApys[0] = borrowApy;
-
-        etherFiCashDebtManager = address(
-            new UUPSProxy(
-                etherFiCashDebtManagerImpl,
-                abi.encodeWithSelector(
-                    // initialize(address,address[],(uint256,uint256)[],address[],uint256[])
-                    0xa9e49bef,
-                    owner,
-                    collateralTokens,
-                    collateralTokenConfig,
-                    borrowTokens,
-                    borrowApys
-                )
-            )
-        );
-
         (bool success, ) = address(cashDataProvider).call(
             abi.encodeWithSelector(
-                // intiailize(address,uint64,address,address,address,address,address,address,address,address)
-                0xf86fac96,
+                // intiailize(address,uint64,address,address,address,address,address,address,address[],address[])
+                0x7b8628c9,
                 owner,
                 delay,
                 etherFiWallet,
                 etherFiCashMultisig,
-                etherFiCashDebtManager,
-                address(usdc),
-                address(weETH),
                 address(priceProvider),
                 address(swapper),
-                address(aaveV3Adapter)
+                address(aaveV3Adapter),
+                collateralTokens,
+                borrowTokens
             )
         );
 

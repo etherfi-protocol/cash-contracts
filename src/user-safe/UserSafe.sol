@@ -15,6 +15,8 @@ import {UserSafeRecovery} from "./UserSafeRecovery.sol";
 import {WebAuthn} from "../libraries/WebAuthn.sol";
 import {OwnerLib} from "../libraries/OwnerLib.sol";
 import {UserSafeLib} from "../libraries/UserSafeLib.sol";
+import {AaveLib} from "../libraries/AaveLib.sol";
+import {IEtherFiCashAaveV3Adapter} from "../interfaces/IEtherFiCashAaveV3Adapter.sol";
 
 /**
  * @title UserSafe
@@ -112,6 +114,85 @@ contract UserSafe is IUserSafe, Initializable, UserSafeRecovery {
      */
     function nonce() external view returns (uint256) {
         return _nonce;
+    }
+
+    /**
+     * @inheritdoc IUserSafe
+     */
+    function getTotalCollateral()
+        public
+        view
+        returns (TokenData[] memory, uint256)
+    {
+        address[] memory collateralTokens = _cashDataProvider
+            .collateralTokens();
+        IEtherFiCashAaveV3Adapter aaveAdapter = IEtherFiCashAaveV3Adapter(
+            _aaveAdapter()
+        );
+
+        uint256 len = collateralTokens.length;
+        TokenData[] memory tokenData = new TokenData[](len);
+        uint256 totalCollateralInUsdc = 0;
+
+        for (uint256 i = 0; i < len; ) {
+            uint256 amount = aaveAdapter.getCollateralBalance(
+                address(this),
+                collateralTokens[i]
+            );
+
+            uint256 price = IPriceProvider(_cashDataProvider.priceProvider())
+                .price(collateralTokens[i]);
+
+            tokenData[i] = TokenData({
+                token: collateralTokens[i],
+                amount: amount
+            });
+
+            if (amount > 0)
+                totalCollateralInUsdc +=
+                    (amount * price) /
+                    10 ** _getDecimals(collateralTokens[i]);
+
+            unchecked {
+                ++i;
+            }
+        }
+
+        return (tokenData, totalCollateralInUsdc);
+    }
+
+    /**
+     * @inheritdoc IUserSafe
+     */
+    function getTotalDebt() public view returns (TokenData[] memory, uint256) {
+        address[] memory borrowTokens = _cashDataProvider.borrowTokens();
+        IEtherFiCashAaveV3Adapter aaveAdapter = IEtherFiCashAaveV3Adapter(
+            _aaveAdapter()
+        );
+
+        uint256 len = borrowTokens.length;
+        TokenData[] memory tokenData = new TokenData[](len);
+        uint256 totalDebtInUsdc = 0;
+
+        for (uint256 i = 0; i < len; ) {
+            uint256 amount = aaveAdapter.getDebt(
+                address(this),
+                borrowTokens[i]
+            );
+
+            tokenData[i] = TokenData({token: borrowTokens[i], amount: amount});
+
+            if (amount > 0)
+                totalDebtInUsdc +=
+                    (amount * 1e6) /
+                    10 ** _getDecimals(borrowTokens[i]);
+
+            unchecked {
+                ++i;
+            }
+        }
+
+        return (tokenData, totalDebtInUsdc);
     }
 
     /**
@@ -380,8 +461,7 @@ contract UserSafe is IUserSafe, Initializable, UserSafeRecovery {
         address token,
         uint256 amount
     ) external onlyEtherFiWallet {
-        address debtManager = _cashDataProvider.etherFiCashDebtManager();
-        _addCollateral(debtManager, token, amount);
+        _addCollateral(token, amount);
     }
 
     /**
@@ -393,17 +473,15 @@ contract UserSafe is IUserSafe, Initializable, UserSafeRecovery {
         address borrowToken,
         uint256 borrowAmount
     ) external onlyEtherFiWallet {
-        address debtManager = _cashDataProvider.etherFiCashDebtManager();
-        _addCollateral(debtManager, collateralToken, collateralAmount);
-        _borrow(debtManager, borrowToken, borrowAmount);
+        _addCollateral(collateralToken, collateralAmount);
+        _borrow(borrowToken, borrowAmount);
     }
 
     /**
      * @inheritdoc IUserSafe
      */
     function borrow(address token, uint256 amount) external onlyEtherFiWallet {
-        address debtManager = _cashDataProvider.etherFiCashDebtManager();
-        _borrow(debtManager, token, amount);
+        _borrow(token, amount);
     }
 
     /**
@@ -413,8 +491,7 @@ contract UserSafe is IUserSafe, Initializable, UserSafeRecovery {
         address token,
         uint256 repayDebtUsdcAmt
     ) external onlyEtherFiWallet {
-        address debtManager = _cashDataProvider.etherFiCashDebtManager();
-        _repay(debtManager, token, repayDebtUsdcAmt);
+        _repay(token, repayDebtUsdcAmt);
     }
 
     /**
@@ -424,17 +501,7 @@ contract UserSafe is IUserSafe, Initializable, UserSafeRecovery {
         address token,
         uint256 amount
     ) external onlyEtherFiWallet {
-        address debtManager = _cashDataProvider.etherFiCashDebtManager();
-        _withdrawCollateralFromDebtManager(debtManager, token, amount);
-    }
-
-    /**
-     * @inheritdoc IUserSafe
-     */
-    function closeAccountWithDebtManager() external onlyEtherFiWallet {
-        IL2DebtManager(_cashDataProvider.etherFiCashDebtManager())
-            .closeAccount();
-        emit CloseAccountWithDebtManager();
+        _withdrawCollateralFromDebtManager(token, amount);
     }
 
     function _getSpendingLimitRenewalTimestamp(
@@ -611,14 +678,12 @@ contract UserSafe is IUserSafe, Initializable, UserSafeRecovery {
     }
 
     function _checkCollateralLimit(
-        address debtManager,
         address token,
         uint256 amountToAdd
     ) internal {
         _currentCollateralLimit();
 
-        uint256 currentCollateral = IL2DebtManager(debtManager)
-            .getCollateralValueInUsdc(address(this));
+        (, uint256 currentCollateral) = getTotalCollateral();
 
         uint256 price = IPriceProvider(_cashDataProvider.priceProvider()).price(
             token
@@ -631,63 +696,41 @@ contract UserSafe is IUserSafe, Initializable, UserSafeRecovery {
             revert ExceededCollateralLimit();
     }
 
-    function _addCollateral(
-        address debtManager,
-        address token,
-        uint256 amount
-    ) internal {
+    function _addCollateral(address token, uint256 amount) internal {
         if (!_isCollateralToken(token)) revert UnsupportedToken();
 
-        _checkCollateralLimit(debtManager, token, amount);
+        _checkCollateralLimit(token, amount);
         _updateWithdrawalRequestIfNecessary(token, amount);
 
-        IERC20(token).forceApprove(debtManager, amount);
-        IL2DebtManager(debtManager).depositCollateral(
-            token,
-            address(this),
-            amount
-        );
+        AaveLib.supplyOnAave(_aaveAdapter(), token, amount);
 
-        emit AddCollateralToDebtManager(token, amount);
+        emit AddCollateral(token, amount);
     }
 
-    function _borrow(
-        address debtManager,
-        address token,
-        uint256 amount
-    ) internal {
+    function _aaveAdapter() internal view returns (address) {
+        return _cashDataProvider.aaveAdapter();
+    }
+
+    function _borrow(address token, uint256 amount) internal {
         if (!_isBorrowToken(token)) revert UnsupportedToken();
 
         _checkSpendingLimit(token, amount);
-
-        IL2DebtManager(debtManager).borrow(token, amount);
-        emit BorrowFromDebtManager(token, amount);
+        AaveLib.borrowFromAave(_aaveAdapter(), token, amount);
+        emit Borrow(token, amount);
     }
 
-    function _repay(
-        address debtManager,
-        address token,
-        uint256 repayDebtUsdcAmt
-    ) internal {
-        // Repay token can either be borrow token or collateral token
-        IERC20(token).forceApprove(debtManager, repayDebtUsdcAmt);
-
-        IL2DebtManager(debtManager).repay(
-            address(this),
-            token,
-            repayDebtUsdcAmt
-        );
-        emit RepayDebtManager(token, repayDebtUsdcAmt);
+    function _repay(address token, uint256 repayDebtUsdcAmt) internal {
+        AaveLib.repayOnAave(_aaveAdapter(), token, repayDebtUsdcAmt);
+        emit Repay(token, repayDebtUsdcAmt);
     }
 
     function _withdrawCollateralFromDebtManager(
-        address debtManager,
         address token,
         uint256 amount
     ) internal {
         if (!_isCollateralToken(token)) revert UnsupportedToken();
-        IL2DebtManager(debtManager).withdrawCollateral(token, amount);
-        emit WithdrawCollateralFromDebtManager(token, amount);
+        AaveLib.withdrawFromAave(_aaveAdapter(), token, amount);
+        emit WithdrawCollateral(token, amount);
     }
 
     function _updateWithdrawalRequestIfNecessary(
@@ -742,15 +785,11 @@ contract UserSafe is IUserSafe, Initializable, UserSafeRecovery {
     }
 
     function _isCollateralToken(address token) internal view returns (bool) {
-        return
-            IL2DebtManager(_cashDataProvider.etherFiCashDebtManager())
-                .isCollateralToken(token);
+        return _cashDataProvider.isCollateralToken(token);
     }
 
     function _isBorrowToken(address token) internal view returns (bool) {
-        return
-            IL2DebtManager(_cashDataProvider.etherFiCashDebtManager())
-                .isBorrowToken(token);
+        return _cashDataProvider.isBorrowToken(token);
     }
 
     function _onlyEtherFiWallet() private view {
