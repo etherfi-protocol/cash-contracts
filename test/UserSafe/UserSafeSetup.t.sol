@@ -71,7 +71,7 @@ contract UserSafeSetup is Utils {
 
     uint256 ltv = 50e18; // 50%
     uint256 liquidationThreshold = 60e18; // 60%
-    uint256 borrowApy = 1000; // 10%
+    uint256 borrowApy = 1e16; // 0.01% per second
 
     function setUp() public virtual {
         chainId = vm.envString("TEST_CHAIN");

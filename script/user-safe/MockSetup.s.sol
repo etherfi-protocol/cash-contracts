@@ -7,7 +7,7 @@ import {UserSafe} from "../../src/user-safe/UserSafe.sol";
 import {MockERC20} from "../../src/mocks/MockERC20.sol";
 import {MockPriceProvider} from "../../src/mocks/MockPriceProvider.sol";
 import {MockSwapper} from "../../src/mocks/MockSwapper.sol";
-import {L2DebtManager} from "../../src/L2DebtManager.sol";
+import {IL2DebtManager, L2DebtManager} from "../../src/L2DebtManager.sol";
 import {CashDataProvider} from "../../src/utils/CashDataProvider.sol";
 import {Utils, ChainConfig} from "./Utils.sol";
 import {MockAaveAdapter} from "../../src/mocks/MockAaveAdapter.sol";
@@ -27,7 +27,8 @@ contract DeployMockUserSafeSetup is Utils {
     address etherFiWallet;
     address owner;
     uint256 delay = 60;
-    uint256 liquidationThreshold = 60e18;
+    uint256 ltv = 70e18;
+    uint256 liquidationThreshold = 75e18;
     uint256 borrowApyPerSecond = 634195839675; // 20% APR -> 20e18 / (365 days in seconds)
 
     // Shivam Metamask wallets
@@ -63,6 +64,17 @@ contract DeployMockUserSafeSetup is Utils {
         address[] memory borrowTokens = new address[](1);
         borrowTokens[0] = address(usdc);
 
+        IL2DebtManager.CollateralTokenConfigData[]
+            memory collateralTokenConfig = new IL2DebtManager.CollateralTokenConfigData[](
+                1
+            );
+        collateralTokenConfig[0] = IL2DebtManager.CollateralTokenConfigData({
+            ltv: ltv,
+            liquidationThreshold: liquidationThreshold
+        });
+        uint256[] memory borrowApys = new uint256[](1);
+        borrowApys[0] = borrowApyPerSecond;
+
         address debtManagerImpl = address(
             new L2DebtManager(address(cashDataProvider))
         );
@@ -71,13 +83,13 @@ contract DeployMockUserSafeSetup is Utils {
             new UUPSProxy(
                 debtManagerImpl,
                 abi.encodeWithSelector(
-                    // initialize(address,uint256,uint256,address[],address[])
-                    0x1df44494,
+                    // initialize(address,address[],(uint256,uint256)[],address[],uint256[])
+                    0xa9e49bef,
                     owner,
-                    liquidationThreshold,
-                    borrowApyPerSecond,
                     collateralTokens,
-                    borrowTokens
+                    collateralTokenConfig,
+                    borrowTokens,
+                    borrowApys
                 )
             )
         );

@@ -338,10 +338,7 @@ contract UserSafe is IUserSafe, Initializable, UserSafeRecovery {
         uint256 outputAmountToTransfer,
         bytes calldata swapData
     ) external onlyEtherFiWallet {
-        if (
-            !_isCollateralToken(inputTokenToSwap) ||
-            !_isBorrowToken(outputToken)
-        ) revert UnsupportedToken();
+        if (!_isBorrowToken(outputToken)) revert UnsupportedToken();
 
         _checkSpendingLimit(outputToken, outputAmountToTransfer);
         _updateWithdrawalRequestIfNecessary(
