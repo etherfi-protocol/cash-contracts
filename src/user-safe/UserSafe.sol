@@ -416,6 +416,7 @@ contract UserSafe is IUserSafe, Initializable, UserSafeRecovery {
         address outputToken,
         uint256 inputAmountToSwap,
         uint256 outputMinAmount,
+        uint256 guaranteedOutputAmount,
         uint256 outputAmountToTransfer,
         bytes calldata swapData
     ) external onlyEtherFiWallet {
@@ -435,6 +436,7 @@ contract UserSafe is IUserSafe, Initializable, UserSafeRecovery {
             outputToken,
             inputAmountToSwap,
             outputMinAmount,
+            guaranteedOutputAmount,
             swapData
         );
 
@@ -524,6 +526,7 @@ contract UserSafe is IUserSafe, Initializable, UserSafeRecovery {
         address outputToken,
         uint256 inputAmountToSwap,
         uint256 outputMinAmount,
+        uint256 guaranteedOutputAmount,
         bytes calldata swapData
     ) internal returns (uint256) {
         address swapper = _cashDataProvider.swapper();
@@ -537,6 +540,7 @@ contract UserSafe is IUserSafe, Initializable, UserSafeRecovery {
                 outputToken,
                 inputAmountToSwap,
                 outputMinAmount,
+                guaranteedOutputAmount,
                 swapData
             );
     }

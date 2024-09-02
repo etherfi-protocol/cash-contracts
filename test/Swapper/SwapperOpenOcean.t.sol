@@ -3,20 +3,17 @@ pragma solidity ^0.8.24;
 
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {UserSafeSetup} from "../UserSafe/UserSafeSetup.t.sol";
-import {console} from "forge-std/console.sol";
 
-contract SwapperTest is UserSafeSetup {
+contract SwapperOpenOceanTest is UserSafeSetup {
     function test_Swap() public {
         vm.startPrank(alice);
-
         uint256 aliceUsdcBalBefore = usdc.balanceOf(alice);
-
         weETH.transfer(address(swapper), 1 ether);
 
         if (!isFork(chainId)) {
-            swapper.swap(address(weETH), address(usdc), 1 ether, 1, "");
+            swapper.swap(address(weETH), address(usdc), 1 ether, 1, 0, "");
         } else {
-            bytes memory swapData = getQuoteOneInch(
+            bytes memory swapData = getQuoteOpenOcean(
                 chainId,
                 address(swapper),
                 address(alice),
@@ -25,7 +22,14 @@ contract SwapperTest is UserSafeSetup {
                 1 ether
             );
 
-            swapper.swap(address(weETH), address(usdc), 1 ether, 1, swapData);
+            swapper.swap(
+                address(weETH),
+                address(usdc),
+                1 ether,
+                1,
+                1,
+                swapData
+            );
         }
 
         uint256 aliceUsdcBalAfter = usdc.balanceOf(alice);

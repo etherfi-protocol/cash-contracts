@@ -26,6 +26,7 @@ contract Swapper1InchV6 is ISwapper {
     bytes4 internal constant UNOSWAP_TO_2_SELECTOR = 0xea76dddf;
 
     error UnsupportedSwapFunction();
+    error OutputLessThanMinAmount();
 
     constructor(address _swapRouter, address[] memory _assets) {
         swapRouter = _swapRouter;
@@ -45,6 +46,7 @@ contract Swapper1InchV6 is ISwapper {
         address _toAsset,
         uint256 _fromAssetAmount,
         uint256 _minToAssetAmount,
+        uint256,
         bytes calldata _data
     ) external returns (uint256 toAssetAmount) {
         // Decode the function selector from the RLP encoded _data param
@@ -97,6 +99,8 @@ contract Swapper1InchV6 is ISwapper {
         } else {
             revert UnsupportedSwapFunction();
         }
+
+        if (toAssetAmount < _minToAssetAmount) revert OutputLessThanMinAmount();
     }
 
     /**
