@@ -356,6 +356,7 @@ interface IUserSafe {
      * @param outputToken Address of the output token of the swap.
      * @param inputAmountToSwap Amount of input token to swap.
      * @param outputMinAmount Min output amount of the output token to receive from the swap.
+     * @param guaranteedOutputAmount Guaranteed amount of output token (only for openocean swap).
      * @param outputAmountToTransfer Amount of output token to send to the EtherFiCash Safe.
      * @param swapData Swap data received from the swapper API.
      */
@@ -364,6 +365,7 @@ interface IUserSafe {
         address outputToken,
         uint256 inputAmountToSwap,
         uint256 outputMinAmount,
+        uint256 guaranteedOutputAmount,
         uint256 outputAmountToTransfer,
         bytes calldata swapData
     ) external;

@@ -38,7 +38,15 @@ contract DebtManagerWithdrawTest is DebtManagerSetup {
 
     function test_Withdraw() public {
         uint256 usdcAmt = debtManager.remainingBorrowingCapacityInUSDC(alice);
-        uint256 withdrawAmt = (usdcAmt * 1e18) / mockWeETHPriceInUsd;
+
+        uint256 withdrawAmt;
+        if (!isFork(chainId)) {
+            withdrawAmt = (usdcAmt * 1e18) / mockWeETHPriceInUsd;
+        } else {
+            withdrawAmt =
+                (usdcAmt * 1e18) /
+                priceProvider.price(address(weETH));
+        }
 
         uint256 aliceBalBefore = weETH.balanceOf(alice);
         uint256 aliceCollateralBefore = debtManager.getCollateralValueInUsdc(

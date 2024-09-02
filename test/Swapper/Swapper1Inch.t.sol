@@ -5,7 +5,7 @@ import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {UserSafeSetup} from "../UserSafe/UserSafeSetup.t.sol";
 import {console} from "forge-std/console.sol";
 
-contract SwapperTest is UserSafeSetup {
+contract Swapper1InchV6Test is UserSafeSetup {
     function test_Swap() public {
         vm.startPrank(alice);
 
@@ -14,7 +14,7 @@ contract SwapperTest is UserSafeSetup {
         weETH.transfer(address(swapper), 1 ether);
 
         if (!isFork(chainId)) {
-            swapper.swap(address(weETH), address(usdc), 1 ether, 1, "");
+            swapper.swap(address(weETH), address(usdc), 1 ether, 1, 0, "");
         } else {
             bytes memory swapData = getQuoteOneInch(
                 chainId,
@@ -25,7 +25,14 @@ contract SwapperTest is UserSafeSetup {
                 1 ether
             );
 
-            swapper.swap(address(weETH), address(usdc), 1 ether, 1, swapData);
+            swapper.swap(
+                address(weETH),
+                address(usdc),
+                1 ether,
+                1,
+                0,
+                swapData
+            );
         }
 
         uint256 aliceUsdcBalAfter = usdc.balanceOf(alice);

@@ -17,6 +17,8 @@ abstract contract UserSafeRecovery is IUserSafe {
 
     // Address of the EtherFi Recovery Signer
     address private immutable _etherFiRecoverySigner;
+
+    // NOTE: Should we make it a state and then allow user's to reset this with their passkey signing?
     // Address of the Third Party Recovery Signer
     address private immutable _thirdPartyRecoverySigner;
     // Boolean to toggle recovery mechanism on or off
