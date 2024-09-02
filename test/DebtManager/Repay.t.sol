@@ -40,7 +40,7 @@ contract DebtManagerRepayTest is DebtManagerSetup {
     }
 
     function test_RepayWithUsdc() public {
-        uint256 debtAmtBefore = debtManager.borrowingOf(alice);
+        uint256 debtAmtBefore = debtManager.borrowingOf(alice, address(usdc));
         assertGt(debtAmtBefore, 0);
 
         uint256 repayAmt = debtAmtBefore;
@@ -50,7 +50,7 @@ contract DebtManagerRepayTest is DebtManagerSetup {
         debtManager.repay(alice, address(usdc), repayAmt);
         vm.stopPrank();
 
-        uint256 debtAmtAfter = debtManager.borrowingOf(alice);
+        uint256 debtAmtAfter = debtManager.borrowingOf(alice, address(usdc));
         assertEq(debtAmtBefore - debtAmtAfter, repayAmt);
     }
 
@@ -65,7 +65,7 @@ contract DebtManagerRepayTest is DebtManagerSetup {
         uint256 debtAmtBefore = borrowAmt + expectedInterest;
         console.log(debtAmtBefore);
 
-        assertEq(debtManager.borrowingOf(alice), debtAmtBefore);
+        assertEq(debtManager.borrowingOf(alice, address(usdc)), debtAmtBefore);
         uint256 repayAmt = debtAmtBefore;
 
         vm.startPrank(alice);
@@ -73,61 +73,9 @@ contract DebtManagerRepayTest is DebtManagerSetup {
         debtManager.repay(alice, address(usdc), repayAmt);
         vm.stopPrank();
 
-        uint256 debtAmtAfter = debtManager.borrowingOf(alice);
+        uint256 debtAmtAfter = debtManager.borrowingOf(alice, address(usdc));
         console.log(debtAmtAfter);
         assertEq(debtAmtBefore - debtAmtAfter, repayAmt);
-    }
-
-    function test_RepayWithWeETH() public {
-        uint256 debtAmtBefore = debtManager.borrowingOf(alice);
-        assertGt(debtAmtBefore, 0);
-
-        uint256 collateralBefore = debtManager.getCollateralValueInUsdc(alice);
-        assertEq(collateralBefore, collateralValueInUsdc);
-
-        uint256 repayAmt = debtAmtBefore;
-
-        vm.startPrank(alice);
-        debtManager.repay(alice, address(weETH), repayAmt);
-        vm.stopPrank();
-
-        uint256 debtAmtAfter = debtManager.borrowingOf(alice);
-        assertEq(debtAmtBefore - debtAmtAfter, repayAmt);
-
-        uint256 collateralAfter = debtManager.getCollateralValueInUsdc(alice);
-        assertEq(collateralAfter, collateralValueInUsdc - repayAmt);
-    }
-
-    function test_RepayWithCollateral() public {
-        uint256 debtAmtBefore = debtManager.borrowingOf(alice);
-        assertGt(debtAmtBefore, 0);
-
-        uint256 collateralBefore = debtManager.getCollateralValueInUsdc(alice);
-        assertEq(collateralBefore, collateralValueInUsdc);
-
-        uint256 repayAmt = debtAmtBefore;
-
-        vm.startPrank(alice);
-        debtManager.repayWithCollateral(alice, repayAmt);
-        vm.stopPrank();
-
-        uint256 debtAmtAfter = debtManager.borrowingOf(alice);
-        assertEq(debtAmtBefore - debtAmtAfter, repayAmt);
-
-        uint256 collateralAfter = debtManager.getCollateralValueInUsdc(alice);
-        assertEq(collateralAfter, collateralValueInUsdc - repayAmt);
-    }
-
-    function test_CannotRepayMoreThanDebtIncurred() public {
-        uint256 totalDebt = debtManager.borrowingOf(alice);
-
-        vm.startPrank(alice);
-        vm.expectRevert(IL2DebtManager.CannotPayMoreThanDebtIncurred.selector);
-        debtManager.repay(alice, address(weETH), totalDebt + 1);
-
-        vm.expectRevert(IL2DebtManager.CannotPayMoreThanDebtIncurred.selector);
-        debtManager.repay(alice, address(usdc), totalDebt + 1);
-        vm.stopPrank();
     }
 
     function test_CannotRepayWithUsdcIfAllowanceIsInsufficient() public {
@@ -169,36 +117,8 @@ contract DebtManagerRepayTest is DebtManagerSetup {
         vm.stopPrank();
     }
 
-    function test_CannotPayWithWeEthIfCollateralIsInsufficient() public {
-        stdstore
-            .target(address(debtManager))
-            .sig("borrowingOf(address)")
-            .with_key(alice)
-            .checked_write(collateralValueInUsdc + 1);
-
-        uint256 totalDebt = debtManager.borrowingOf(alice);
-        assertEq(totalDebt, collateralValueInUsdc + 1);
-
-        vm.startPrank(alice);
-        vm.expectRevert(IL2DebtManager.InsufficientCollateralToRepay.selector);
-        debtManager.repay(alice, address(weETH), totalDebt);
-        vm.stopPrank();
-    }
-
-    function test_CannotPayWithWeEthIfDebtRatioIsTooHighAfterPayment() public {
-        vm.prank(owner);
-        debtManager.setLiquidationThreshold(10e18);
-
-        uint256 repayDebt = debtManager.borrowingOf(alice) / 2;
-
-        vm.startPrank(alice);
-        vm.expectRevert(IL2DebtManager.InsufficientCollateral.selector);
-        debtManager.repay(alice, address(weETH), repayDebt);
-        vm.stopPrank();
-    }
-
     function test_CanRepayForOtherUser() public {
-        uint256 debtAmtBefore = debtManager.borrowingOf(alice);
+        uint256 debtAmtBefore = debtManager.borrowingOf(alice, address(usdc));
         assertGt(debtAmtBefore, 0);
 
         uint256 repayAmt = debtAmtBefore;
@@ -209,14 +129,7 @@ contract DebtManagerRepayTest is DebtManagerSetup {
         debtManager.repay(alice, address(usdc), repayAmt);
         vm.stopPrank();
 
-        uint256 debtAmtAfter = debtManager.borrowingOf(alice);
+        uint256 debtAmtAfter = debtManager.borrowingOf(alice, address(usdc));
         assertEq(debtAmtBefore - debtAmtAfter, repayAmt);
-    }
-
-    function test_CanRepayForOtherUserWithCollateral() public {
-        vm.startPrank(notOwner);
-        vm.expectRevert(IL2DebtManager.OnlyUserCanRepayWithCollateral.selector);
-        debtManager.repay(alice, address(weETH), 1);
-        vm.stopPrank();
     }
 }

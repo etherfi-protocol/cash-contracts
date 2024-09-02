@@ -5,11 +5,9 @@ import {DebtManagerSetup} from "./DebtManagerSetup.t.sol";
 import {IL2DebtManager} from "../../src/interfaces/IL2DebtManager.sol";
 import {SafeERC20, IERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IERC20Errors} from "@openzeppelin/contracts/interfaces/draft-IERC6093.sol";
-import {stdStorage, StdStorage} from "forge-std/Test.sol";
 
 contract DebtManagerLiquidateTest is DebtManagerSetup {
     using SafeERC20 for IERC20;
-    using stdStorage for StdStorage;
 
     uint256 collateralAmount = 0.01 ether;
     uint256 collateralValueInUsdc;
@@ -24,6 +22,7 @@ contract DebtManagerLiquidateTest is DebtManagerSetup {
         );
 
         deal(address(usdc), alice, 1 ether);
+        deal(address(usdc), owner, 1 ether);
         deal(address(weETH), alice, 1000 ether);
         // so that debt manager has funds for borrowings
         deal(address(usdc), address(debtManager), 1 ether);
@@ -41,9 +40,16 @@ contract DebtManagerLiquidateTest is DebtManagerSetup {
     function test_SetLiquidationThreshold() public {
         uint256 newThreshold = 70e18;
         vm.prank(owner);
-        debtManager.setLiquidationThreshold(newThreshold);
+        debtManager.setLtvAndLiquidationThreshold(
+            address(weETH),
+            ltv,
+            newThreshold
+        );
+        (, uint256 _liquidationThreshold) = debtManager.collateralTokenConfig(
+            address(weETH)
+        );
 
-        assertEq(debtManager.liquidationThreshold(), newThreshold);
+        assertEq(_liquidationThreshold, newThreshold);
     }
 
     function test_OnlyAdminCanSetLiquidationThreshold() public {
@@ -52,7 +58,11 @@ contract DebtManagerLiquidateTest is DebtManagerSetup {
         vm.expectRevert(
             buildAccessControlRevertData(notOwner, debtManager.ADMIN_ROLE())
         );
-        debtManager.setLiquidationThreshold(newThreshold);
+        debtManager.setLtvAndLiquidationThreshold(
+            address(weETH),
+            ltv,
+            newThreshold
+        );
 
         vm.stopPrank();
     }
@@ -60,39 +70,77 @@ contract DebtManagerLiquidateTest is DebtManagerSetup {
     function test_Liquidate() public {
         vm.startPrank(owner);
 
-        debtManager.setLiquidationThreshold(10e18);
+        uint256 liquidatorWeEthBalBefore = weETH.balanceOf(owner);
+
+        debtManager.setLtvAndLiquidationThreshold(address(weETH), 5e18, 10e18);
         assertEq(debtManager.liquidatable(alice), true);
-        debtManager.liquidate(alice);
+
+        usdc.forceApprove(address(debtManager), borrowAmt);
+        debtManager.liquidate(alice, address(usdc), borrowAmt);
 
         vm.stopPrank();
 
         uint256 aliceCollateralAfter = debtManager.getCollateralValueInUsdc(
             alice
         );
-        uint256 aliceDebtAfter = debtManager.borrowingOf(alice);
+        uint256 aliceDebtAfter = debtManager.borrowingOf(alice, address(usdc));
+        uint256 liquidatorWeEthBalAfter = weETH.balanceOf(owner);
 
+        assertEq(
+            debtManager.convertCollateralTokenToUsdc(
+                address(weETH),
+                liquidatorWeEthBalAfter - liquidatorWeEthBalBefore
+            ),
+            borrowAmt
+        );
         assertEq(aliceCollateralAfter, collateralValueInUsdc - borrowAmt);
         assertEq(aliceDebtAfter, 0);
     }
 
-    function test_OnlyAdminCanLiquidate() public {
-        vm.prank(owner);
-        debtManager.setLiquidationThreshold(10e18);
+    function test_PartialLiquidate() public {
+        vm.startPrank(owner);
+
+        debtManager.setLtvAndLiquidationThreshold(address(weETH), 5e18, 10e18);
         assertEq(debtManager.liquidatable(alice), true);
-        vm.startPrank(notOwner);
-        vm.expectRevert(
-            buildAccessControlRevertData(notOwner, debtManager.ADMIN_ROLE())
-        );
-        debtManager.liquidate(alice);
+
+        // since we will be setting the liquidation threshold to 10%
+        uint256 maxBorrow = collateralValueInUsdc / 10;
+        uint256 liquidatorWeEthBalBefore = weETH.balanceOf(owner);
+        uint256 liquidationAmt = borrowAmt - (maxBorrow / 3);
+
+        usdc.forceApprove(address(debtManager), liquidationAmt);
+        debtManager.liquidate(alice, address(usdc), liquidationAmt);
 
         vm.stopPrank();
+
+        uint256 aliceCollateralAfter = debtManager.getCollateralValueInUsdc(
+            alice
+        );
+        uint256 aliceDebtAfter = debtManager.borrowingOf(alice, address(usdc));
+        uint256 liquidatorWeEthBalAfter = weETH.balanceOf(owner);
+
+        assertApproxEqAbs(
+            debtManager.convertCollateralTokenToUsdc(
+                address(weETH),
+                liquidatorWeEthBalAfter - liquidatorWeEthBalBefore
+            ),
+            liquidationAmt,
+            10
+        );
+        assertApproxEqAbs(
+            aliceCollateralAfter,
+            collateralValueInUsdc - liquidationAmt,
+            10
+        );
+        assertApproxEqAbs(aliceDebtAfter, maxBorrow / 3, 10);
     }
 
     function test_CannotLiquidateIfNotLiquidatable() public {
         vm.startPrank(owner);
         assertEq(debtManager.liquidatable(alice), false);
+        usdc.forceApprove(address(debtManager), borrowAmt);
         vm.expectRevert(IL2DebtManager.CannotLiquidateYet.selector);
-        debtManager.liquidate(alice);
+        debtManager.liquidate(alice, address(usdc), borrowAmt);
 
         vm.stopPrank();
     }

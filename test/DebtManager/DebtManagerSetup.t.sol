@@ -11,7 +11,7 @@ import {IEtherFiCashAaveV3Adapter, EtherFiCashAaveV3Adapter} from "../../src/ada
 import {MockAaveAdapter} from "../../src/mocks/MockAaveAdapter.sol";
 import {MockPriceProvider} from "../../src/mocks/MockPriceProvider.sol";
 import {PriceProvider} from "../../src/oracle/PriceProvider.sol";
-import {L2DebtManager} from "../../src/L2DebtManager.sol";
+import {IL2DebtManager, L2DebtManager} from "../../src/L2DebtManager.sol";
 import {UUPSProxy} from "../../src/UUPSProxy.sol";
 import {CashDataProvider} from "../../src/utils/CashDataProvider.sol";
 
@@ -40,6 +40,7 @@ contract DebtManagerSetup is Utils {
     PriceProvider priceProvider;
     L2DebtManager debtManager;
     uint256 mockWeETHPriceInUsd = 3000e6;
+    uint256 ltv = 50e18; // 50%
     uint256 liquidationThreshold = 60e18; // 60%
     uint256 borrowApyPerSecond = 1e18; // 1%
 
@@ -104,23 +105,36 @@ contract DebtManagerSetup is Utils {
         address[] memory borrowTokens = new address[](1);
         borrowTokens[0] = address(usdc);
 
-        address impl = address(new L2DebtManager(address(cashDataProvider)));
+        IL2DebtManager.CollateralTokenConfigData[]
+            memory collateralTokenConfig = new IL2DebtManager.CollateralTokenConfigData[](
+                1
+            );
+        collateralTokenConfig[0] = IL2DebtManager.CollateralTokenConfigData({
+            ltv: ltv,
+            liquidationThreshold: liquidationThreshold
+        });
+        uint256[] memory borrowApys = new uint256[](1);
+        borrowApys[0] = borrowApyPerSecond;
 
-        address proxy = address(
+        address debtManagerImpl = address(
+            new L2DebtManager(address(cashDataProvider))
+        );
+
+        address debtManagerProxy = address(
             new UUPSProxy(
-                impl,
+                debtManagerImpl,
                 abi.encodeWithSelector(
-                    // initialize(address,uint256,uint256,address[],address[])
-                    0x1df44494,
+                    // initialize(address,address[],(uint256,uint256)[],address[],uint256[])
+                    0xa9e49bef,
                     owner,
-                    liquidationThreshold,
-                    borrowApyPerSecond,
                     collateralTokens,
-                    borrowTokens
+                    collateralTokenConfig,
+                    borrowTokens,
+                    borrowApys
                 )
             )
         );
-        debtManager = L2DebtManager(proxy);
+        debtManager = L2DebtManager(debtManagerProxy);
 
         (bool success, ) = address(cashDataProvider).call(
             abi.encodeWithSelector(

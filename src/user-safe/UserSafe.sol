@@ -50,12 +50,14 @@ contract UserSafe is IUserSafe, Initializable, UserSafeRecovery {
     // Incoming collateral limit start timestamp
     uint256 private _incomingCollateralLimitStartTime;
 
+    /// @custom:oz-upgrades-unsafe-allow constructor
     constructor(
         address __cashDataProvider,
         address __etherFiRecoverySigner,
         address __thirdPartyRecoverySigner
     ) UserSafeRecovery(__etherFiRecoverySigner, __thirdPartyRecoverySigner) {
         _cashDataProvider = ICashDataProvider(__cashDataProvider);
+        _disableInitializers();
     }
 
     function initialize(
@@ -336,10 +338,7 @@ contract UserSafe is IUserSafe, Initializable, UserSafeRecovery {
         uint256 outputAmountToTransfer,
         bytes calldata swapData
     ) external onlyEtherFiWallet {
-        if (
-            !_isCollateralToken(inputTokenToSwap) ||
-            !_isBorrowToken(outputToken)
-        ) revert UnsupportedToken();
+        if (!_isBorrowToken(outputToken)) revert UnsupportedToken();
 
         _checkSpendingLimit(outputToken, outputAmountToTransfer);
         _updateWithdrawalRequestIfNecessary(
@@ -629,10 +628,6 @@ contract UserSafe is IUserSafe, Initializable, UserSafeRecovery {
             revert ExceededCollateralLimit();
     }
 
-    function _incrementNonce() private {
-        _nonce++;
-    }
-
     function _addCollateral(
         address debtManager,
         address token,
@@ -672,9 +667,7 @@ contract UserSafe is IUserSafe, Initializable, UserSafeRecovery {
         uint256 repayDebtUsdcAmt
     ) internal {
         // Repay token can either be borrow token or collateral token
-        if (_isBorrowToken(token))
-            IERC20(token).forceApprove(debtManager, repayDebtUsdcAmt);
-        else if (!_isCollateralToken(token)) revert UnsupportedToken();
+        IERC20(token).forceApprove(debtManager, repayDebtUsdcAmt);
 
         IL2DebtManager(debtManager).repay(
             address(this),
@@ -767,13 +760,8 @@ contract UserSafe is IUserSafe, Initializable, UserSafeRecovery {
         _;
     }
 
-    modifier onlyOwner() {
-        _ownerBytes._onlyOwner();
-        _;
-    }
-
     modifier incrementNonce() {
-        _incrementNonce();
+        _nonce++;
         _;
     }
 }

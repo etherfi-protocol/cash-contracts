@@ -221,23 +221,6 @@ contract UserSafeTransfersTest is UserSafeSetup {
         aliceSafe.transfer(unsupportedToken, amount);
     }
 
-    function test_CannotSwapAndTransferUnsupportedTokensForSpending() public {
-        address unsupportedToken = makeAddr("unsupportedToken");
-
-        uint256 amount = 1 ether;
-
-        vm.prank(etherFiWallet);
-        vm.expectRevert(IUserSafe.UnsupportedToken.selector);
-        aliceSafe.swapAndTransfer(
-            unsupportedToken,
-            address(usdc),
-            amount,
-            0,
-            0,
-            hex""
-        );
-    }
-
     function test_CannotTransferUnsupportedTokensForCollateral() public {
         address unsupportedToken = makeAddr("unsupportedToken");
 

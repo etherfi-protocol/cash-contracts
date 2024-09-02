@@ -35,68 +35,76 @@ contract L2DebtManager is
     mapping(address token => uint256 index)
         private _collateralTokenIndexPlusOne;
     mapping(address token => uint256 index) private _borrowTokenIndexPlusOne;
+    mapping(address borrowToken => BorrowTokenConfig config)
+        private _borrowTokenConfig;
 
     // Collateral held by the user
     mapping(address user => mapping(address token => uint256 amount))
         private _userCollateral;
     // Total collateral held by the users with the contract
     mapping(address token => uint256 amount) private _totalCollateralAmounts;
+    mapping(address token => uint256 ltv) private _ltv;
+    mapping(address token => uint256 liquidationThreshold)
+        private _liquidationThreshold;
 
     // Borrowings is in USD with 6 decimals
-    mapping(address user => uint256 borrowing) private _userBorrowings;
-    // Borrowings is in USD with 6 decimals
-    uint256 private _totalBorrowingAmount;
-    // Has 18 decimals
-    uint256 private _liquidationThreshold;
-
-    // In 18 decimals
-    uint256 private _borrowApyPerSecond;
-    // Snapshot of total interest earned per USD from the time of deployment of this contract
-    uint256 private _debtInterestIndexSnapshot;
-    // Last snapshot time for interest addition
-    uint256 private _debtInterestIndexSnapshotTimestamp;
+    mapping(address user => mapping(address borrowToken => uint256 borrowing))
+        private _userBorrowings;
     // Snapshot of user's interests already paid
-    mapping(address user => uint256 interestSnapshot)
+    mapping(address user => mapping(address borrowToken => uint256 interestSnapshot))
         private _usersDebtInterestIndexSnapshots;
 
+    // Shares have 18 decimals
+    mapping(address supplier => mapping(address borrowToken => uint256 shares))
+        private _sharesOfBorrowTokens;
+
+    uint256 public constant ONE_SHARE = 1 ether;
+
+    /// @custom:oz-upgrades-unsafe-allow constructor
     constructor(address __cashDataProvider) {
         _cashDataProvider = ICashDataProvider(__cashDataProvider);
+        _disableInitializers();
     }
 
     function initialize(
         address __owner,
-        uint256 __liquidationThreshold,
-        uint256 __borrowApyPerSecond,
         address[] calldata __supportedCollateralTokens,
-        address[] calldata __supportedBorrowTokens
+        CollateralTokenConfigData[] calldata __collateralTokenConfigs,
+        address[] calldata __supportedBorrowTokens,
+        uint256[] calldata __borrowApys
     ) external initializer {
         __UUPSUpgradeable_init();
         __AccessControl_init();
         _grantRole(DEFAULT_ADMIN_ROLE, __owner);
         _grantRole(ADMIN_ROLE, __owner);
 
-        _setLiquidationThreshold(__liquidationThreshold);
-        _setBorrowApyPerSecond(__borrowApyPerSecond);
-
         uint256 len = __supportedCollateralTokens.length;
+        if (len != __collateralTokenConfigs.length)
+            revert ArrayLengthMismatch();
+
         for (uint256 i = 0; i < len; ) {
             _supportCollateralToken(__supportedCollateralTokens[i]);
+            _setLtvAndLiquidationThreshold(
+                __supportedCollateralTokens[i],
+                __collateralTokenConfigs[i].ltv,
+                __collateralTokenConfigs[i].liquidationThreshold
+            );
+
             unchecked {
                 ++i;
             }
         }
 
         len = __supportedBorrowTokens.length;
+        if (len != __borrowApys.length) revert ArrayLengthMismatch();
+
         for (uint256 i = 0; i < len; ) {
             _supportBorrowToken(__supportedBorrowTokens[i]);
+            _setBorrowTokenConfig(__supportedBorrowTokens[i], __borrowApys[i]);
             unchecked {
                 ++i;
             }
         }
-
-        _debtInterestIndexSnapshotTimestamp = block.timestamp;
-        _debtInterestIndexSnapshot = 0;
-        _totalBorrowingAmount = 0;
     }
 
     /**
@@ -109,8 +117,26 @@ contract L2DebtManager is
     /**
      * @inheritdoc IL2DebtManager
      */
-    function borrowApyPerSecond() public view returns (uint256) {
-        return _borrowApyPerSecond;
+    function borrowTokenConfig(
+        address borrowToken
+    ) public view returns (BorrowTokenConfig memory) {
+        BorrowTokenConfig memory config = _borrowTokenConfig[borrowToken];
+        config.totalBorrowingAmount = _getAmountWithInterest(
+            borrowToken,
+            config.totalBorrowingAmount,
+            config.interestIndexSnapshot
+        );
+
+        return config;
+    }
+
+    /**
+     * @inheritdoc IL2DebtManager
+     */
+    function collateralTokenConfig(
+        address collateralToken
+    ) external view returns (uint256, uint256) {
+        return (_ltv[collateralToken], _liquidationThreshold[collateralToken]);
     }
 
     /**
@@ -178,33 +204,89 @@ contract L2DebtManager is
         return (collateralTokenAmt, collateralAmtInUsd);
     }
 
-    /**
-     * @inheritdoc IL2DebtManager
-     */
-    function liquidationThreshold() external view returns (uint256) {
-        return _liquidationThreshold;
-    }
-
-    /**
-     * @inheritdoc IL2DebtManager
-     */
-    function totalBorrowingAmount() public view returns (uint256) {
+    function totalBorrowingAmount(
+        address borrowToken
+    ) public view returns (uint256) {
         return
             _getAmountWithInterest(
-                _totalBorrowingAmount,
-                _debtInterestIndexSnapshot
+                borrowToken,
+                _borrowTokenConfig[borrowToken].totalBorrowingAmount,
+                _borrowTokenConfig[borrowToken].interestIndexSnapshot
             );
     }
 
     /**
      * @inheritdoc IL2DebtManager
      */
-    function borrowingOf(address user) public view returns (uint256) {
+    function totalBorrowingAmounts()
+        public
+        view
+        returns (TokenData[] memory, uint256)
+    {
+        uint256 len = _supportedBorrowTokens.length;
+        TokenData[] memory tokenData = new TokenData[](len);
+        uint256 totalBorrowingAmt = 0;
+
+        for (uint256 i = 0; i < len; ) {
+            BorrowTokenConfig memory config = borrowTokenConfig(
+                _supportedBorrowTokens[i]
+            );
+
+            tokenData[i] = TokenData({
+                token: _supportedBorrowTokens[i],
+                amount: config.totalBorrowingAmount
+            });
+
+            totalBorrowingAmt += config.totalBorrowingAmount;
+
+            unchecked {
+                ++i;
+            }
+        }
+
+        return (tokenData, totalBorrowingAmt);
+    }
+
+    /**
+     * @inheritdoc IL2DebtManager
+     */
+    function borrowingOf(
+        address user,
+        address borrowToken
+    ) public view returns (uint256) {
         return
             _getAmountWithInterest(
-                _userBorrowings[user],
-                _usersDebtInterestIndexSnapshots[user]
+                borrowToken,
+                _userBorrowings[user][borrowToken],
+                _usersDebtInterestIndexSnapshots[user][borrowToken]
             );
+    }
+
+    /**
+     * @inheritdoc IL2DebtManager
+     */
+    function borrowingOf(
+        address user
+    ) public view returns (TokenData[] memory, uint256) {
+        uint256 len = _supportedBorrowTokens.length;
+        TokenData[] memory borrowTokenData = new TokenData[](len);
+        uint256 totalBorrowingInUsd = 0;
+
+        for (uint256 i = 0; i < len; ) {
+            address borrowToken = _supportedBorrowTokens[i];
+            uint256 amount = borrowingOf(user, borrowToken);
+            totalBorrowingInUsd += amount;
+
+            borrowTokenData[i] = TokenData({
+                token: borrowToken,
+                amount: amount
+            });
+            unchecked {
+                ++i;
+            }
+        }
+
+        return (borrowTokenData, totalBorrowingInUsd);
     }
 
     /**
@@ -242,7 +324,41 @@ contract L2DebtManager is
      * @inheritdoc IL2DebtManager
      */
     function liquidatable(address user) public view returns (bool) {
-        return debtRatioOf(user) > _liquidationThreshold;
+        (, uint256 userBorrowing) = borrowingOf(user);
+        // Total borrowing in USDC > total max borrowing of the user
+        return userBorrowing > getMaxBorrowAmount(user, false);
+    }
+
+    function getMaxBorrowAmount(
+        address user,
+        bool forLtv
+    ) public view returns (uint256) {
+        uint256 len = _supportedCollateralTokens.length;
+        uint256 totalMaxBorrow = 0;
+
+        for (uint256 i = 0; i < len; ) {
+            uint256 collateral = convertCollateralTokenToUsdc(
+                _supportedCollateralTokens[i],
+                _userCollateral[user][_supportedCollateralTokens[i]]
+            );
+
+            if (forLtv)
+                // user collateral for token in USDC * 100 / liquidation threshold
+                totalMaxBorrow +=
+                    (collateral * _ltv[_supportedCollateralTokens[i]]) /
+                    1e20;
+            else
+                totalMaxBorrow +=
+                    (collateral *
+                        _liquidationThreshold[_supportedCollateralTokens[i]]) /
+                    1e20;
+
+            unchecked {
+                ++i;
+            }
+        }
+
+        return totalMaxBorrow;
     }
 
     /**
@@ -278,11 +394,18 @@ contract L2DebtManager is
      * @inheritdoc IL2DebtManager
      */
     function debtRatioOf(address user) public view returns (uint256) {
-        uint256 debtValue = borrowingOf(user);
+        (, uint256 totalDebtValue) = borrowingOf(user);
         uint256 collateralValue = getCollateralValueInUsdc(user);
         if (collateralValue == 0) revert ZeroCollateralValue();
 
-        return (debtValue * 1e20) / collateralValue; // result in basis points
+        return (totalDebtValue * 1e20) / collateralValue; // result in basis points
+    }
+
+    // if user borrowings is greater than they can borrow as per LTV, revert
+    function _ensureHealth(address user) public view {
+        (, uint256 totalBorrowings) = borrowingOf(user);
+        if (totalBorrowings > getMaxBorrowAmount(user, true))
+            revert AccountUnhealthy();
     }
 
     /**
@@ -291,15 +414,22 @@ contract L2DebtManager is
     function remainingBorrowingCapacityInUSDC(
         address user
     ) public view returns (uint256) {
-        uint256 maxBorrowingAmount = (getCollateralValueInUsdc(user) *
-            _liquidationThreshold) / 1e20;
-
-        uint256 currentBorrowingWithInterest = borrowingOf(user);
+        uint256 maxBorrowingAmount = getMaxBorrowAmount(user, true);
+        (, uint256 currentBorrowingWithInterest) = borrowingOf(user);
 
         return
             maxBorrowingAmount > currentBorrowingWithInterest
                 ? maxBorrowingAmount - currentBorrowingWithInterest
                 : 0;
+    }
+
+    /**
+     * @inheritdoc IL2DebtManager
+     */
+    function borrowApyPerSecond(
+        address borrowToken
+    ) external view returns (uint256) {
+        return _borrowTokenConfig[borrowToken].borrowApy;
     }
 
     /**
@@ -311,13 +441,14 @@ contract L2DebtManager is
         returns (
             TokenData[] memory totalCollaterals,
             uint256 totalCollateralInUsdc,
+            TokenData[] memory borrowings,
             uint256 totalBorrowings,
             TokenData[] memory totalLiquidCollateralAmounts,
-            uint256 totalLiquidStableAmounts
+            TokenData[] memory totalLiquidStableAmounts
         )
     {
         (totalCollaterals, totalCollateralInUsdc) = totalCollateralAmounts();
-        totalBorrowings = _totalBorrowingAmount;
+        (borrowings, totalBorrowings) = totalBorrowingAmounts();
         totalLiquidCollateralAmounts = liquidCollateralAmounts();
         totalLiquidStableAmounts = liquidStableAmount();
     }
@@ -362,23 +493,43 @@ contract L2DebtManager is
     /**
      * @inheritdoc IL2DebtManager
      */
-    function liquidStableAmount() public view returns (uint256) {
+    function liquidStableAmount() public view returns (TokenData[] memory) {
         uint256 len = _supportedBorrowTokens.length;
+        TokenData[] memory tokenData = new TokenData[](len);
+
         uint256 totalStableBalances = 0;
         for (uint256 i = 0; i < len; ) {
-            totalStableBalances += IERC20(_supportedBorrowTokens[i]).balanceOf(
+            uint256 bal = IERC20(_supportedBorrowTokens[i]).balanceOf(
                 address(this)
             );
+            tokenData[i] = TokenData({
+                token: _supportedBorrowTokens[i],
+                amount: bal
+            });
+            totalStableBalances += bal;
 
             unchecked {
                 ++i;
             }
         }
 
+        return tokenData;
+    }
+
+    /**
+     * @inheritdoc IL2DebtManager
+     */
+    function withdrawableBorrowToken(
+        address supplier,
+        address borrowToken
+    ) external view returns (uint256) {
+        if (_borrowTokenConfig[borrowToken].totalSharesOfBorrowTokens == 0)
+            return 0;
+
         return
-            totalStableBalances > _totalBorrowingAmount
-                ? totalStableBalances - _totalBorrowingAmount
-                : 0;
+            (_sharesOfBorrowTokens[supplier][borrowToken] *
+                _getTotalBorrowTokenAmount(borrowToken)) /
+            _borrowTokenConfig[borrowToken].totalSharesOfBorrowTokens;
     }
 
     /**
@@ -440,20 +591,26 @@ contract L2DebtManager is
     /**
      * @inheritdoc IL2DebtManager
      */
-    function debtInterestIndexSnapshot() public view returns (uint256) {
+    function debtInterestIndexSnapshot(
+        address borrowToken
+    ) public view returns (uint256) {
         return
-            _debtInterestIndexSnapshot +
-            (block.timestamp - _debtInterestIndexSnapshotTimestamp) *
-            _borrowApyPerSecond;
+            _borrowTokenConfig[borrowToken].interestIndexSnapshot +
+            (block.timestamp -
+                _borrowTokenConfig[borrowToken].lastUpdateTimestamp) *
+            _borrowTokenConfig[borrowToken].borrowApy;
     }
 
     /**
      * @inheritdoc IL2DebtManager
      */
     function supportCollateralToken(
-        address token
+        address token,
+        uint256 ltv,
+        uint256 liquidationThreshold
     ) external onlyRole(ADMIN_ROLE) {
         _supportCollateralToken(token);
+        _setLtvAndLiquidationThreshold(token, ltv, liquidationThreshold);
     }
 
     /**
@@ -484,26 +641,33 @@ contract L2DebtManager is
         _supportedCollateralTokens.pop();
         delete _collateralTokenIndexPlusOne[token];
 
+        _setLtvAndLiquidationThreshold(token, 0, 0);
+
         emit CollateralTokenRemoved(token);
     }
 
     /**
      * @inheritdoc IL2DebtManager
      */
-    function supportBorrowToken(address token) external onlyRole(ADMIN_ROLE) {
+    function supportBorrowToken(
+        address token,
+        uint256 borrowApy
+    ) external onlyRole(ADMIN_ROLE) {
         _supportBorrowToken(token);
+        _setBorrowTokenConfig(token, borrowApy);
     }
 
     /**
      * @inheritdoc IL2DebtManager
      */
     function unsupportBorrowToken(address token) external onlyRole(ADMIN_ROLE) {
-        if (token == address(0)) revert InvalidValue();
-
         uint256 indexPlusOneForTokenToBeRemoved = _borrowTokenIndexPlusOne[
             token
         ];
         if (indexPlusOneForTokenToBeRemoved == 0) revert NotABorrowToken();
+
+        if (_getTotalBorrowTokenAmount(token) != 0)
+            revert BorrowTokenStillInTheSystem();
 
         uint256 len = _supportedBorrowTokens.length;
         if (len == 1) revert NoBorrowTokenLeft();
@@ -517,6 +681,7 @@ contract L2DebtManager is
 
         _supportedBorrowTokens.pop();
         delete _borrowTokenIndexPlusOne[token];
+        delete _borrowTokenConfig[token];
 
         emit BorrowTokenRemoved(token);
     }
@@ -524,17 +689,73 @@ contract L2DebtManager is
     /**
      * @inheritdoc IL2DebtManager
      */
-    function setBorrowApyPerSecond(uint256 apy) external onlyRole(ADMIN_ROLE) {
-        _setBorrowApyPerSecond(apy);
+    function setLtvAndLiquidationThreshold(
+        address __collateralToken,
+        uint256 __ltv,
+        uint256 __liquidationThreshold
+    ) external onlyRole(ADMIN_ROLE) {
+        _setLtvAndLiquidationThreshold(
+            __collateralToken,
+            __ltv,
+            __liquidationThreshold
+        );
     }
 
     /**
      * @inheritdoc IL2DebtManager
      */
-    function setLiquidationThreshold(
-        uint256 newThreshold
+    function setBorrowApy(
+        address token,
+        uint256 apy
     ) external onlyRole(ADMIN_ROLE) {
-        _setLiquidationThreshold(newThreshold);
+        _setBorrowApy(token, apy);
+    }
+
+    /**
+     * @inheritdoc IL2DebtManager
+     */
+    function supply(
+        address user,
+        address borrowToken,
+        uint256 amount
+    ) external {
+        uint256 shares = _convertBorrowToShare(
+            borrowToken,
+            (_borrowTokenConfig[borrowToken].totalSharesOfBorrowTokens == 0)
+                ? amount
+                : (amount *
+                    _borrowTokenConfig[borrowToken].totalSharesOfBorrowTokens) /
+                    _getTotalBorrowTokenAmount(borrowToken)
+        );
+
+        // Moving this before state update to prevent reentrancy
+        IERC20(borrowToken).safeTransferFrom(msg.sender, address(this), amount);
+
+        _sharesOfBorrowTokens[user][borrowToken] += shares;
+        _borrowTokenConfig[borrowToken].totalSharesOfBorrowTokens += shares;
+
+        emit Supplied(msg.sender, user, borrowToken, amount);
+    }
+
+    /**
+     * @inheritdoc IL2DebtManager
+     */
+    function withdrawBorrowToken(address borrowToken, uint256 amount) external {
+        uint256 totalBorrowTokenAmt = _getTotalBorrowTokenAmount(borrowToken);
+        if (totalBorrowTokenAmt == 0) revert ZeroTotalBorrowTokens();
+
+        uint256 shares = (amount *
+            _borrowTokenConfig[borrowToken].totalSharesOfBorrowTokens) /
+            totalBorrowTokenAmt;
+
+        if (_sharesOfBorrowTokens[msg.sender][borrowToken] < shares)
+            revert InsufficientBorrowShares();
+
+        _sharesOfBorrowTokens[msg.sender][borrowToken] -= shares;
+        _borrowTokenConfig[borrowToken].totalSharesOfBorrowTokens -= shares;
+
+        IERC20(borrowToken).safeTransfer(msg.sender, amount);
+        emit WithdrawBorrowToken(msg.sender, borrowToken, amount);
     }
 
     /**
@@ -544,7 +765,7 @@ contract L2DebtManager is
         address token,
         address user,
         uint256 amount
-    ) external updateBorrowings(user) {
+    ) external {
         if (!isCollateralToken(token)) revert UnsupportedCollateralToken();
 
         IERC20(token).safeTransferFrom(msg.sender, address(this), amount);
@@ -557,20 +778,17 @@ contract L2DebtManager is
     /**
      * @inheritdoc IL2DebtManager
      */
-    function borrow(
-        address token,
-        uint256 amount
-    ) external updateBorrowings(msg.sender) {
+    function borrow(address token, uint256 amount) external {
         if (!isBorrowToken(token)) revert UnsupportedBorrowToken();
+        _updateBorrowings(msg.sender, token);
 
         // Convert amount to 6 decimals before adding to borrowings
         uint256 borrowAmt = _convertToSixDecimals(token, amount);
 
-        _userBorrowings[msg.sender] += borrowAmt;
-        _totalBorrowingAmount += borrowAmt;
+        _userBorrowings[msg.sender][token] += borrowAmt;
+        _borrowTokenConfig[token].totalBorrowingAmount += borrowAmt;
 
-        if (debtRatioOf(msg.sender) > _liquidationThreshold)
-            revert InsufficientCollateral();
+        _ensureHealth(msg.sender);
 
         if (IERC20(token).balanceOf(address(this)) < amount)
             revert InsufficientLiquidity();
@@ -590,44 +808,28 @@ contract L2DebtManager is
         address user,
         address token,
         uint256 repayDebtUsdcAmt
-    ) external updateBorrowings(user) {
-        if (_userBorrowings[user] < repayDebtUsdcAmt)
-            revert CannotPayMoreThanDebtIncurred();
+    ) external {
+        _updateBorrowings(user, token);
+        if (_userBorrowings[user][token] < repayDebtUsdcAmt)
+            repayDebtUsdcAmt = _userBorrowings[user][token];
+        if (repayDebtUsdcAmt == 0) revert RepaymentAmountIsZero();
 
-        if (isBorrowToken(token))
-            _repayWithBorrowToken(token, user, repayDebtUsdcAmt);
-        else if (isCollateralToken(token)) {
-            if (msg.sender != user) revert OnlyUserCanRepayWithCollateral();
-            _repayWithCollateralToken(user, token, repayDebtUsdcAmt);
-        } else revert UnsupportedRepayToken();
+        if (!isBorrowToken(token)) revert UnsupportedRepayToken();
+
+        _repayWithBorrowToken(token, user, repayDebtUsdcAmt);
     }
 
     /**
      * @inheritdoc IL2DebtManager
      */
-    function repayWithCollateral(
-        address user,
-        uint256 repayDebtUsdcAmt
-    ) external updateBorrowings(user) {
-        if (msg.sender != user) revert OnlyUserCanRepayWithCollateral();
-
-        _repayWithCollateral(user, repayDebtUsdcAmt);
-    }
-
-    /**
-     * @inheritdoc IL2DebtManager
-     */
-    function withdrawCollateral(
-        address token,
-        uint256 amount
-    ) external updateBorrowings(msg.sender) {
+    function withdrawCollateral(address token, uint256 amount) external {
+        _updateBorrowings(msg.sender, token);
         if (!isCollateralToken(token)) revert UnsupportedCollateralToken();
 
         _totalCollateralAmounts[token] -= amount;
         _userCollateral[msg.sender][token] -= amount;
 
-        if (debtRatioOf(msg.sender) > _liquidationThreshold)
-            revert InsufficientCollateral();
+        _ensureHealth(msg.sender);
 
         IERC20(token).safeTransfer(msg.sender, amount);
 
@@ -637,9 +839,10 @@ contract L2DebtManager is
     /**
      * @inheritdoc IL2DebtManager
      */
-    function closeAccount() external updateBorrowings(msg.sender) {
-        uint256 totalUserBorrowing = _userBorrowings[msg.sender];
-        _repayWithCollateral(msg.sender, totalUserBorrowing);
+    function closeAccount() external {
+        _updateBorrowings(msg.sender);
+        (, uint256 userBorrowing) = borrowingOf(msg.sender);
+        if (userBorrowing != 0) revert TotalBorrowingsForUserNotZero();
 
         (TokenData[] memory tokenData, ) = collateralOf(msg.sender);
         uint256 len = tokenData.length;
@@ -649,6 +852,10 @@ contract L2DebtManager is
                 IERC20(tokenData[i].token).balanceOf(address(this)) <
                 tokenData[i].amount
             ) revert InsufficientLiquidityPleaseTryAgainLater();
+
+            _userCollateral[msg.sender][tokenData[i].token] -= tokenData[i]
+                .amount;
+            _totalCollateralAmounts[tokenData[i].token] -= tokenData[i].amount;
 
             IERC20(tokenData[i].token).safeTransfer(
                 msg.sender,
@@ -660,7 +867,7 @@ contract L2DebtManager is
             }
         }
 
-        emit AccountClosed(msg.sender, totalUserBorrowing, tokenData);
+        emit AccountClosed(msg.sender, tokenData);
     }
 
     // https://docs.aave.com/faq/liquidations
@@ -668,20 +875,67 @@ contract L2DebtManager is
      * @inheritdoc IL2DebtManager
      */
     function liquidate(
-        address user
-    ) external onlyRole(ADMIN_ROLE) updateBorrowings(user) {
+        address user,
+        address borrowToken,
+        uint256 debtAmountInUsdc
+    ) external {
+        _updateBorrowings(user, borrowToken);
         if (!liquidatable(user)) revert CannotLiquidateYet();
+        if (!isBorrowToken(borrowToken)) revert UnsupportedBorrowToken();
 
-        uint256 beforeDebtAmount = _userBorrowings[user];
+        uint256 beforeDebtAmount = _userBorrowings[user][borrowToken];
+
+        if (debtAmountInUsdc == 0) revert DebtAmountInUsdcIsZero();
+
+        IERC20(borrowToken).safeTransferFrom(
+            msg.sender,
+            address(this),
+            _convertFromSixDecimals(borrowToken, debtAmountInUsdc)
+        );
+
         (TokenData[] memory beforeCollateralAmounts, ) = collateralOf(user);
-        _repayWithCollateral(user, beforeDebtAmount); // force to repay the entire debt using the collateral
-        (TokenData[] memory afterCollateralAmounts, ) = collateralOf(user);
+
+        TokenData[]
+            memory collateralTokensToSend = _getCollateralTokensForDebtAmount(
+                user,
+                debtAmountInUsdc
+            );
+
+        uint256 len = collateralTokensToSend.length;
+
+        for (uint256 i = 0; i < len; ) {
+            _userCollateral[user][
+                collateralTokensToSend[i].token
+            ] -= collateralTokensToSend[i].amount;
+            _totalCollateralAmounts[
+                collateralTokensToSend[i].token
+            ] -= collateralTokensToSend[i].amount;
+
+            IERC20(collateralTokensToSend[i].token).safeTransfer(
+                msg.sender,
+                collateralTokensToSend[i].amount
+            );
+
+            unchecked {
+                ++i;
+            }
+        }
+
+        _userBorrowings[user][borrowToken] -= debtAmountInUsdc;
+        _borrowTokenConfig[borrowToken]
+            .totalBorrowingAmount -= debtAmountInUsdc;
+
+        if (liquidatable(user))
+            revert PartialLiquidationShouldOverCollaterallizeTheUser();
 
         emit Liquidated(
+            msg.sender,
             user,
+            borrowToken,
             beforeCollateralAmounts,
-            afterCollateralAmounts,
-            beforeDebtAmount
+            collateralTokensToSend,
+            beforeDebtAmount,
+            debtAmountInUsdc
         );
     }
 
@@ -696,25 +950,42 @@ contract L2DebtManager is
         AaveLib.aaveOperation(aaveV3Adapter, marketOperationType, data);
     }
 
-    /**
-     * @inheritdoc IL2DebtManager
-     */
-    function adminWithdrawFunds(
-        address token,
-        uint256 amount
-    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        if (isCollateralToken(token)) {
-            uint256 liquidTokenAmt = IERC20(token).balanceOf(address(this)) -
-                _totalCollateralAmounts[token];
-            if (liquidTokenAmt < amount)
-                revert LiquidAmountLesserThanRequired();
-        }
-
-        IERC20(token).safeTransfer(
-            _cashDataProvider.etherFiCashMultiSig(),
-            amount
+    function _setLtvAndLiquidationThreshold(
+        address collateralToken,
+        uint256 ltv,
+        uint256 liquidationThreshold
+    ) internal {
+        if (ltv > liquidationThreshold)
+            revert LtvCannotBeGreaterThanLiquidationThreshold();
+        emit LtvSet(collateralToken, _ltv[collateralToken], ltv);
+        emit LiquidationThresholdSet(
+            collateralToken,
+            _liquidationThreshold[collateralToken],
+            liquidationThreshold
         );
-        emit AdminWithdrawFunds(token, amount);
+
+        _ltv[collateralToken] = ltv;
+        _liquidationThreshold[collateralToken] = liquidationThreshold;
+    }
+
+    function _setBorrowTokenConfig(
+        address borrowToken,
+        uint256 borrowApy
+    ) internal {
+        if (!isBorrowToken(borrowToken)) revert UnsupportedBorrowToken();
+        if (_borrowTokenConfig[borrowToken].lastUpdateTimestamp != 0)
+            revert BorrowTokenConfigAlreadySet();
+
+        BorrowTokenConfig memory cfg = BorrowTokenConfig({
+            interestIndexSnapshot: 0,
+            borrowApy: borrowApy,
+            lastUpdateTimestamp: block.timestamp,
+            totalBorrowingAmount: 0,
+            totalSharesOfBorrowTokens: 0
+        });
+
+        _borrowTokenConfig[borrowToken] = cfg;
+        emit BorrowTokenConfigSet(borrowToken, cfg);
     }
 
     /// Users repay the borrowed USDC in USDC
@@ -726,54 +997,19 @@ contract L2DebtManager is
         IERC20(token).safeTransferFrom(
             msg.sender,
             address(this),
-            _convertToSixDecimals(token, repayDebtUsdcAmt)
+            _convertFromSixDecimals(token, repayDebtUsdcAmt)
         );
-        _userBorrowings[user] -= repayDebtUsdcAmt;
-        _totalBorrowingAmount -= repayDebtUsdcAmt;
 
-        emit RepaidWithUSDC(user, msg.sender, repayDebtUsdcAmt);
+        _userBorrowings[user][token] -= repayDebtUsdcAmt;
+        _borrowTokenConfig[token].totalBorrowingAmount -= repayDebtUsdcAmt;
+
+        emit Repaid(user, msg.sender, token, repayDebtUsdcAmt);
     }
 
-    // Use the deposited collateral to pay the debt
-    function _repayWithCollateralToken(
-        address user,
-        address collateralToken,
-        uint256 repayDebtUsdcAmt
-    ) internal {
-        uint256 collateralAmountForDebt = convertUsdcToCollateralToken(
-            collateralToken,
-            repayDebtUsdcAmt
-        );
-
-        uint256 beforeCollateralAmount = _userCollateral[user][collateralToken];
-
-        if (beforeCollateralAmount < collateralAmountForDebt)
-            revert InsufficientCollateralToRepay();
-
-        _userBorrowings[user] -= repayDebtUsdcAmt;
-        _userCollateral[user][collateralToken] -= collateralAmountForDebt;
-
-        _totalBorrowingAmount -= repayDebtUsdcAmt;
-        _totalCollateralAmounts[collateralToken] -= collateralAmountForDebt;
-
-        if (debtRatioOf(user) > _liquidationThreshold)
-            revert InsufficientCollateral();
-
-        emit RepaidWithCollateralToken(
-            user,
-            msg.sender,
-            collateralToken,
-            beforeCollateralAmount,
-            _userCollateral[user][collateralToken],
-            repayDebtUsdcAmt
-        );
-    }
-
-    // Use the deposited collateral to pay the debt
-    function _repayWithCollateral(
+    function _getCollateralTokensForDebtAmount(
         address user,
         uint256 repayDebtUsdcAmt
-    ) internal {
+    ) internal view returns (TokenData[] memory) {
         uint256 len = _supportedCollateralTokens.length;
         TokenData[] memory collateral = new TokenData[](len);
 
@@ -797,29 +1033,12 @@ contract L2DebtManager is
                     _userCollateral[user][collateralToken]
                 );
 
-                _totalCollateralAmounts[collateralToken] -= _userCollateral[
-                    user
-                ][collateralToken];
-                _userCollateral[user][collateralToken] = 0;
-
-                _userBorrowings[user] -= usdcValueOfCollateral;
-                _totalBorrowingAmount -= usdcValueOfCollateral;
                 repayDebtUsdcAmt -= usdcValueOfCollateral;
             } else {
                 collateral[i] = TokenData({
                     token: collateralToken,
                     amount: collateralAmountForDebt
                 });
-
-                _userBorrowings[user] -= repayDebtUsdcAmt;
-                _userCollateral[user][
-                    collateralToken
-                ] -= collateralAmountForDebt;
-
-                _totalBorrowingAmount -= repayDebtUsdcAmt;
-                _totalCollateralAmounts[
-                    collateralToken
-                ] -= collateralAmountForDebt;
 
                 repayDebtUsdcAmt = 0;
             }
@@ -838,10 +1057,7 @@ contract L2DebtManager is
             }
         }
 
-        if (debtRatioOf(user) > _liquidationThreshold)
-            revert InsufficientCollateral();
-
-        emit RepaidWithCollateral(user, repayDebtUsdcAmt, collateral);
+        return collateral;
     }
 
     function _supportCollateralToken(address token) internal {
@@ -867,31 +1083,86 @@ contract L2DebtManager is
         emit BorrowTokenAdded(token);
     }
 
-    function _setLiquidationThreshold(uint256 newThreshold) internal {
-        emit LiquidationThresholdUpdated(_liquidationThreshold, newThreshold);
-        _liquidationThreshold = newThreshold;
-    }
-
-    function _setBorrowApyPerSecond(
-        uint256 apy
-    ) internal updateBorrowings(address(0)) {
+    function _setBorrowApy(address token, uint256 apy) internal {
+        _updateBorrowings(address(0));
         if (apy > MAX_BORROW_APY) revert BorrowApyGreaterThanMaxAllowed();
 
-        emit BorrowApySet(_borrowApyPerSecond, apy);
-        _borrowApyPerSecond = apy;
+        emit BorrowApySet(token, _borrowTokenConfig[token].borrowApy, apy);
+        _borrowTokenConfig[token].borrowApy = apy;
     }
 
     function _getAmountWithInterest(
+        address borrowToken,
         uint256 amountBefore,
         uint256 accInterestAlreadyAdded
     ) internal view returns (uint256) {
         return
             ((1e18 *
                 (amountBefore *
-                    (debtInterestIndexSnapshot() - accInterestAlreadyAdded))) /
+                    (debtInterestIndexSnapshot(borrowToken) -
+                        accInterestAlreadyAdded))) /
                 1e20 +
                 1e18 *
                 amountBefore) / 1e18;
+    }
+
+    function _getTotalBorrowTokenAmount(
+        address borrowToken
+    ) internal view returns (uint256) {
+        return
+            totalBorrowingAmount(borrowToken) +
+            IERC20(borrowToken).balanceOf(address(this));
+    }
+
+    function _updateBorrowings(address user) internal {
+        uint256 len = _supportedBorrowTokens.length;
+        for (uint256 i = 0; i < len; ) {
+            _updateBorrowings(user, _supportedBorrowTokens[i]);
+            unchecked {
+                ++i;
+            }
+        }
+    }
+
+    function _updateBorrowings(address user, address borrowToken) internal {
+        uint256 totalBorrowingAmtBeforeInterest = _borrowTokenConfig[
+            borrowToken
+        ].totalBorrowingAmount;
+
+        _borrowTokenConfig[borrowToken]
+            .interestIndexSnapshot = debtInterestIndexSnapshot(borrowToken);
+        _borrowTokenConfig[borrowToken]
+            .totalBorrowingAmount = totalBorrowingAmount(borrowToken);
+        _borrowTokenConfig[borrowToken].lastUpdateTimestamp = block.timestamp;
+
+        if (
+            totalBorrowingAmtBeforeInterest !=
+            _borrowTokenConfig[borrowToken].totalBorrowingAmount
+        )
+            emit TotalBorrowingUpdated(
+                borrowToken,
+                totalBorrowingAmtBeforeInterest,
+                _borrowTokenConfig[borrowToken].totalBorrowingAmount
+            );
+
+        if (user != address(0)) {
+            uint256 userBorrowingsBefore = _userBorrowings[user][borrowToken];
+            _userBorrowings[user][borrowToken] = borrowingOf(user, borrowToken);
+            _usersDebtInterestIndexSnapshots[user][
+                borrowToken
+            ] = _borrowTokenConfig[borrowToken].interestIndexSnapshot;
+
+            if (userBorrowingsBefore != _userBorrowings[user][borrowToken])
+                emit UserInterestAdded(
+                    user,
+                    userBorrowingsBefore,
+                    _userBorrowings[user][borrowToken]
+                );
+        }
+    }
+
+    function _getDecimals(address token) internal view returns (uint8) {
+        return IERC20Metadata(token).decimals();
     }
 
     function _convertToSixDecimals(
@@ -903,37 +1174,20 @@ contract L2DebtManager is
             tokenDecimals == 6 ? amount : (amount * 1e6) / 10 ** tokenDecimals;
     }
 
-    modifier updateBorrowings(address user) {
-        uint256 totalBorrowingAmtBeforeInterest = _totalBorrowingAmount;
-
-        uint256 accInterestAlreadyStored = _debtInterestIndexSnapshot;
-        _debtInterestIndexSnapshot = debtInterestIndexSnapshot();
-        _totalBorrowingAmount = totalBorrowingAmount();
-        _debtInterestIndexSnapshotTimestamp = block.timestamp;
-
-        if (totalBorrowingAmtBeforeInterest != _totalBorrowingAmount)
-            emit TotalBorrowingUpdated(
-                totalBorrowingAmtBeforeInterest,
-                _totalBorrowingAmount
-            );
-
-        if (user != address(0)) {
-            uint256 userBorrowingsBefore = _userBorrowings[user];
-            _userBorrowings[user] = borrowingOf(user);
-            _usersDebtInterestIndexSnapshots[user] = _debtInterestIndexSnapshot;
-
-            emit UserInterestAdded(
-                user,
-                userBorrowingsBefore,
-                _userBorrowings[user]
-            );
-        }
-
-        _;
+    function _convertFromSixDecimals(
+        address token,
+        uint256 amount
+    ) internal view returns (uint256) {
+        uint8 tokenDecimals = _getDecimals(token);
+        return
+            tokenDecimals == 6 ? amount : (amount * 10 ** tokenDecimals) / 1e6;
     }
 
-    function _getDecimals(address token) internal view returns (uint8) {
-        return IERC20Metadata(token).decimals();
+    function _convertBorrowToShare(
+        address borrowToken,
+        uint256 amount
+    ) internal view returns (uint256) {
+        return (amount * ONE_SHARE) / 10 ** _getDecimals(borrowToken);
     }
 
     function _authorizeUpgrade(
