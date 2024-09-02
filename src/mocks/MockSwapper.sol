@@ -13,6 +13,7 @@ contract MockSwapper {
         address _toAsset,
         uint256, // _fromAssetAmount
         uint256 _minToAssetAmount,
+        uint256, // _guaranteedAmount
         bytes calldata // _data
     ) external returns (uint256 toAssetAmount) {
         // more than a million usdc swap we won't support on test

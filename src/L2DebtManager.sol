@@ -204,6 +204,9 @@ contract L2DebtManager is
         return (collateralTokenAmt, collateralAmtInUsd);
     }
 
+    /**
+     * @inheritdoc IL2DebtManager
+     */
     function totalBorrowingAmount(
         address borrowToken
     ) public view returns (uint256) {

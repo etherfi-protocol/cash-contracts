@@ -31,7 +31,7 @@ contract UserSafeReceiveFundsTest is UserSafeSetup {
     }
 
     function test_ReceiveFundsWithPermit() public {
-        if (keccak256(bytes(chainId)) != keccak256(bytes("local"))) {
+        if (keccak256(bytes(chainId)) == keccak256(bytes("42161"))) {
             uint256 amount = 10 ether;
             uint256 deadline = type(uint256).max;
             bytes32 DOMAIN_SEPARATOR_WEETH = 0x2dcc2f01a01098023cfce9f6b30f72af3d7809ae69a1ea8b5ac6f012e91b3248;

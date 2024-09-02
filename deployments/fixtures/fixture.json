@@ -6,7 +6,19 @@
     "weEthWethOracle": "0xE141425bc1594b8039De6390db1cDaf4397EA22b",
     "ethUsdcOracle": "0x639Fe6ab55C921f74e7fac1ee960C0B6293ba612",
     "swapRouter1InchV6": "0x111111125421cA6dc452d289314280a0f8842A65",
+    "swapRouterOpenOcean": "0x6352a56caadC4F1E25CD6c75970Fa768A3304e64",
     "aaveV3Pool": "0x794a61358D6845594F94dc1DB02A252b5b4814aD",
     "aaveV3PoolDataProvider": "0x69FA688f1Dc47d4B5d8029D5a35FB7a548310654"
+  },
+  "534352": {
+    "rpc": "https://1rpc.io/scroll",
+    "usdc": "0x06eFdBFf2a14a7c8E15944D1F4A48F9F95F663A4",
+    "weETH": "0x01f0a31698C4d065659b9bdC21B3610292a1c506",
+    "weEthWethOracle": "0x57bd9E614f542fB3d6FeF2B744f3B813f0cc1258",
+    "ethUsdcOracle": "0x6bF14CB0A831078629D993FDeBcB182b21A8774C",
+    "swapRouter1InchV6": "0x111111125421cA6dc452d289314280a0f8842A65",
+    "swapRouterOpenOcean": "0x6352a56caadC4F1E25CD6c75970Fa768A3304e64",
+    "aaveV3Pool": "0x11fCfe756c05AD438e312a7fd934381537D3cFfe",
+    "aaveV3PoolDataProvider": "0xa99F4E69acF23C6838DE90dD1B5c02EA928A53ee"
   }
 }

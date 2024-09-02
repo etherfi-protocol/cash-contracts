@@ -71,7 +71,7 @@ contract UserSafeTransfersTest is UserSafeSetup {
 
         bytes memory swapData;
         if (isFork(chainId))
-            swapData = getQuoteOneInch(
+            swapData = getQuoteOpenOcean(
                 chainId,
                 address(swapper),
                 address(aliceSafe),
@@ -95,6 +95,7 @@ contract UserSafeTransfersTest is UserSafeSetup {
             address(usdc),
             inputAmountWeETHToSwap,
             outputMinUsdcAmount,
+            0,
             amountUsdcToSend,
             swapData
         );
@@ -126,6 +127,7 @@ contract UserSafeTransfersTest is UserSafeSetup {
             address(usdc),
             inputAmountWeETHToSwap,
             outputMinUsdcAmount,
+            0,
             newAmountUsdcToSend,
             swapData
         );
@@ -148,6 +150,7 @@ contract UserSafeTransfersTest is UserSafeSetup {
             address(usdc),
             newInputAmt,
             outputMinUsdcAmount,
+            0,
             newAmountUsdcToSend,
             swapData
         );
@@ -161,6 +164,7 @@ contract UserSafeTransfersTest is UserSafeSetup {
             address(weETH),
             address(usdc),
             inputAmountWeETHToSwap,
+            0,
             0,
             0,
             hex""

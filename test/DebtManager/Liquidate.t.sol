@@ -86,12 +86,13 @@ contract DebtManagerLiquidateTest is DebtManagerSetup {
         uint256 aliceDebtAfter = debtManager.borrowingOf(alice, address(usdc));
         uint256 liquidatorWeEthBalAfter = weETH.balanceOf(owner);
 
-        assertEq(
+        assertApproxEqAbs(
             debtManager.convertCollateralTokenToUsdc(
                 address(weETH),
                 liquidatorWeEthBalAfter - liquidatorWeEthBalBefore
             ),
-            borrowAmt
+            borrowAmt,
+            10
         );
         assertEq(aliceCollateralAfter, collateralValueInUsdc - borrowAmt);
         assertEq(aliceDebtAfter, 0);

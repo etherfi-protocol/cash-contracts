@@ -7,7 +7,7 @@ import {UserSafeFactory} from "../../src/user-safe/UserSafeFactory.sol";
 import {UserSafe} from "../../src//user-safe/UserSafe.sol";
 import {IL2DebtManager, L2DebtManager} from "../../src/L2DebtManager.sol";
 import {UserSafeV2Mock} from "../../src/mocks/UserSafeV2Mock.sol";
-import {Swapper1InchV6} from "../../src/utils/Swapper1InchV6.sol";
+import {SwapperOpenOcean} from "../../src/utils/SwapperOpenOcean.sol";
 import {PriceProvider} from "../../src/oracle/PriceProvider.sol";
 import {CashDataProvider} from "../../src/utils/CashDataProvider.sol";
 import {OwnerLib} from "../../src/libraries/OwnerLib.sol";
@@ -40,7 +40,7 @@ contract UserSafeSetup is Utils {
 
     ERC20 usdc;
     ERC20 weETH;
-    Swapper1InchV6 swapper;
+    SwapperOpenOcean swapper;
     PriceProvider priceProvider;
     CashDataProvider cashDataProvider;
 
@@ -54,7 +54,7 @@ contract UserSafeSetup is Utils {
 
     address weEthWethOracle;
     address ethUsdcOracle;
-    address swapRouter1InchV6;
+    address swapRouterOpenOcean;
 
     address alice;
     uint256 alicePk;
@@ -84,7 +84,7 @@ contract UserSafeSetup is Utils {
             usdc = ERC20(address(new MockERC20("usdc", "usdc", 6)));
             weETH = ERC20(address(new MockERC20("weETH", "weETH", 18)));
 
-            swapper = Swapper1InchV6(address(new MockSwapper()));
+            swapper = SwapperOpenOcean(address(new MockSwapper()));
             priceProvider = PriceProvider(
                 address(new MockPriceProvider(mockWeETHPriceInUsd))
             );
@@ -97,12 +97,12 @@ contract UserSafeSetup is Utils {
             weETH = ERC20(chainConfig.weETH);
             weEthWethOracle = chainConfig.weEthWethOracle;
             ethUsdcOracle = chainConfig.ethUsdcOracle;
-            swapRouter1InchV6 = chainConfig.swapRouter1InchV6;
+            swapRouterOpenOcean = chainConfig.swapRouterOpenOcean;
 
             address[] memory assets = new address[](1);
             assets[0] = address(weETH);
 
-            swapper = new Swapper1InchV6(swapRouter1InchV6, assets);
+            swapper = new SwapperOpenOcean(swapRouterOpenOcean, assets);
             priceProvider = new PriceProvider(
                 address(weETH),
                 weEthWethOracle,

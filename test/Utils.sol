@@ -12,6 +12,7 @@ struct ChainConfig {
     address weEthWethOracle;
     address ethUsdcOracle;
     address swapRouter1InchV6;
+    address swapRouterOpenOcean;
     address aaveV3Pool;
     address aaveV3PoolDataProvider;
 }
@@ -58,6 +59,11 @@ contract Utils is Test {
             string.concat(".", chainId, ".", "swapRouter1InchV6")
         );
 
+        address swapRouterOpenOcean = stdJson.readAddress(
+            inputJson,
+            string.concat(".", chainId, ".", "swapRouterOpenOcean")
+        );
+
         address aaveV3Pool = stdJson.readAddress(
             inputJson,
             string.concat(".", chainId, ".", "aaveV3Pool")
@@ -76,6 +82,7 @@ contract Utils is Test {
                 weEthWethOracle: weEthWethOracle,
                 ethUsdcOracle: ethUsdcOracle,
                 swapRouter1InchV6: swapRouter1InchV6,
+                swapRouterOpenOcean: swapRouterOpenOcean,
                 aaveV3Pool: aaveV3Pool,
                 aaveV3PoolDataProvider: aaveV3PoolDataProvider
             });
@@ -99,6 +106,28 @@ contract Utils is Test {
         inputs[0] = "npx";
         inputs[1] = "ts-node";
         inputs[2] = "test/getQuote1Inch.ts";
+        inputs[3] = chainId;
+        inputs[4] = vm.toString(from);
+        inputs[5] = vm.toString(to);
+        inputs[6] = vm.toString(srcToken);
+        inputs[7] = vm.toString(dstToken);
+        inputs[8] = vm.toString(amount);
+
+        return vm.ffi(inputs);
+    }
+
+    function getQuoteOpenOcean(
+        string memory chainId,
+        address from,
+        address to,
+        address srcToken,
+        address dstToken,
+        uint256 amount
+    ) internal returns (bytes memory data) {
+        string[] memory inputs = new string[](9);
+        inputs[0] = "npx";
+        inputs[1] = "ts-node";
+        inputs[2] = "test/getQuoteOpenOcean.ts";
         inputs[3] = chainId;
         inputs[4] = vm.toString(from);
         inputs[5] = vm.toString(to);
