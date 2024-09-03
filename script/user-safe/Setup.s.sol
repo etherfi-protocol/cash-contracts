@@ -1,13 +1,12 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.24;
 
-import {Script, console} from "forge-std/Script.sol";
+import {Script} from "forge-std/Script.sol";
 import {UserSafeFactory} from "../../src/user-safe/UserSafeFactory.sol";
 import {UserSafe} from "../../src/user-safe/UserSafe.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {PriceProvider} from "../../src/oracle/PriceProvider.sol";
 import {Swapper1InchV6} from "../../src/utils/Swapper1InchV6.sol";
-import {L2DebtManager} from "../../src/L2DebtManager.sol";
 import {CashDataProvider} from "../../src/utils/CashDataProvider.sol";
 import {Utils, ChainConfig} from "./Utils.sol";
 import {EtherFiCashAaveV3Adapter} from "../../src/adapters/aave-v3/EtherFiCashAaveV3Adapter.sol";
@@ -20,7 +19,6 @@ contract DeployUserSafeSetup is Utils {
     Swapper1InchV6 swapper;
     UserSafe userSafeImpl;
     UserSafeFactory userSafeFactory;
-    L2DebtManager debtManager;
     CashDataProvider cashDataProvider;
     EtherFiCashAaveV3Adapter aaveV3Adapter;
     address etherFiCashMultisig;
@@ -79,41 +77,19 @@ contract DeployUserSafeSetup is Utils {
             address(new UUPSProxy(cashDataProviderImpl, ""))
         );
 
-        address debtManagerImpl = address(
-            new L2DebtManager(address(cashDataProvider))
-        );
-
-        address debtManagerProxy = address(
-            new UUPSProxy(
-                debtManagerImpl,
-                abi.encodeWithSelector(
-                    // initialize(address,uint256,uint256,address[],address[])
-                    0x1df44494,
-                    owner,
-                    liquidationThreshold,
-                    borrowApyPerSecond,
-                    supportedCollateralTokens,
-                    supportedBorrowTokens
-                )
-            )
-        );
-
-        debtManager = L2DebtManager(debtManagerProxy);
-
         (bool success, ) = address(cashDataProvider).call(
             abi.encodeWithSelector(
-                // intiailize(address,uint64,address,address,address,address,address,address,address,address)
-                0xf86fac96,
+                // intiailize(address,uint64,address,address,address,address,address,address[],address[])
+                0x7b8628c9,
                 owner,
                 delay,
                 etherFiWallet,
                 etherFiCashMultisig,
-                address(debtManager),
-                address(usdc),
-                address(weETH),
                 address(priceProvider),
                 address(swapper),
-                address(aaveV3Adapter)
+                address(aaveV3Adapter),
+                supportedCollateralTokens,
+                supportedBorrowTokens
             )
         );
 
@@ -149,16 +125,6 @@ contract DeployUserSafeSetup is Utils {
             deployedAddresses,
             "userSafeFactory",
             address(userSafeFactory)
-        );
-        vm.serializeAddress(
-            deployedAddresses,
-            "debtManagerProxy",
-            address(debtManager)
-        );
-        vm.serializeAddress(
-            deployedAddresses,
-            "debtManagerImpl",
-            address(debtManagerImpl)
         );
         vm.serializeAddress(
             deployedAddresses,

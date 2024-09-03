@@ -7,7 +7,6 @@ import {UserSafe} from "../../src/user-safe/UserSafe.sol";
 import {MockERC20} from "../../src/mocks/MockERC20.sol";
 import {MockPriceProvider} from "../../src/mocks/MockPriceProvider.sol";
 import {MockSwapper} from "../../src/mocks/MockSwapper.sol";
-import {L2DebtManager} from "../../src/L2DebtManager.sol";
 import {CashDataProvider} from "../../src/utils/CashDataProvider.sol";
 import {Utils, ChainConfig} from "./Utils.sol";
 import {MockAaveAdapter} from "../../src/mocks/MockAaveAdapter.sol";
@@ -20,7 +19,6 @@ contract DeployMockUserSafeSetup is Utils {
     MockSwapper swapper;
     UserSafe userSafeImpl;
     UserSafeFactory userSafeFactory;
-    L2DebtManager debtManager;
     CashDataProvider cashDataProvider;
     MockAaveAdapter aaveAdapter;
     address etherFiCashMultisig;
@@ -63,41 +61,19 @@ contract DeployMockUserSafeSetup is Utils {
         address[] memory borrowTokens = new address[](1);
         borrowTokens[0] = address(usdc);
 
-        address debtManagerImpl = address(
-            new L2DebtManager(address(cashDataProvider))
-        );
-
-        address debtManagerProxy = address(
-            new UUPSProxy(
-                debtManagerImpl,
-                abi.encodeWithSelector(
-                    // initialize(address,uint256,uint256,address[],address[])
-                    0x1df44494,
-                    owner,
-                    liquidationThreshold,
-                    borrowApyPerSecond,
-                    collateralTokens,
-                    borrowTokens
-                )
-            )
-        );
-
-        debtManager = L2DebtManager(debtManagerProxy);
-
         (bool success, ) = address(cashDataProvider).call(
             abi.encodeWithSelector(
-                // intiailize(address,uint64,address,address,address,address,address,address,address,address)
-                0xf86fac96,
+                // intiailize(address,uint64,address,address,address,address,address,address[],address[])
+                0x7b8628c9,
                 owner,
                 delay,
                 etherFiWallet,
                 etherFiCashMultisig,
-                address(debtManager),
-                address(usdc),
-                address(weETH),
                 address(priceProvider),
                 address(swapper),
-                address(aaveAdapter)
+                address(aaveAdapter),
+                collateralTokens,
+                borrowTokens
             )
         );
 
@@ -133,16 +109,6 @@ contract DeployMockUserSafeSetup is Utils {
             deployedAddresses,
             "userSafeFactory",
             address(userSafeFactory)
-        );
-        vm.serializeAddress(
-            deployedAddresses,
-            "debtManagerProxy",
-            address(debtManager)
-        );
-        vm.serializeAddress(
-            deployedAddresses,
-            "debtManagerImpl",
-            address(debtManagerImpl)
         );
         vm.serializeAddress(
             deployedAddresses,

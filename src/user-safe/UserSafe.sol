@@ -8,7 +8,6 @@ import {ICashDataProvider} from "../interfaces/ICashDataProvider.sol";
 import {SignatureUtils} from "../libraries/SignatureUtils.sol";
 import {ISwapper} from "../interfaces/ISwapper.sol";
 import {IPriceProvider} from "../interfaces/IPriceProvider.sol";
-import {IL2DebtManager} from "../interfaces/IL2DebtManager.sol";
 import {Initializable} from "openzeppelin-contracts-upgradeable/contracts/proxy/utils/Initializable.sol";
 import {IUserSafe} from "../interfaces/IUserSafe.sol";
 import {UserSafeRecovery} from "./UserSafeRecovery.sol";
