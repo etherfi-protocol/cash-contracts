@@ -420,10 +420,7 @@ contract UserSafe is IUserSafe, Initializable, UserSafeRecovery {
         uint256 outputAmountToTransfer,
         bytes calldata swapData
     ) external onlyEtherFiWallet {
-        if (
-            !_isCollateralToken(inputTokenToSwap) ||
-            !_isBorrowToken(outputToken)
-        ) revert UnsupportedToken();
+        if (!_isBorrowToken(outputToken)) revert UnsupportedToken();
 
         _checkSpendingLimit(outputToken, outputAmountToTransfer);
         _updateWithdrawalRequestIfNecessary(
@@ -499,11 +496,11 @@ contract UserSafe is IUserSafe, Initializable, UserSafeRecovery {
     /**
      * @inheritdoc IUserSafe
      */
-    function withdrawCollateralFromDebtManager(
+    function withdrawCollateral(
         address token,
         uint256 amount
     ) external onlyEtherFiWallet {
-        _withdrawCollateralFromDebtManager(token, amount);
+        _withdrawCollateral(token, amount);
     }
 
     function _getSpendingLimitRenewalTimestamp(
@@ -663,17 +660,9 @@ contract UserSafe is IUserSafe, Initializable, UserSafeRecovery {
 
         uint8 tokenDecimals = _getDecimals(token);
 
-        // in current case, token can be either collateral tokens or borrow tokens
-        if (_isCollateralToken(token)) {
-            uint256 price = IPriceProvider(_cashDataProvider.priceProvider())
-                .price(token);
-            // token amount * price with 6 decimals / 10**decimals will convert the collateral token amount to USD amount with 6 decimals
-            amount = (amount * price) / 10 ** tokenDecimals;
-        } else {
-            if (tokenDecimals != 6)
-                // get amount in 6 decimals
-                amount = (amount * 1e6) / 10 ** tokenDecimals;
-        }
+        if (tokenDecimals != 6)
+            // get amount in 6 decimals
+            amount = (amount * 1e6) / 10 ** tokenDecimals;
 
         if (amount + _spendingLimit.usedUpAmount > _spendingLimit.spendingLimit)
             revert ExceededSpendingLimit();
@@ -728,11 +717,7 @@ contract UserSafe is IUserSafe, Initializable, UserSafeRecovery {
         emit Repay(token, repayDebtUsdcAmt);
     }
 
-    function _withdrawCollateralFromDebtManager(
-        address token,
-        uint256 amount
-    ) internal {
-        if (!_isCollateralToken(token)) revert UnsupportedToken();
+    function _withdrawCollateral(address token, uint256 amount) internal {
         AaveLib.withdrawFromAave(_aaveAdapter(), token, amount);
         emit WithdrawCollateral(token, amount);
     }

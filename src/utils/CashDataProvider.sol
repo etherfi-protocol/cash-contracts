@@ -54,8 +54,21 @@ contract CashDataProvider is
         _swapper = __swapper;
         _aaveAdapter = __aaveAdapter;
 
-        supportCollateralToken(__collateralTokens);
-        supportBorrowToken(__borrowTokens);
+        uint256 len = __collateralTokens.length;
+        for (uint256 i = 0; i < len; ) {
+            _supportCollateralToken(__collateralTokens[i]);
+            unchecked {
+                ++i;
+            }
+        }
+
+        len = __borrowTokens.length;
+        for (uint256 i = 0; i < len; ) {
+            _supportBorrowToken(__borrowTokens[i]);
+            unchecked {
+                ++i;
+            }
+        }
     }
 
     /**
@@ -128,24 +141,38 @@ contract CashDataProvider is
         return _borrowTokenIndexPlusOne[token] != 0;
     }
 
-    function supportCollateralToken(address[] memory tokens) public onlyOwner {
-        uint256 len = tokens.length;
-        for (uint256 i = 0; i < len; ) {
-            _supportCollateralToken(tokens[i]);
-            unchecked {
-                ++i;
-            }
-        }
+    /**
+     * @inheritdoc ICashDataProvider
+     */
+    function supportCollateralToken(address token) public onlyOwner {
+        _supportCollateralToken(token);
     }
 
-    function supportBorrowToken(address[] memory tokens) public onlyOwner {
-        uint256 len = tokens.length;
-        for (uint256 i = 0; i < len; ) {
-            _supportBorrowToken(tokens[i]);
-            unchecked {
-                ++i;
-            }
-        }
+    /**
+     * @inheritdoc ICashDataProvider
+     */
+    function unsupportCollateralToken(address token) external onlyOwner {
+        _removeFromArray(
+            _collateralTokens,
+            _collateralTokenIndexPlusOne,
+            token
+        );
+        emit CollateralTokenRemoved(token);
+    }
+
+    /**
+     * @inheritdoc ICashDataProvider
+     */
+    function supportBorrowToken(address token) public onlyOwner {
+        _supportBorrowToken(token);
+    }
+
+    /**
+     * @inheritdoc ICashDataProvider
+     */
+    function unsupportBorrowToken(address token) external onlyOwner {
+        _removeFromArray(_borrowTokens, _borrowTokenIndexPlusOne, token);
+        emit BorrowTokenRemoved(token);
     }
 
     /**
@@ -225,6 +252,30 @@ contract CashDataProvider is
         _borrowTokenIndexPlusOne[token] = _borrowTokens.length;
 
         emit BorrowTokenAdded(token);
+    }
+
+    function _removeFromArray(
+        address[] storage tokens,
+        mapping(address token => uint256 indexPlusOne) storage indexPlusOne,
+        address tokenToBeRemoved
+    ) internal {
+        if (tokenToBeRemoved == address(0)) revert InvalidValue();
+
+        uint256 indexPlusOneForTokenToBeRemoved = indexPlusOne[
+            tokenToBeRemoved
+        ];
+
+        if (indexPlusOneForTokenToBeRemoved == 0) revert NotASupportedToken();
+
+        uint256 len = tokens.length;
+        if (len == 1) revert ArrayBecomesEmptyAfterRemoval();
+
+        indexPlusOne[tokens[len - 1]] == indexPlusOneForTokenToBeRemoved;
+
+        tokens[indexPlusOneForTokenToBeRemoved - 1] = tokens[len - 1];
+
+        tokens.pop();
+        delete indexPlusOne[tokenToBeRemoved];
     }
 
     function _authorizeUpgrade(

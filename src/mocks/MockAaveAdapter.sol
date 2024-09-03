@@ -87,13 +87,6 @@ contract MockAaveAdapter is IEtherFiCashAaveV3Adapter {
     ) external {
         aave.supply(assetToSupply, amountToSupply);
         aave.borrow(assetToBorrow, amountToBorrow);
-
-        emit AaveV3Process(
-            assetToSupply,
-            amountToSupply,
-            assetToBorrow,
-            amountToBorrow
-        );
     }
 
     function supply(address asset, uint256 amount) external {

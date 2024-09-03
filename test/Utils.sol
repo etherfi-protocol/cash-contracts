@@ -7,6 +7,7 @@ import {IAccessControl} from "@openzeppelin/contracts/access/IAccessControl.sol"
 
 struct ChainConfig {
     string rpc;
+    address weth;
     address usdc;
     address weETH;
     address weEthWethOracle;
@@ -21,71 +22,68 @@ contract Utils is Test {
     function getChainConfig(
         string memory chainId
     ) internal view returns (ChainConfig memory) {
+        ChainConfig memory config;
+
         string memory dir = string.concat(
             vm.projectRoot(),
             "/deployments/fixtures/"
         );
+
         string memory file = string.concat("fixture", ".json");
 
         string memory inputJson = vm.readFile(string.concat(dir, file));
 
-        string memory rpc = stdJson.readString(
+        config.rpc = stdJson.readString(
             inputJson,
             string.concat(".", chainId, ".", "rpc")
         );
 
-        address usdc = stdJson.readAddress(
+        config.usdc = stdJson.readAddress(
             inputJson,
             string.concat(".", chainId, ".", "usdc")
         );
 
-        address weETH = stdJson.readAddress(
+        config.weth = stdJson.readAddress(
+            inputJson,
+            string.concat(".", chainId, ".", "weth")
+        );
+
+        config.weETH = stdJson.readAddress(
             inputJson,
             string.concat(".", chainId, ".", "weETH")
         );
 
-        address weEthWethOracle = stdJson.readAddress(
+        config.weEthWethOracle = stdJson.readAddress(
             inputJson,
             string.concat(".", chainId, ".", "weEthWethOracle")
         );
 
-        address ethUsdcOracle = stdJson.readAddress(
+        config.ethUsdcOracle = stdJson.readAddress(
             inputJson,
             string.concat(".", chainId, ".", "ethUsdcOracle")
         );
 
-        address swapRouter1InchV6 = stdJson.readAddress(
+        config.swapRouter1InchV6 = stdJson.readAddress(
             inputJson,
             string.concat(".", chainId, ".", "swapRouter1InchV6")
         );
 
-        address swapRouterOpenOcean = stdJson.readAddress(
+        config.swapRouterOpenOcean = stdJson.readAddress(
             inputJson,
             string.concat(".", chainId, ".", "swapRouterOpenOcean")
         );
 
-        address aaveV3Pool = stdJson.readAddress(
+        config.aaveV3Pool = stdJson.readAddress(
             inputJson,
             string.concat(".", chainId, ".", "aaveV3Pool")
         );
 
-        address aaveV3PoolDataProvider = stdJson.readAddress(
+        config.aaveV3PoolDataProvider = stdJson.readAddress(
             inputJson,
             string.concat(".", chainId, ".", "aaveV3PoolDataProvider")
         );
 
-        return
-            ChainConfig({
-                rpc: rpc,
-                usdc: usdc,
-                weETH: weETH,
-                weEthWethOracle: weEthWethOracle,
-                ethUsdcOracle: ethUsdcOracle,
-                swapRouter1InchV6: swapRouter1InchV6,
-                swapRouterOpenOcean: swapRouterOpenOcean,
-                aaveV3Pool: aaveV3Pool,
-                aaveV3PoolDataProvider: aaveV3PoolDataProvider
-            });
+        return config;
     }
 
     function isFork(string memory chainId) internal pure returns (bool) {

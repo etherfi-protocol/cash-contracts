@@ -16,10 +16,14 @@ interface ICashDataProvider {
     event AaveAdapterUpdated(address oldAdapter, address newAdapter);
     event CollateralTokenAdded(address token);
     event BorrowTokenAdded(address token);
+    event CollateralTokenRemoved(address token);
+    event BorrowTokenRemoved(address token);
 
     error InvalidValue();
     error AlreadyCollateralToken();
     error AlreadyBorrowToken();
+    error NotASupportedToken();
+    error ArrayBecomesEmptyAfterRemoval();
 
     /**
      * @notice Function to fetch the timelock delay for tokens from User Safe
@@ -92,16 +96,30 @@ interface ICashDataProvider {
     /**
      * @notice Function to add support for a new collateral token
      * @dev Can only be called by the owner of the contract
-     * @param tokens Array of addresses of the token to be supported as collateral
+     * @param token Address of the token to be supported as collateral
      */
-    function supportCollateralToken(address[] memory tokens) external;
+    function supportCollateralToken(address token) external;
+
+    /**
+     * @notice Function to remove support for a collateral token
+     * @dev Can only be called by the owner of the contract
+     * @param token Address of the token to be unsupported as collateral
+     */
+    function unsupportCollateralToken(address token) external;
 
     /**
      * @notice Function to add support for a new borrow token
      * @dev Can only be called by the owner of the contract
-     * @param tokens Array of addresses of the token to be supported as debt
+     * @param token Address of the token to be supported as debt
      */
-    function supportBorrowToken(address[] memory tokens) external;
+    function supportBorrowToken(address token) external;
+
+    /**
+     * @notice Function to remove support for a borrow token
+     * @dev Can only be called by the owner of the contract
+     * @param token Address of the token to be unsupported as borrow token
+     */
+    function unsupportBorrowToken(address token) external;
 
     /**
      * @notice Function to set the address of the EtherFi wallet

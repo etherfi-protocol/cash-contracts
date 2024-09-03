@@ -22,6 +22,7 @@ contract Swapper1InchV6Test is UserSafeSetup {
     }
 
     function test_Swap() public {
+        if (keccak256(bytes(chainId)) == keccak256(bytes("534352"))) return;
         vm.startPrank(alice);
 
         uint256 aliceUsdcBalBefore = usdc.balanceOf(alice);

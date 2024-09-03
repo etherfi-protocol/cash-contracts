@@ -353,10 +353,7 @@ interface IUserSafe {
      * @param  token Address of the collateral token to withdraw.
      * @param  amount Amount of the collateral token to withdraw.
      */
-    function withdrawCollateralFromDebtManager(
-        address token,
-        uint256 amount
-    ) external;
+    function withdrawCollateral(address token, uint256 amount) external;
 
     /**
      * @notice Function to swap funds to output token and transfer it to EtherFiCash Safe.

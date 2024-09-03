@@ -11,13 +11,6 @@ interface IEtherFiCashAaveV3Adapter {
         uint256 healthFactor;
     }
 
-    event AaveV3Process(
-        address assetToSupply,
-        uint256 amountToSupply,
-        address assetToBorrow,
-        uint256 amountToBorrow
-    );
-
     error InvalidRateMode();
 
     /**

@@ -49,13 +49,6 @@ contract EtherFiCashAaveV3Adapter is IEtherFiCashAaveV3Adapter {
             aaveV3Pool.setUserUseReserveAsCollateral(assetToSupply, true);
 
         _borrow(assetToBorrow, amountToBorrow);
-
-        emit AaveV3Process(
-            assetToSupply,
-            amountToSupply,
-            assetToBorrow,
-            amountToBorrow
-        );
     }
 
     /**
