@@ -21,6 +21,8 @@ library UserSafeLib {
     bytes32 public constant RECOVERY_METHOD = keccak256("recoverUserSafe");
     bytes32 public constant SET_IS_RECOVERY_ACTIVE_METHOD =
         keccak256("setIsRecoveryActive");
+    bytes32 public constant SET_USER_RECOVERY_SIGNER_METHOD =
+        keccak256("setUserRecoverySigner");
 
     function verifySetOwnerSig(
         OwnerLib.OwnerObject memory currentOwner,
@@ -117,6 +119,25 @@ library UserSafeLib {
                 tokens,
                 amounts,
                 recipient
+            )
+        );
+
+        msgHash.verifySig(currentOwner, signature);
+    }
+
+    function verifySetUserRecoverySigner(
+        OwnerLib.OwnerObject memory currentOwner,
+        uint256 nonce,
+        address recoverySigner,
+        bytes calldata signature
+    ) internal view {
+        bytes32 msgHash = keccak256(
+            abi.encode(
+                SET_USER_RECOVERY_SIGNER_METHOD,
+                block.chainid,
+                address(this),
+                nonce,
+                recoverySigner
             )
         );
 

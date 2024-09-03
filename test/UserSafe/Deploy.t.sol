@@ -10,7 +10,7 @@ contract UserSafeDeployTest is UserSafeSetup {
 
     function test_Deploy() public view {
         assertEq(aliceSafe.owner().ethAddr, alice);
-        assertEq(aliceSafe.recoverySigners()[0].ethAddr, alice);
+        assertEq(aliceSafe.recoverySigners()[0].ethAddr, address(0));
         assertEq(aliceSafe.recoverySigners()[1].ethAddr, etherFiRecoverySigner);
         assertEq(
             aliceSafe.recoverySigners()[2].ethAddr,

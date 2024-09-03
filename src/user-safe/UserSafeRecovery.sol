@@ -15,6 +15,7 @@ abstract contract UserSafeRecovery is IUserSafe {
     using OwnerLib for address;
     using UserSafeLib for OwnerLib.OwnerObject;
 
+    address private _userRecoverySigner;
     // Address of the EtherFi Recovery Signer
     address private immutable _etherFiRecoverySigner;
     // Address of the Third Party Recovery Signer
@@ -44,7 +45,7 @@ abstract contract UserSafeRecovery is IUserSafe {
         view
         returns (OwnerLib.OwnerObject[3] memory signers)
     {
-        signers[0] = this.owner();
+        signers[0] = _userRecoverySigner.getOwnerObject();
         signers[1] = _etherFiRecoverySigner.getOwnerObject();
         signers[2] = _thirdPartyRecoverySigner.getOwnerObject();
     }
@@ -75,6 +76,28 @@ abstract contract UserSafeRecovery is IUserSafe {
         _setIsRecoveryActive(isActive);
     }
 
+    function _setUserRecoverySigner(address _recoverySigner) internal {
+        if (_recoverySigner == address(0))
+            revert InvalidRecoverySignerAddress();
+
+        emit UserRecoverySignerSet(_userRecoverySigner, _recoverySigner);
+        _userRecoverySigner = _recoverySigner;
+    }
+
+    function _setUserRecoverySigner(
+        address _recoverySigner,
+        uint256 _nonce,
+        bytes calldata signature
+    ) internal {
+        UserSafeLib.verifySetUserRecoverySigner(
+            this.owner(),
+            _nonce,
+            _recoverySigner,
+            signature
+        );
+        _setUserRecoverySigner(_recoverySigner);
+    }
+
     function _recoverUserSafe(
         uint256 _nonce,
         Signature[2] calldata signatures,
@@ -103,8 +126,12 @@ abstract contract UserSafeRecovery is IUserSafe {
     function _getRecoveryOwner(
         uint8 index
     ) internal view returns (OwnerLib.OwnerObject memory) {
-        if (index == 0) return this.owner();
-        else if (index == 1) return _etherFiRecoverySigner.getOwnerObject();
+        if (index == 0) {
+            if (_userRecoverySigner == address(0))
+                revert UserRecoverySignerIsUnsetCannotUseIndexZero();
+
+            return _userRecoverySigner.getOwnerObject();
+        } else if (index == 1) return _etherFiRecoverySigner.getOwnerObject();
         else if (index == 2) return _thirdPartyRecoverySigner.getOwnerObject();
         else revert InvalidSignatureIndex();
     }

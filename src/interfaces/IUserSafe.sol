@@ -89,6 +89,10 @@ interface IUserSafe {
         OwnerLib.OwnerObject oldOwner,
         OwnerLib.OwnerObject newOwner
     );
+    event UserRecoverySignerSet(
+        address oldRecoverySigner,
+        address newRecoverySigner
+    );
 
     error InsufficientBalance();
     error ArrayLengthMismatch();
@@ -105,6 +109,8 @@ interface IUserSafe {
     error SignatureIndicesCannotBeSame();
     error AmountCannotBeZero();
     error RecoverySignersCannotBeSame();
+    error InvalidRecoverySignerAddress();
+    error UserRecoverySignerIsUnsetCannotUseIndexZero();
 
     /**
      * @notice Function to fetch the address of the owner of the User Safe.
@@ -295,6 +301,16 @@ interface IUserSafe {
      */
     function setIsRecoveryActive(
         bool isActive,
+        bytes calldata signature
+    ) external;
+
+    /**
+     * @notice Function to set a user recovery signer.
+     * @param userRecoverySigner Address of the user recovery signer.
+     * @param signature Must be a valid signature from the user.
+     */
+    function setUserRecoverySigner(
+        address userRecoverySigner,
         bytes calldata signature
     ) external;
 
