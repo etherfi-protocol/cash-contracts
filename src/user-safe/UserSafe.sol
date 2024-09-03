@@ -303,6 +303,16 @@ contract UserSafe is IUserSafe, Initializable, UserSafeRecovery {
     /**
      * @inheritdoc IUserSafe
      */
+    function setUserRecoverySigner(
+        address userRecoverySigner,
+        bytes calldata signature
+    ) external incrementNonce {
+        _setUserRecoverySigner(userRecoverySigner, _nonce, signature);
+    }
+
+    /**
+     * @inheritdoc IUserSafe
+     */
     function recoverUserSafe(
         bytes calldata newOwner,
         Signature[2] calldata signatures

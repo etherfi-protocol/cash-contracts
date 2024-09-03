@@ -90,6 +90,10 @@ interface IUserSafe {
         OwnerLib.OwnerObject oldOwner,
         OwnerLib.OwnerObject newOwner
     );
+    event UserRecoverySignerSet(
+        address oldRecoverySigner,
+        address newRecoverySigner
+    );
 
     error InsufficientBalance();
     error ArrayLengthMismatch();
@@ -106,6 +110,8 @@ interface IUserSafe {
     error SignatureIndicesCannotBeSame();
     error AmountCannotBeZero();
     error RecoverySignersCannotBeSame();
+    error InvalidRecoverySignerAddress();
+    error UserRecoverySignerIsUnsetCannotUseIndexZero();
 
     /**
      * @notice Function to fetch the address of the owner of the User Safe.
@@ -262,7 +268,7 @@ interface IUserSafe {
      * @notice Function to recover a user safe.
      * @notice Can only be recovered when the isRecoveryActive boolean is set to true.
      * @notice Can only be recovered if atleast 2 of the three recovery signers sign the transaction.
-     * @notice The three recovery signers are: owner of the safe, ether fi signer, third party signer.
+     * @notice The three recovery signers are: userRecoverySigner set by the owner of the safe, ether fi signer, third party signer.
      * @notice On recovery, funds are sent to the etherFiRecoverySafe contract which can be distributed to the user.
      * @param signatures Array of the signature struct containing any 2 out of 3 signers' signatures.
      * @param newOwner Owner bytes for new owner. If ethAddr, abi.encode(addr) and if passkey, abi.encode(x,y).
@@ -279,6 +285,16 @@ interface IUserSafe {
      */
     function setIsRecoveryActive(
         bool isActive,
+        bytes calldata signature
+    ) external;
+
+    /**
+     * @notice Function to set a user recovery signer.
+     * @param userRecoverySigner Address of the user recovery signer.
+     * @param signature Must be a valid signature from the user.
+     */
+    function setUserRecoverySigner(
+        address userRecoverySigner,
         bytes calldata signature
     ) external;
 
