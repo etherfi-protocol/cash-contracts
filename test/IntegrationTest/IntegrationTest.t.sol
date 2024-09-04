@@ -2,15 +2,14 @@
 pragma solidity ^0.8.24;
 
 import {IUserSafe, OwnerLib, UserSafe} from "../../src/user-safe/UserSafe.sol";
-import {MessageHashUtils} from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
-import {IntegrationTestSetup} from "./IntegrationTestSetup.t.sol";
-import {MockERC20} from "../../src/mocks/MockERC20.sol";
+import {IntegrationTestSetup, PriceProvider, MockPriceProvider, MockERC20} from "./IntegrationTestSetup.t.sol";
 import {IL2DebtManager} from "../../src/interfaces/IL2DebtManager.sol";
 import {SafeERC20, IERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 contract IntegrationTest is IntegrationTestSetup {
     using SafeERC20 for IERC20;
 
+    IERC20 weth;
     uint256 collateralAmount = 0.01 ether;
     uint256 supplyAmount = 1e6;
     uint256 borrowAmount = 1e6;
@@ -21,6 +20,8 @@ contract IntegrationTest is IntegrationTestSetup {
         if (!isFork(chainId)) {
             /// If not mainnet, give some usdc to debt manager so it can provide debt
             vm.startPrank(owner);
+            weth = IERC20(address(new MockERC20("WETH", "WETH", 18)));
+
             usdc.approve(address(etherFiCashDebtManager), supplyAmount);
             etherFiCashDebtManager.supply(
                 address(owner),
@@ -29,17 +30,40 @@ contract IntegrationTest is IntegrationTestSetup {
             );
             vm.stopPrank();
         } else {
+            vm.startPrank(owner);
+
+            weth = IERC20(chainConfig.weth);
+
+            priceProvider = PriceProvider(
+                address(new MockPriceProvider(mockWeETHPriceInUsd))
+            );
+            cashDataProvider.setPriceProvider(address(priceProvider));
+
+            address newCollateralToken = address(weth);
+            uint256 newLtv = 80e18;
+            uint256 newLiquidationThreshold = 85e18;
+
+            etherFiCashDebtManager.supportCollateralToken(
+                newCollateralToken,
+                newLtv,
+                newLiquidationThreshold
+            );
+
             /// If it is mainnet, supply 0.01 weETH and borrow 1 USDC from Aave
             deal(
                 address(weETH),
                 address(etherFiCashDebtManager),
                 collateralAmount
             );
-            vm.startPrank(owner);
+            deal(
+                address(weth),
+                address(etherFiCashDebtManager),
+                collateralAmount
+            );
             etherFiCashDebtManager.fundManagementOperation(
                 uint8(IL2DebtManager.MarketOperationType.SupplyAndBorrow),
                 abi.encode(
-                    address(weETH),
+                    address(weth),
                     collateralAmount,
                     address(usdc),
                     borrowAmount

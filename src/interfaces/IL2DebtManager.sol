@@ -147,6 +147,8 @@ interface IL2DebtManager {
     error RepaymentAmountIsZero();
     error DebtAmountInUsdcIsZero();
     error LtvCannotBeGreaterThanLiquidationThreshold();
+    error OraclePriceZero();
+    error BorrowAmountZero();
 
     /**
      * @notice Function to fetch the address of the Cash Data Provider.

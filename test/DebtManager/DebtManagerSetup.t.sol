@@ -47,6 +47,7 @@ contract DebtManagerSetup is Utils {
     uint64 delay = 10;
     address etherFiWallet = makeAddr("etherFiWallet");
     address swapper = makeAddr("swapper");
+    ChainConfig chainConfig;
 
     function setUp() public virtual {
         chainId = vm.envString("TEST_CHAIN");
@@ -66,7 +67,7 @@ contract DebtManagerSetup is Utils {
         } else {
             emit log_named_string("Testing on ChainID", chainId);
 
-            ChainConfig memory chainConfig = getChainConfig(chainId);
+            chainConfig = getChainConfig(chainId);
             vm.createSelectFork(chainConfig.rpc);
 
             usdc = IERC20(chainConfig.usdc);
@@ -120,40 +121,31 @@ contract DebtManagerSetup is Utils {
             new L2DebtManager(address(cashDataProvider))
         );
 
-        address debtManagerProxy = address(
-            new UUPSProxy(
-                debtManagerImpl,
-                abi.encodeWithSelector(
-                    // initialize(address,address[],(uint256,uint256)[],address[],uint256[])
-                    0xa9e49bef,
-                    owner,
-                    collateralTokens,
-                    collateralTokenConfig,
-                    borrowTokens,
-                    borrowApys
-                )
-            )
-        );
-        debtManager = L2DebtManager(debtManagerProxy);
-
-        (bool success, ) = address(cashDataProvider).call(
-            abi.encodeWithSelector(
-                // intiailize(address,uint64,address,address,address,address,address,address,address,address)
-                0xf86fac96,
-                owner,
-                delay,
-                etherFiWallet,
-                etherFiCashSafe,
-                address(debtManager),
-                address(usdc),
-                address(weETH),
-                address(priceProvider),
-                address(swapper),
-                address(aaveV3Adapter)
-            )
+        debtManager = L2DebtManager(
+            address(new UUPSProxy(debtManagerImpl, ""))
         );
 
-        if (!success) revert("Initialize failed on Cash Data Provider");
+        CashDataProvider(address(cashDataProvider)).initialize(
+            owner,
+            delay,
+            etherFiWallet,
+            etherFiCashSafe,
+            address(debtManager),
+            address(usdc),
+            address(weETH),
+            address(priceProvider),
+            address(swapper),
+            address(aaveV3Adapter)
+        );
+
+        debtManager.initialize(
+            owner,
+            uint48(delay),
+            collateralTokens,
+            collateralTokenConfig,
+            borrowTokens,
+            borrowApys
+        );
 
         vm.stopPrank();
     }

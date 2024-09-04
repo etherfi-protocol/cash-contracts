@@ -82,13 +82,13 @@ interface IUserSafe {
         uint256 startTime
     );
     event IsRecoveryActiveSet(bool isActive);
-    event UserSafeRecovered(
-        OwnerLib.OwnerObject oldOwner,
-        OwnerLib.OwnerObject newOwner
-    );
     event SetOwner(
         OwnerLib.OwnerObject oldOwner,
         OwnerLib.OwnerObject newOwner
+    );
+    event SetIncomingOwner(
+        OwnerLib.OwnerObject incomingOwner,
+        uint256 incomingOwnerStartTime
     );
     event UserRecoverySignerSet(
         address oldRecoverySigner,
@@ -112,6 +112,7 @@ interface IUserSafe {
     error RecoverySignersCannotBeSame();
     error InvalidRecoverySignerAddress();
     error UserRecoverySignerIsUnsetCannotUseIndexZero();
+    error IncorrectOutputAmount();
 
     /**
      * @notice Function to fetch the address of the owner of the User Safe.

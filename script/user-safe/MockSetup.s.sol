@@ -79,41 +79,31 @@ contract DeployMockUserSafeSetup is Utils {
             new L2DebtManager(address(cashDataProvider))
         );
 
-        address debtManagerProxy = address(
-            new UUPSProxy(
-                debtManagerImpl,
-                abi.encodeWithSelector(
-                    // initialize(address,address[],(uint256,uint256)[],address[],uint256[])
-                    0xa9e49bef,
-                    owner,
-                    collateralTokens,
-                    collateralTokenConfig,
-                    borrowTokens,
-                    borrowApys
-                )
-            )
+        debtManager = L2DebtManager(
+            address(new UUPSProxy(debtManagerImpl, ""))
         );
 
-        debtManager = L2DebtManager(debtManagerProxy);
-
-        (bool success, ) = address(cashDataProvider).call(
-            abi.encodeWithSelector(
-                // intiailize(address,uint64,address,address,address,address,address,address,address,address)
-                0xf86fac96,
-                owner,
-                delay,
-                etherFiWallet,
-                etherFiCashMultisig,
-                address(debtManager),
-                address(usdc),
-                address(weETH),
-                address(priceProvider),
-                address(swapper),
-                address(aaveAdapter)
-            )
+        CashDataProvider(address(cashDataProvider)).initialize(
+            owner,
+            uint64(delay),
+            etherFiWallet,
+            etherFiCashMultisig,
+            address(debtManager),
+            address(usdc),
+            address(weETH),
+            address(priceProvider),
+            address(swapper),
+            address(aaveAdapter)
         );
 
-        if (!success) revert("Initialize failed on Cash Data Provider");
+        debtManager.initialize(
+            owner,
+            uint48(delay),
+            collateralTokens,
+            collateralTokenConfig,
+            borrowTokens,
+            borrowApys
+        );
 
         userSafeImpl = new UserSafe(
             address(cashDataProvider),

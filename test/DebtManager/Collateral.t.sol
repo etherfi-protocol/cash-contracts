@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import {DebtManagerSetup} from "./DebtManagerSetup.t.sol";
+import {DebtManagerSetup, PriceProvider, MockPriceProvider} from "./DebtManagerSetup.t.sol";
 import {IL2DebtManager} from "../../src/interfaces/IL2DebtManager.sol";
 import {SafeERC20, IERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IERC20Errors} from "@openzeppelin/contracts/interfaces/draft-IERC6093.sol";
@@ -29,6 +29,12 @@ contract DebtManagerCollateralTest is DebtManagerSetup {
     }
 
     function test_CanAddOrRemoveSupportedCollateralTokens() public {
+        priceProvider = PriceProvider(
+            address(new MockPriceProvider(mockWeETHPriceInUsd))
+        );
+        vm.prank(owner);
+        cashDataProvider.setPriceProvider(address(priceProvider));
+
         address newCollateralToken = address(usdc);
 
         vm.startPrank(owner);
@@ -202,7 +208,7 @@ contract DebtManagerCollateralTest is DebtManagerSetup {
         vm.startPrank(notOwner);
         weETH.forceApprove(address(debtManager), 1);
 
-        if (!isFork(chainId))
+        if (!isFork(chainId) || isScroll(chainId))
             vm.expectRevert(
                 abi.encodeWithSelector(
                     IERC20Errors.ERC20InsufficientAllowance.selector,
@@ -222,7 +228,7 @@ contract DebtManagerCollateralTest is DebtManagerSetup {
         vm.startPrank(notOwner);
         weETH.safeIncreaseAllowance(address(debtManager), 1);
 
-        if (!isFork(chainId))
+        if (!isFork(chainId) || isScroll(chainId))
             vm.expectRevert(
                 abi.encodeWithSelector(
                     IERC20Errors.ERC20InsufficientBalance.selector,

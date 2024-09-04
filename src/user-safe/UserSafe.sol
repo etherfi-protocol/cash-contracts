@@ -26,12 +26,18 @@ contract UserSafe is IUserSafe, Initializable, UserSafeRecovery {
     using SignatureUtils for bytes32;
     using OwnerLib for bytes;
     using UserSafeLib for OwnerLib.OwnerObject;
+    using OwnerLib for OwnerLib.OwnerObject;
 
     // Address of the Cash Data Provider
     ICashDataProvider private immutable _cashDataProvider;
 
     // Owner: if ethAddr -> abi.encode(owner), if passkey -> abi.encode(x,y)
     bytes private _ownerBytes;
+    // Owner: if ethAddr -> abi.encode(owner), if passkey -> abi.encode(x,y)
+    bytes private _incomingOwnerBytes;
+    // Time when the incoming owner becomes the owner
+    uint256 private _incomingOwnerStartTime;
+
     // Withdrawal requests pending with the contract
     WithdrawalRequest private _pendingWithdrawalRequest;
     // Nonce for permit operations
@@ -86,6 +92,11 @@ contract UserSafe is IUserSafe, Initializable, UserSafeRecovery {
      * @inheritdoc IUserSafe
      */
     function owner() public view returns (OwnerLib.OwnerObject memory) {
+        if (
+            _incomingOwnerStartTime != 0 &&
+            block.timestamp > _incomingOwnerStartTime
+        ) return _incomingOwnerBytes.getOwnerObject();
+
         return _ownerBytes.getOwnerObject();
     }
 
@@ -154,16 +165,21 @@ contract UserSafe is IUserSafe, Initializable, UserSafeRecovery {
         return _collateralLimit;
     }
 
-    // NOTE: Do we want to have this functionality? Owner is KYCd already
-    // they should not be able to change the owner
     /**
      * @inheritdoc IUserSafe
      */
     function setOwner(
         bytes calldata __owner,
         bytes calldata signature
-    ) external incrementNonce {
+    ) external incrementNonce currentOwner {
+        // Since owner is setting a new owner, an incoming owner does not make sense
+        delete _incomingOwnerBytes;
+        delete _incomingOwnerStartTime;
+
         owner().verifySetOwnerSig(_nonce, __owner, signature);
+
+        // Owner should not be zero
+        __owner.getOwnerObject()._ownerNotZero();
         _setOwner(__owner);
     }
 
@@ -174,7 +190,7 @@ contract UserSafe is IUserSafe, Initializable, UserSafeRecovery {
         uint8 spendingLimitType,
         uint256 limitInUsd,
         bytes calldata signature
-    ) external incrementNonce {
+    ) external incrementNonce currentOwner {
         owner().verifyResetSpendingLimitSig(
             _nonce,
             spendingLimitType,
@@ -190,7 +206,7 @@ contract UserSafe is IUserSafe, Initializable, UserSafeRecovery {
     function updateSpendingLimit(
         uint256 limitInUsd,
         bytes calldata signature
-    ) external incrementNonce {
+    ) external incrementNonce currentOwner {
         owner().verifyUpdateSpendingLimitSig(_nonce, limitInUsd, signature);
         _updateSpendingLimit(limitInUsd);
     }
@@ -201,7 +217,7 @@ contract UserSafe is IUserSafe, Initializable, UserSafeRecovery {
     function setCollateralLimit(
         uint256 limitInUsd,
         bytes calldata signature
-    ) external incrementNonce {
+    ) external incrementNonce currentOwner {
         owner().verifySetCollateralLimitSig(_nonce, limitInUsd, signature);
         _setCollateralLimit(limitInUsd);
     }
@@ -250,7 +266,7 @@ contract UserSafe is IUserSafe, Initializable, UserSafeRecovery {
         uint256[] calldata amounts,
         address recipient,
         bytes calldata signature
-    ) external incrementNonce {
+    ) external incrementNonce currentOwner {
         owner().verifyRequestWithdrawalSig(
             _nonce,
             tokens,
@@ -296,7 +312,7 @@ contract UserSafe is IUserSafe, Initializable, UserSafeRecovery {
     function setIsRecoveryActive(
         bool isActive,
         bytes calldata signature
-    ) external incrementNonce {
+    ) external incrementNonce currentOwner {
         _setIsRecoveryActive(isActive, _nonce, signature);
     }
 
@@ -306,7 +322,7 @@ contract UserSafe is IUserSafe, Initializable, UserSafeRecovery {
     function setUserRecoverySigner(
         address userRecoverySigner,
         bytes calldata signature
-    ) external incrementNonce {
+    ) external incrementNonce currentOwner {
         _setUserRecoverySigner(userRecoverySigner, _nonce, signature);
     }
 
@@ -316,7 +332,7 @@ contract UserSafe is IUserSafe, Initializable, UserSafeRecovery {
     function recoverUserSafe(
         bytes calldata newOwner,
         Signature[2] calldata signatures
-    ) external onlyWhenRecoveryActive incrementNonce {
+    ) external onlyWhenRecoveryActive incrementNonce currentOwner {
         _recoverUserSafe(_nonce, signatures, newOwner);
     }
 
@@ -359,6 +375,8 @@ contract UserSafe is IUserSafe, Initializable, UserSafeRecovery {
             inputAmountToSwap
         );
 
+        uint256 balBefore = IERC20(outputToken).balanceOf(address(this));
+
         uint256 returnAmount = _swapFunds(
             inputTokenToSwap,
             outputToken,
@@ -367,6 +385,11 @@ contract UserSafe is IUserSafe, Initializable, UserSafeRecovery {
             guaranteedOutputAmount,
             swapData
         );
+
+        if (
+            IERC20(outputToken).balanceOf(address(this)) !=
+            balBefore + returnAmount
+        ) revert IncorrectOutputAmount();
 
         if (outputAmountToTransfer > returnAmount)
             revert TransferAmountGreaterThanReceived();
@@ -582,9 +605,18 @@ contract UserSafe is IUserSafe, Initializable, UserSafeRecovery {
         delete _pendingWithdrawalRequest;
     }
 
-    function _setOwner(bytes calldata __owner) internal override {
+    function _setOwner(bytes calldata __owner) internal {
         emit SetOwner(_ownerBytes.getOwnerObject(), __owner.getOwnerObject());
         _ownerBytes = __owner;
+    }
+
+    function _setIncomingOwner(bytes calldata __owner) internal override {
+        _incomingOwnerStartTime = block.timestamp + _cashDataProvider.delay();
+        OwnerLib.OwnerObject memory ownerObj = __owner.getOwnerObject();
+        ownerObj._ownerNotZero();
+
+        emit SetIncomingOwner(ownerObj, _incomingOwnerStartTime);
+        _incomingOwnerBytes = __owner;
     }
 
     function _getDecimals(address token) internal view returns (uint8) {
@@ -743,6 +775,17 @@ contract UserSafe is IUserSafe, Initializable, UserSafeRecovery {
         }
     }
 
+    function _currentOwner() internal {
+        if (
+            _incomingOwnerStartTime != 0 &&
+            block.timestamp > _incomingOwnerStartTime
+        ) {
+            _ownerBytes = _incomingOwnerBytes;
+            delete _incomingOwnerBytes;
+            delete _incomingOwnerStartTime;
+        }
+    }
+
     function _currentCollateralLimit() internal {
         if (
             _incomingCollateralLimitStartTime != 0 &&
@@ -778,6 +821,11 @@ contract UserSafe is IUserSafe, Initializable, UserSafeRecovery {
 
     modifier incrementNonce() {
         _nonce++;
+        _;
+    }
+
+    modifier currentOwner() {
+        _currentOwner();
         _;
     }
 }

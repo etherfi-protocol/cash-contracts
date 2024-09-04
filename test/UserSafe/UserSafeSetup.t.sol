@@ -72,6 +72,7 @@ contract UserSafeSetup is Utils {
     uint256 ltv = 50e18; // 50%
     uint256 liquidationThreshold = 60e18; // 60%
     uint256 borrowApy = 1e16; // 0.01% per second
+    ChainConfig chainConfig;
 
     function setUp() public virtual {
         chainId = vm.envString("TEST_CHAIN");
@@ -90,7 +91,7 @@ contract UserSafeSetup is Utils {
             );
             aaveV3Adapter = IEtherFiCashAaveV3Adapter(new MockAaveAdapter());
         } else {
-            ChainConfig memory chainConfig = getChainConfig(chainId);
+            chainConfig = getChainConfig(chainId);
             vm.createSelectFork(chainConfig.rpc);
 
             usdc = ERC20(chainConfig.usdc);
@@ -149,38 +150,30 @@ contract UserSafeSetup is Utils {
         borrowApys[0] = borrowApy;
 
         etherFiCashDebtManager = address(
-            new UUPSProxy(
-                etherFiCashDebtManagerImpl,
-                abi.encodeWithSelector(
-                    // initialize(address,address[],(uint256,uint256)[],address[],uint256[])
-                    0xa9e49bef,
-                    owner,
-                    collateralTokens,
-                    collateralTokenConfig,
-                    borrowTokens,
-                    borrowApys
-                )
-            )
+            new UUPSProxy(etherFiCashDebtManagerImpl, "")
         );
 
-        (bool success, ) = address(cashDataProvider).call(
-            abi.encodeWithSelector(
-                // intiailize(address,uint64,address,address,address,address,address,address,address,address)
-                0xf86fac96,
-                owner,
-                delay,
-                etherFiWallet,
-                etherFiCashMultisig,
-                etherFiCashDebtManager,
-                address(usdc),
-                address(weETH),
-                address(priceProvider),
-                address(swapper),
-                address(aaveV3Adapter)
-            )
+        CashDataProvider(address(cashDataProvider)).initialize(
+            owner,
+            delay,
+            etherFiWallet,
+            etherFiCashMultisig,
+            etherFiCashDebtManager,
+            address(usdc),
+            address(weETH),
+            address(priceProvider),
+            address(swapper),
+            address(aaveV3Adapter)
         );
 
-        if (!success) revert("Initialize failed on Cash Data Provider");
+        L2DebtManager(etherFiCashDebtManager).initialize(
+            owner,
+            uint48(delay),
+            collateralTokens,
+            collateralTokenConfig,
+            borrowTokens,
+            borrowApys
+        );
 
         (etherFiRecoverySigner, etherFiRecoverySignerPk) = makeAddrAndKey(
             "etherFiRecoverySigner"

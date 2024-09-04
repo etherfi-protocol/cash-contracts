@@ -35,7 +35,7 @@ contract CashDataProvider is
     // Address of aave adapter
     address private _aaveAdapter;
 
-    function intiailize(
+    function initialize(
         address __owner,
         uint64 __delay,
         address __etherFiWallet,

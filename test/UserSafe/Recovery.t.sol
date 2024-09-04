@@ -82,12 +82,13 @@ contract UserSafeRecoveryTest is UserSafeSetup {
             assertEq(aliceSafe.owner().y, 0);
 
             vm.expectEmit();
-            emit IUserSafe.UserSafeRecovered(
-                alice.getOwnerObject(),
-                newOwner.getOwnerObject()
+            emit IUserSafe.SetIncomingOwner(
+                newOwner.getOwnerObject(),
+                block.timestamp + delay
             );
             aliceSafe.recoverUserSafe(newOwnerBytes, signatures);
 
+            vm.warp(block.timestamp + delay + 1);
             assertEq(aliceSafe.owner().ethAddr, newOwner);
             assertEq(aliceSafe.owner().x, 0);
             assertEq(aliceSafe.owner().y, 0);
@@ -96,6 +97,57 @@ contract UserSafeRecoveryTest is UserSafeSetup {
                 ++i;
             }
         }
+    }
+
+    function test_UserCanCancelRecoveryIfMaliciousRecovery() public {
+        _setUserRecoverySigner();
+        (address newOwner, ) = makeAddrAndKey("newOwner");
+        bytes memory newOwnerBytes = abi.encode(newOwner);
+
+        uint256 nonce = aliceSafe.nonce() + 1;
+
+        bytes32 msgHash = keccak256(
+            abi.encode(
+                UserSafeLib.RECOVERY_METHOD,
+                block.chainid,
+                address(aliceSafe),
+                nonce,
+                newOwnerBytes
+            )
+        );
+
+        IUserSafe.Signature[2] memory signatures = _signRecovery(msgHash, 0, 1);
+
+        vm.expectEmit();
+        emit IUserSafe.SetIncomingOwner(
+            newOwner.getOwnerObject(),
+            block.timestamp + delay
+        );
+        aliceSafe.recoverUserSafe(newOwnerBytes, signatures);
+
+        bytes memory aliceOwnerBytes = abi.encode(alice);
+        nonce += 1;
+        msgHash = keccak256(
+            abi.encode(
+                UserSafeLib.SET_OWNER_METHOD,
+                block.chainid,
+                address(aliceSafe),
+                nonce,
+                aliceOwnerBytes
+            )
+        );
+
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(
+            alicePk,
+            msgHash.toEthSignedMessageHash()
+        );
+        bytes memory setOwnerSignature = abi.encodePacked(r, s, v);
+        aliceSafe.setOwner(aliceOwnerBytes, setOwnerSignature);
+
+        vm.warp(block.timestamp + delay + 1);
+        assertEq(aliceSafe.owner().ethAddr, alice);
+        assertEq(aliceSafe.owner().x, 0);
+        assertEq(aliceSafe.owner().y, 0);
     }
 
     function test_CannotRecoverIfRecoveryIsInactive() public {

@@ -9,6 +9,7 @@ library OwnerLib {
     }
 
     error OnlyOwner();
+    error OwnerCannotBeZero();
 
     function getOwnerObject(
         bytes memory _ownerBytes
@@ -41,5 +42,10 @@ library OwnerLib {
         }
 
         if (msg.sender != __owner) revert OnlyOwner();
+    }
+
+    function _ownerNotZero(OwnerObject memory owner) internal pure {
+        if (owner.ethAddr == address(0) && owner.x == 0 && owner.y == 0)
+            revert OwnerCannotBeZero();
     }
 }

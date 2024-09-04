@@ -7,7 +7,7 @@ import {UserSafe} from "../../src/user-safe/UserSafe.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {PriceProvider} from "../../src/oracle/PriceProvider.sol";
 import {Swapper1InchV6} from "../../src/utils/Swapper1InchV6.sol";
-import {L2DebtManager} from "../../src/L2DebtManager.sol";
+import {IL2DebtManager, L2DebtManager} from "../../src/L2DebtManager.sol";
 import {CashDataProvider} from "../../src/utils/CashDataProvider.sol";
 import {Utils, ChainConfig} from "./Utils.sol";
 import {EtherFiCashAaveV3Adapter} from "../../src/adapters/aave-v3/EtherFiCashAaveV3Adapter.sol";
@@ -27,6 +27,8 @@ contract DeployUserSafeSetup is Utils {
     address etherFiWallet;
     address owner;
     uint256 delay = 300; // 5 min
+    uint256 ltv = 70e18;
+
     uint256 liquidationThreshold = 60e18; // 60%
     uint256 borrowApyPerSecond = 634195839675; // 20% APR -> 20e18 / (365 days in seconds)
 
@@ -79,46 +81,51 @@ contract DeployUserSafeSetup is Utils {
             address(new UUPSProxy(cashDataProviderImpl, ""))
         );
 
+        address[] memory collateralTokens = new address[](1);
+        collateralTokens[0] = address(weETH);
+        address[] memory borrowTokens = new address[](1);
+        borrowTokens[0] = address(usdc);
+
+        IL2DebtManager.CollateralTokenConfigData[]
+            memory collateralTokenConfig = new IL2DebtManager.CollateralTokenConfigData[](
+                1
+            );
+        collateralTokenConfig[0] = IL2DebtManager.CollateralTokenConfigData({
+            ltv: ltv,
+            liquidationThreshold: liquidationThreshold
+        });
+        uint256[] memory borrowApys = new uint256[](1);
+        borrowApys[0] = borrowApyPerSecond;
+
         address debtManagerImpl = address(
             new L2DebtManager(address(cashDataProvider))
         );
 
-        address debtManagerProxy = address(
-            new UUPSProxy(
-                debtManagerImpl,
-                abi.encodeWithSelector(
-                    // initialize(address,uint256,uint256,address[],address[])
-                    0x1df44494,
-                    owner,
-                    liquidationThreshold,
-                    borrowApyPerSecond,
-                    supportedCollateralTokens,
-                    supportedBorrowTokens
-                )
-            )
+        debtManager = L2DebtManager(
+            address(new UUPSProxy(debtManagerImpl, ""))
         );
 
-        debtManager = L2DebtManager(debtManagerProxy);
-
-        (bool success, ) = address(cashDataProvider).call(
-            abi.encodeWithSelector(
-                // intiailize(address,uint64,address,address,address,address,address,address,address,address)
-                0xf86fac96,
-                owner,
-                delay,
-                etherFiWallet,
-                etherFiCashMultisig,
-                address(debtManager),
-                address(usdc),
-                address(weETH),
-                address(priceProvider),
-                address(swapper),
-                address(aaveV3Adapter)
-            )
+        CashDataProvider(address(cashDataProvider)).initialize(
+            owner,
+            uint64(delay),
+            etherFiWallet,
+            etherFiCashMultisig,
+            address(debtManager),
+            address(usdc),
+            address(weETH),
+            address(priceProvider),
+            address(swapper),
+            address(aaveV3Adapter)
         );
 
-        if (!success) revert("Initialize failed on Cash Data Provider");
-
+        debtManager.initialize(
+            owner,
+            uint48(delay),
+            collateralTokens,
+            collateralTokenConfig,
+            borrowTokens,
+            borrowApys
+        );
         userSafeImpl = new UserSafe(
             address(cashDataProvider),
             recoverySigner1,

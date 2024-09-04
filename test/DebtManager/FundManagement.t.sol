@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import {DebtManagerSetup} from "./DebtManagerSetup.t.sol";
+import {DebtManagerSetup, PriceProvider, MockPriceProvider, MockERC20} from "./DebtManagerSetup.t.sol";
 import {IL2DebtManager} from "../../src/interfaces/IL2DebtManager.sol";
 import {AaveLib} from "../../src/libraries/AaveLib.sol";
 import {SafeERC20, IERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
@@ -14,9 +14,14 @@ contract DebtManagerFundManagementTest is DebtManagerSetup {
     using SafeERC20 for IERC20;
 
     uint256 collateralAmt = 0.01 ether;
+    IERC20 weth;
 
     function setUp() public override {
         super.setUp();
+
+        if (!isFork(chainId))
+            weth = IERC20(address(new MockERC20("WETH", "WETH", 18)));
+        else weth = IERC20(chainConfig.weth);
 
         deal(address(weETH), address(owner), 1000 ether);
         deal(address(usdc), address(owner), 1 ether);
@@ -59,19 +64,36 @@ contract DebtManagerFundManagementTest is DebtManagerSetup {
     function test_FundsManagementOnAave() public {
         vm.startPrank(owner);
 
+        priceProvider = PriceProvider(
+            address(new MockPriceProvider(mockWeETHPriceInUsd))
+        );
+        cashDataProvider.setPriceProvider(address(priceProvider));
+
+        address newCollateralToken = address(weth);
+        uint256 newLtv = 80e18;
+        uint256 newLiquidationThreshold = 85e18;
+
+        debtManager.supportCollateralToken(
+            newCollateralToken,
+            newLtv,
+            newLiquidationThreshold
+        );
+
+        deal(address(weth), address(debtManager), 1000 ether);
+
         ///// SUPPLY
         uint256 totalCollateralInAaveBefore = aaveV3Adapter
-            .getCollateralBalance(address(debtManager), address(weETH));
+            .getCollateralBalance(address(debtManager), address(weth));
         assertEq(totalCollateralInAaveBefore, 0);
 
         debtManager.fundManagementOperation(
             uint8(AaveLib.MarketOperationType.Supply),
-            abi.encode(address(weETH), collateralAmt)
+            abi.encode(address(weth), collateralAmt)
         );
 
         uint256 totalCollateralInAaveAfter = aaveV3Adapter.getCollateralBalance(
             address(debtManager),
-            address(weETH)
+            address(weth)
         );
         assertEq(totalCollateralInAaveAfter, collateralAmt);
 
@@ -117,22 +139,22 @@ contract DebtManagerFundManagementTest is DebtManagerSetup {
 
         ///// WITHDRAW
         uint256 totalCollateralInAaveBeforeWithdraw = aaveV3Adapter
-            .getCollateralBalance(address(debtManager), address(weETH));
+            .getCollateralBalance(address(debtManager), address(weth));
         assertEq(totalCollateralInAaveBeforeWithdraw, collateralAmt);
 
         debtManager.fundManagementOperation(
             uint8(AaveLib.MarketOperationType.Withdraw),
-            abi.encode(address(weETH), totalCollateralInAaveBeforeWithdraw)
+            abi.encode(address(weth), totalCollateralInAaveBeforeWithdraw)
         );
 
         uint256 totalCollateralInAaveAfterWithdraw = aaveV3Adapter
-            .getCollateralBalance(address(debtManager), address(weETH));
+            .getCollateralBalance(address(debtManager), address(weth));
         assertEq(totalCollateralInAaveAfterWithdraw, 0);
 
         ///// SUPPLY AND BORROW
 
         uint256 totalCollateralInAaveBeforeSupplyAndBorrow = aaveV3Adapter
-            .getCollateralBalance(address(debtManager), address(weETH));
+            .getCollateralBalance(address(debtManager), address(weth));
         assertEq(totalCollateralInAaveBeforeSupplyAndBorrow, 0);
         uint256 totalBorrowInAaveBeforeSupplyAndBorrow = aaveV3Adapter.getDebt(
             address(debtManager),
@@ -142,11 +164,11 @@ contract DebtManagerFundManagementTest is DebtManagerSetup {
 
         debtManager.fundManagementOperation(
             uint8(AaveLib.MarketOperationType.SupplyAndBorrow),
-            abi.encode(address(weETH), collateralAmt, address(usdc), 1e6)
+            abi.encode(address(weth), collateralAmt, address(usdc), 1e6)
         );
 
         uint256 totalCollateralInAaveAfterSupplyAndBorrow = aaveV3Adapter
-            .getCollateralBalance(address(debtManager), address(weETH));
+            .getCollateralBalance(address(debtManager), address(weth));
         assertEq(totalCollateralInAaveAfterSupplyAndBorrow, collateralAmt);
         uint256 totalBorrowInAaveAfterSupplyAndBorrow = aaveV3Adapter.getDebt(
             address(debtManager),

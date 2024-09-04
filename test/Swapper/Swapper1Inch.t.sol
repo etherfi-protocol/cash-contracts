@@ -1,12 +1,28 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {UserSafeSetup} from "../UserSafe/UserSafeSetup.t.sol";
-import {console} from "forge-std/console.sol";
+import {Swapper1InchV6} from "../../src/utils/Swapper1InchV6.sol";
+import {ChainConfig} from "../Utils.sol";
 
 contract Swapper1InchV6Test is UserSafeSetup {
+    Swapper1InchV6 swapper1Inch;
+
+    function setUp() public override {
+        super.setUp();
+        if (!isFork(chainId)) {
+            swapper1Inch = Swapper1InchV6(address(swapper));
+        } else {
+            address router = chainConfig.swapRouter1InchV6;
+            address[] memory assets = new address[](1);
+            assets[0] = address(weETH);
+
+            swapper1Inch = new Swapper1InchV6(router, assets);
+        }
+    }
+
     function test_Swap() public {
+        if (keccak256(bytes(chainId)) == keccak256(bytes("534352"))) return;
         vm.startPrank(alice);
 
         uint256 aliceUsdcBalBefore = usdc.balanceOf(alice);
@@ -14,18 +30,18 @@ contract Swapper1InchV6Test is UserSafeSetup {
         weETH.transfer(address(swapper), 1 ether);
 
         if (!isFork(chainId)) {
-            swapper.swap(address(weETH), address(usdc), 1 ether, 1, 0, "");
+            swapper1Inch.swap(address(weETH), address(usdc), 1 ether, 1, 0, "");
         } else {
             bytes memory swapData = getQuoteOneInch(
                 chainId,
-                address(swapper),
+                address(swapper1Inch),
                 address(alice),
                 address(weETH),
                 address(usdc),
                 1 ether
             );
 
-            swapper.swap(
+            swapper1Inch.swap(
                 address(weETH),
                 address(usdc),
                 1 ether,

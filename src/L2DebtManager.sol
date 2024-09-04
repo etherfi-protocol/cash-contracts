@@ -4,13 +4,14 @@ pragma solidity ^0.8.24;
 import {SafeERC20, IERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import {ICashDataProvider} from "./interfaces/ICashDataProvider.sol";
-import {AccessControlUpgradeable} from "openzeppelin-contracts-upgradeable/contracts/access/AccessControlUpgradeable.sol";
+import {AccessControlDefaultAdminRulesUpgradeable} from "openzeppelin-contracts-upgradeable/contracts/access/extensions/AccessControlDefaultAdminRulesUpgradeable.sol";
 import {UUPSUpgradeable, Initializable} from "openzeppelin-contracts-upgradeable/contracts/proxy/utils/UUPSUpgradeable.sol";
 import {IL2DebtManager} from "./interfaces/IL2DebtManager.sol";
 import {IPriceProvider} from "./interfaces/IPriceProvider.sol";
 import {IEtherFiCashAaveV3Adapter} from "./interfaces/IEtherFiCashAaveV3Adapter.sol";
 import {ICashDataProvider} from "./interfaces/ICashDataProvider.sol";
 import {AaveLib} from "./libraries/AaveLib.sol";
+import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
 /**
  * @title L2 Debt Manager
@@ -20,8 +21,9 @@ import {AaveLib} from "./libraries/AaveLib.sol";
 contract L2DebtManager is
     IL2DebtManager,
     UUPSUpgradeable,
-    AccessControlUpgradeable
+    AccessControlDefaultAdminRulesUpgradeable
 {
+    using Math for uint256;
     using SafeERC20 for IERC20;
 
     bytes32 public constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
@@ -68,15 +70,13 @@ contract L2DebtManager is
 
     function initialize(
         address __owner,
+        uint48 __defaultAdminDelay,
         address[] calldata __supportedCollateralTokens,
         CollateralTokenConfigData[] calldata __collateralTokenConfigs,
         address[] calldata __supportedBorrowTokens,
         uint256[] calldata __borrowApys
     ) external initializer {
-        __UUPSUpgradeable_init();
-        __AccessControl_init();
-        _grantRole(DEFAULT_ADMIN_ROLE, __owner);
-        _grantRole(ADMIN_ROLE, __owner);
+        _init(__owner, __defaultAdminDelay);
 
         uint256 len = __supportedCollateralTokens.length;
         if (len != __collateralTokenConfigs.length)
@@ -105,6 +105,13 @@ contract L2DebtManager is
                 ++i;
             }
         }
+    }
+
+    // This function was added to avoid stack too deep error
+    function _init(address __owner, uint48 __defaultAdminDelay) internal {
+        __UUPSUpgradeable_init();
+        __AccessControlDefaultAdminRules_init(__defaultAdminDelay, __owner);
+        _grantRole(ADMIN_ROLE, __owner);
     }
 
     /**
@@ -347,14 +354,17 @@ contract L2DebtManager is
 
             if (forLtv)
                 // user collateral for token in USDC * 100 / liquidation threshold
-                totalMaxBorrow +=
-                    (collateral * _ltv[_supportedCollateralTokens[i]]) /
-                    1e20;
+                totalMaxBorrow += collateral.mulDiv(
+                    _ltv[_supportedCollateralTokens[i]],
+                    1e20,
+                    Math.Rounding.Floor
+                );
             else
-                totalMaxBorrow +=
-                    (collateral *
-                        _liquidationThreshold[_supportedCollateralTokens[i]]) /
-                    1e20;
+                totalMaxBorrow += collateral.mulDiv(
+                    _liquidationThreshold[_supportedCollateralTokens[i]],
+                    1e20,
+                    Math.Rounding.Floor
+                );
 
             unchecked {
                 ++i;
@@ -634,8 +644,9 @@ contract L2DebtManager is
         uint256 len = _supportedCollateralTokens.length;
         if (len == 1) revert NoCollateralTokenLeft();
 
-        _collateralTokenIndexPlusOne[_supportedCollateralTokens[len - 1]] ==
-            indexPlusOneForTokenToBeRemoved;
+        _collateralTokenIndexPlusOne[
+            _supportedCollateralTokens[len - 1]
+        ] = indexPlusOneForTokenToBeRemoved;
 
         _supportedCollateralTokens[
             indexPlusOneForTokenToBeRemoved - 1
@@ -675,8 +686,9 @@ contract L2DebtManager is
         uint256 len = _supportedBorrowTokens.length;
         if (len == 1) revert NoBorrowTokenLeft();
 
-        _borrowTokenIndexPlusOne[_supportedBorrowTokens[len - 1]] ==
-            indexPlusOneForTokenToBeRemoved;
+        _borrowTokenIndexPlusOne[
+            _supportedBorrowTokens[len - 1]
+        ] = indexPlusOneForTokenToBeRemoved;
 
         _supportedBorrowTokens[
             indexPlusOneForTokenToBeRemoved - 1
@@ -787,6 +799,7 @@ contract L2DebtManager is
 
         // Convert amount to 6 decimals before adding to borrowings
         uint256 borrowAmt = _convertToSixDecimals(token, amount);
+        if (borrowAmt == 0) revert BorrowAmountZero();
 
         _userBorrowings[msg.sender][token] += borrowAmt;
         _borrowTokenConfig[token].totalBorrowingAmount += borrowAmt;
@@ -1069,6 +1082,11 @@ contract L2DebtManager is
         if (_collateralTokenIndexPlusOne[token] != 0)
             revert AlreadyCollateralToken();
 
+        uint256 price = IPriceProvider(_cashDataProvider.priceProvider()).price(
+            token
+        );
+        if (price == 0) revert OraclePriceZero();
+
         _supportedCollateralTokens.push(token);
         _collateralTokenIndexPlusOne[token] = _supportedCollateralTokens.length;
 
@@ -1174,7 +1192,9 @@ contract L2DebtManager is
     ) internal view returns (uint256) {
         uint8 tokenDecimals = _getDecimals(token);
         return
-            tokenDecimals == 6 ? amount : (amount * 1e6) / 10 ** tokenDecimals;
+            tokenDecimals == 6
+                ? amount
+                : amount.mulDiv(1e6, 10 ** tokenDecimals, Math.Rounding.Floor);
     }
 
     function _convertFromSixDecimals(
@@ -1183,14 +1203,21 @@ contract L2DebtManager is
     ) internal view returns (uint256) {
         uint8 tokenDecimals = _getDecimals(token);
         return
-            tokenDecimals == 6 ? amount : (amount * 10 ** tokenDecimals) / 1e6;
+            tokenDecimals == 6
+                ? amount
+                : amount.mulDiv(10 ** tokenDecimals, 1e6, Math.Rounding.Floor);
     }
 
     function _convertBorrowToShare(
         address borrowToken,
         uint256 amount
     ) internal view returns (uint256) {
-        return (amount * ONE_SHARE) / 10 ** _getDecimals(borrowToken);
+        return
+            amount.mulDiv(
+                ONE_SHARE,
+                10 ** _getDecimals(borrowToken),
+                Math.Rounding.Floor
+            );
     }
 
     function _authorizeUpgrade(
