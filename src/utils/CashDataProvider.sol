@@ -270,7 +270,7 @@ contract CashDataProvider is
         uint256 len = tokens.length;
         if (len == 1) revert ArrayBecomesEmptyAfterRemoval();
 
-        indexPlusOne[tokens[len - 1]] == indexPlusOneForTokenToBeRemoved;
+        indexPlusOne[tokens[len - 1]] = indexPlusOneForTokenToBeRemoved;
 
         tokens[indexPlusOneForTokenToBeRemoved - 1] = tokens[len - 1];
 
