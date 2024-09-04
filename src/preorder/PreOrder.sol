@@ -53,8 +53,19 @@ contract PreOrder is
     // NFT metadata storage location
     string public baseURI;
 
-    // Event emitted when a PreOrder Token is minted
+    // Pre Order cutoff block
+    uint256 public preOrderCutoffBlockNumber;
+
+    // Event emitted when a PreOrder is processed
     event PreOrderMint(
+        address indexed buyer,
+        uint256 indexed tier,
+        uint256 amount,
+        uint256 tokenId
+    );
+
+    // Event emitted when a Order is processed
+    event OrderMint(
         address indexed buyer,
         uint256 indexed tier,
         uint256 amount,
@@ -67,7 +78,8 @@ contract PreOrder is
         address _admin,
         address _eEthToken,
         string memory _baseURI,
-        TierConfig[] memory tierConfigArray
+        TierConfig[] memory tierConfigArray,
+        uint256 _preOrderCutoffBlockNumber
     ) public initializer {
         require(
             initialOwner != address(0),
@@ -84,6 +96,7 @@ contract PreOrder is
         admin = _admin;
         eEthToken = _eEthToken;
         baseURI = _baseURI;
+        preOrderCutoffBlockNumber = _cutoffBlockNumber;
 
         uint32 totalCards = 0;
         for (uint8 i = 0; i < tierConfigArray.length; i++) {
@@ -123,7 +136,13 @@ contract PreOrder is
         require(success, "Transfer failed");
         safeMint(msg.sender, _tier, tokenId);
 
-        emit PreOrderMint(msg.sender, _tier, msg.value, tokenId);
+        // PSUEDOCODE starts here
+        if (block.number > preOrderCutoffBlockNumber) {
+            emit OrderMint(msg.sender, _tier, msg.value, tokenId);
+        } else {
+            emit PreOrderMint(msg.sender, _tier, msg.value, tokenId);
+        }
+        // PSUEDOCODE ends here
     }
 
     // Mints a token with eETH as payment
