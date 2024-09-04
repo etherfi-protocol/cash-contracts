@@ -47,6 +47,7 @@ contract UserSafeWebAuthnSignatureTest is UserSafeSetup {
             ),
             abi.encode(0, 0)
         );
+        assertEq(passkeyOwnerSafe.recoverySigners()[0].ethAddr, address(0));
         assertEq(
             passkeyOwnerSafe.recoverySigners()[1].ethAddr,
             etherFiRecoverySigner

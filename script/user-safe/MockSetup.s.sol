@@ -1,12 +1,13 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.24;
 
-import {Script, console} from "forge-std/Script.sol";
+import {Script} from "forge-std/Script.sol";
 import {UserSafeFactory} from "../../src/user-safe/UserSafeFactory.sol";
 import {UserSafe} from "../../src/user-safe/UserSafe.sol";
 import {MockERC20} from "../../src/mocks/MockERC20.sol";
 import {MockPriceProvider} from "../../src/mocks/MockPriceProvider.sol";
 import {MockSwapper} from "../../src/mocks/MockSwapper.sol";
+import {IL2DebtManager, L2DebtManager} from "../../src/L2DebtManager.sol";
 import {CashDataProvider} from "../../src/utils/CashDataProvider.sol";
 import {Utils, ChainConfig} from "./Utils.sol";
 import {MockAaveAdapter} from "../../src/mocks/MockAaveAdapter.sol";
@@ -25,7 +26,8 @@ contract DeployMockUserSafeSetup is Utils {
     address etherFiWallet;
     address owner;
     uint256 delay = 60;
-    uint256 liquidationThreshold = 60e18;
+    uint256 ltv = 70e18;
+    uint256 liquidationThreshold = 75e18;
     uint256 borrowApyPerSecond = 634195839675; // 20% APR -> 20e18 / (365 days in seconds)
 
     // Shivam Metamask wallets

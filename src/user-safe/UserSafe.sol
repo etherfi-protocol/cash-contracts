@@ -234,6 +234,8 @@ contract UserSafe is IUserSafe, Initializable, UserSafeRecovery {
         return _collateralLimit;
     }
 
+    // NOTE: Do we want to have this functionality? Owner is KYCd already
+    // they should not be able to change the owner
     /**
      * @inheritdoc IUserSafe
      */

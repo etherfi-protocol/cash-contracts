@@ -27,7 +27,7 @@ contract SwapperOpenOceanTest is UserSafeSetup {
                 address(usdc),
                 1 ether,
                 1,
-                1,
+                0,
                 swapData
             );
         }
