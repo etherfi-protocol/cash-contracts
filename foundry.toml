@@ -37,4 +37,4 @@ arbitrum_sepolia = "${ARBITRUM_SEPOLIA_RPC}"
 mainnet = { key = "${MAINNET_ETHERSCAN_KEY}" }
 sepolia = { key = "${MAINNET_ETHERSCAN_KEY}" }
 fi_sepolia = { url = "https://fi-sepolia-explorer.ether.fi/api", key = "5P1ZGHEFGJUN2N1T9NY6NVVDXQDJKPMD2Z" }
-arbitrum_sepolia = { key = "${ARBISCAN_ETHERSCAN_KEY}" }
+arbitrum_sepolia = { key = "${ARBISCAN_KEY}" }

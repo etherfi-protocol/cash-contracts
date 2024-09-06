@@ -55,7 +55,6 @@ contract PreOrderTest is Test {
             eEthToken,
             "https://www.cool-kid-metadata.com",
             tiers,
-            block.number,
             fiatMinter
         );
 
@@ -222,7 +221,6 @@ contract PreOrderTest is Test {
             eEthToken,
             "https://www.cool-kid-metadata.com",
             tiers,
-            block.number,
             fiatMinter
         );
         vm.expectRevert("Incorrect address for gnosisSafe");
@@ -233,7 +231,6 @@ contract PreOrderTest is Test {
             eEthToken,
             "https://www.cool-kid-metadata.com",
             tiers,
-            block.number,
             fiatMinter
         );
         vm.expectRevert("Incorrect address for admin");
@@ -244,7 +241,6 @@ contract PreOrderTest is Test {
             eEthToken,
             "https://www.cool-kid-metadata.com",
             tiers,
-            block.number,
             fiatMinter
         );
         vm.expectRevert("Incorrect address for eEthToken");
@@ -255,7 +251,6 @@ contract PreOrderTest is Test {
             address(0),
             "https://www.cool-kid-metadata.com",
             tiers,
-            block.number,
             fiatMinter
         );
         vm.expectRevert("Incorrect address for fiatMinter");
@@ -266,7 +261,6 @@ contract PreOrderTest is Test {
             eEthToken,
             "https://www.cool-kid-metadata.com",
             tiers,
-            block.number,
             address(0)
         );
     }
@@ -314,7 +308,6 @@ contract PreOrderTest is Test {
             address(eEthMainnet),
             "https://www.cool-kid-metadata.com",
             singleTier,
-            block.number,
             fiatMinter
         );
 
@@ -409,7 +402,6 @@ contract PreOrderTest is Test {
             eEthToken,
             "https://www.cool-kid-metadata.com/small-tiers",
             smallTiers,
-            block.number,
             fiatMinter
         );
 
@@ -493,7 +485,6 @@ contract PreOrderTest is Test {
             eEthToken,
             "https://www.cool-kid-metadata.com",
             tiers,
-            block.number,
             fiatMinter
         );
     }

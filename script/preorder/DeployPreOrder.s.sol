@@ -73,7 +73,6 @@ contract DeployPreOrder is Script {
             eEthToken,
             baseURI,
             tiers,
-            block.number,
             deployerAddress
         );
         vm.stopBroadcast();

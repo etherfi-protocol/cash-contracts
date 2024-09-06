@@ -54,9 +54,6 @@ contract PreOrder is
     // NFT metadata storage location
     string public baseURI;
 
-    // Pre Order cutoff block
-    uint256 public preOrderCutoffBlockNumber;
-
     enum Type {
         PRE_ORDER,
         CRYPTO_ORDER,
@@ -96,7 +93,6 @@ contract PreOrder is
         address _eEthToken,
         string memory _baseURI,
         TierConfig[] memory tierConfigArray,
-        uint256 _preOrderCutoffBlockNumber,
         address _fiatMinter
     ) public initializer {
         require(
@@ -116,7 +112,6 @@ contract PreOrder is
         admin = _admin;
         eEthToken = _eEthToken;
         baseURI = _baseURI;
-        preOrderCutoffBlockNumber = _preOrderCutoffBlockNumber;
 
         uint32 totalCards = 0;
         for (uint8 i = 0; i < tierConfigArray.length; i++) {
