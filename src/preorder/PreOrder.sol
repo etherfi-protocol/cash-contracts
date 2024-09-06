@@ -17,6 +17,7 @@ contract PreOrder is
 {
     // Gnosis Safe to receive the preorder payments
     address payable public gnosisSafe;
+    address public fiatMinter;
 
     // Storages the data for each tier
     // Number of tiers is configurable upon initialization
@@ -44,6 +45,12 @@ contract PreOrder is
         uint32 startId;
     }
 
+    enum Type {
+        PRE_ORDER,
+        CRYPTO_ORDER,
+        FIAT_ORDER
+    }
+
     // Contract owner is the timelock, admin role needed to eeform timely actions on the contract
     address public admin;
 
@@ -65,7 +72,15 @@ contract PreOrder is
     );
 
     // Event emitted when a Order is processed
-    event OrderMint(
+    event OrderCryptoMint(
+        address indexed buyer,
+        uint256 indexed tier,
+        uint256 amount,
+        uint256 tokenId
+    );
+
+    // Event emitted when a Order is placed via Apple/Google
+    event OrderFiatMint(
         address indexed buyer,
         uint256 indexed tier,
         uint256 amount,
@@ -79,7 +94,8 @@ contract PreOrder is
         address _eEthToken,
         string memory _baseURI,
         TierConfig[] memory tierConfigArray,
-        uint256 _preOrderCutoffBlockNumber
+        uint256 _preOrderCutoffBlockNumber,
+        address _fiatMinter
     ) public initializer {
         require(
             initialOwner != address(0),
@@ -93,6 +109,7 @@ contract PreOrder is
         __Pausable_init();
 
         gnosisSafe = payable(_gnosisSafe);
+        fiatMinter = _fiatMinter;
         admin = _admin;
         eEthToken = _eEthToken;
         baseURI = _baseURI;
@@ -122,8 +139,7 @@ contract PreOrder is
     //--------------------------------------------------------------------------------------
 
     // Mints a token with ETH as payment
-    function mint(uint8 _tier) external payable whenNotPaused {
-        require(msg.value == tiers[_tier].costWei, "Incorrect amount sent");
+    function mint(uint8 _tier, uint8 _type, address _buyer) external payable whenNotPaused {
         require(
             tiers[_tier].mintCount < tiers[_tier].maxSupply,
             "Tier sold out"
@@ -132,17 +148,22 @@ contract PreOrder is
         uint256 tokenId = tiers[_tier].startId + tiers[_tier].mintCount;
         tiers[_tier].mintCount += 1;
 
-        (bool success, ) = gnosisSafe.call{value: msg.value}("");
-        require(success, "Transfer failed");
-        safeMint(msg.sender, _tier, tokenId);
-
-        // PSUEDOCODE starts here
-        if (block.number > preOrderCutoffBlockNumber) {
-            emit OrderMint(msg.sender, _tier, msg.value, tokenId);
+        if (_type != uint8(Type.FIAT_ORDER)){
+            require(msg.value == tiers[_tier].costWei, "Incorrect amount sent");
+            (bool success, ) = gnosisSafe.call{value: msg.value}("");
+            require(success, "Transfer failed");
+            if (_type == uint8(Type.PRE_ORDER)) {
+                emit PreOrderMint(_buyer, _tier, _amount, tokenId);
+            }
+            if (_type == uint8(Type.CRYPTO_ORDER)) {
+                emit OrderCryptoMint(_buyer, _tier, _amount, tokenId);
+            }
         } else {
-            emit PreOrderMint(msg.sender, _tier, msg.value, tokenId);
+            require(msg.sender == fiatMinter, "Not the fiatMinter");
+            emit OrderFiatMint(_buyer, _tier, _amount, tokenId);
         }
-        // PSUEDOCODE ends here
+
+        safeMint(_buyer, _tier, tokenId);
     }
 
     // Mints a token with eETH as payment
@@ -218,6 +239,11 @@ contract PreOrder is
     // Updates the admin
     function setAdmin(address _admin) external onlyOwner {
         admin = _admin;
+    }
+
+    // Updates the fiatMinter
+    function setFiatMinter(address _fiatMinter) external onlyAdmin {
+        fiatMinter = _fiatMinter;
     }
 
     // Restricts the ability to upgrade the contract to the owner
