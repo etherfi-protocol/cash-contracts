@@ -23,6 +23,7 @@ contract PreOrderTest is Test {
     address public owner;
     address public admin;
     address public gnosis;
+    address public fiatMinter;
     address public eEthToken;
     PreOrder.TierConfig[] public tiers;
 
@@ -36,6 +37,7 @@ contract PreOrderTest is Test {
         admin = vm.addr(0x87654321);
 
         gnosis = address(0xbeef);
+        fiatMinter = address(0xdeaf);
         eEthToken = address(0xdead);
 
         // Initialize a PreOrder contract
@@ -52,7 +54,9 @@ contract PreOrderTest is Test {
             admin,
             eEthToken,
             "https://www.cool-kid-metadata.com",
-            tiers
+            tiers,
+            block.number,
+            fiatMinter
         );
 
         // Deal some tokens to the users
@@ -70,11 +74,28 @@ contract PreOrderTest is Test {
         assertEq(preorder.maxSupply(), expectedMaxSupply);
     }
 
+    function test_CanMintWithFiat() public {
+        address alice = makeAddr("alice");
+        
+        vm.prank(fiatMinter);
+        vm.expectEmit(true, true, true, true);
+        emit PreOrder.OrderFiatMint(alice, 0, 0, 0);
+        preorder.mint(2, 0, alice);
+    }
+
+    function test_OnlyFiatMinterCanMintWithFiat() public {
+        address alice = makeAddr("alice");
+        
+        vm.prank(alice);
+        vm.expectRevert("Not the fiatMinter");
+        preorder.mint(2, 0, alice);
+    }
+
     function testTokensForUser() public {
         vm.prank(whale);
-        preorder.mint{value: 1000 ether}(0);
+        preorder.mint{value: 1000 ether}(0, 0, whale);
         vm.prank(whale2);
-        preorder.mint{value: 1000 ether}(0);
+        preorder.mint{value: 1000 ether}(0, 0, whale2);
 
         // whale should own 1 token with ID 0
         uint256[] memory ownedTokens = preorder.tokensForUser(
@@ -91,9 +112,9 @@ contract PreOrderTest is Test {
 
         // whale 1 mints more tokens of different tiers
         vm.startPrank(whale);
-        preorder.mint{value: 1 ether}(1);
-        preorder.mint{value: 1 ether}(1);
-        preorder.mint{value: 0.01 ether}(2);
+        preorder.mint{value: 1 ether}(0, 1, whale);
+        preorder.mint{value: 1 ether}(0, 1, whale);
+        preorder.mint{value: 0.01 ether}(0, 2, whale);
         vm.stopPrank();
 
         // whale should own 4 tokens across all the tiers
@@ -121,9 +142,9 @@ contract PreOrderTest is Test {
         // Mint increment test
         vm.prank(whale);
         uint256 gnosisBalanceStart = gnosis.balance;
-        preorder.mint{value: 1000 ether}(0);
+        preorder.mint{value: 1000 ether}(0, 0, whale);
         vm.prank(whale2);
-        preorder.mint{value: 1000 ether}(0);
+        preorder.mint{value: 1000 ether}(0, 0, whale2);
         uint256 gnosisBalanceEnd = gnosis.balance;
 
         // Ensure payment was recieved and the correct tokens were minted
@@ -134,9 +155,9 @@ contract PreOrderTest is Test {
         // Minting from different tiers
         // The mint ids are staggered by tier
         vm.prank(tuna);
-        preorder.mint{value: 1 ether}(1);
+        preorder.mint{value: 1 ether}(0, 1, tuna);
         vm.prank(eBeggar);
-        preorder.mint{value: 0.01 ether}(2);
+        preorder.mint{value: 0.01 ether}(0, 2, eBeggar);
 
         assertEq(preorder.balanceOf(tuna, 10), 1);
         assertEq(preorder.balanceOf(eBeggar, 110), 1);
@@ -145,7 +166,7 @@ contract PreOrderTest is Test {
         vm.startPrank(tuna);
         // 99 more of the tuna tier can be minted
         for (uint256 i = 0; i < 99; i++) {
-            preorder.mint{value: 1 ether}(1);
+            preorder.mint{value: 1 ether}(0, 1, tuna);
         }
 
         // Tuna user should have all of the tuna tier tokens
@@ -156,7 +177,7 @@ contract PreOrderTest is Test {
         // Tuna tier is now maxed out and payment should fail
         uint256 gnosisBalanceStart2 = gnosis.balance;
         vm.expectRevert("Tier sold out");
-        preorder.mint{value: 1 ether}(1);
+        preorder.mint{value: 1 ether}(0, 1, tuna);
         uint256 gnosisBalanceEnd2 = gnosis.balance;
 
         assertEq(gnosisBalanceEnd2 - gnosisBalanceStart2, 0);
@@ -166,9 +187,9 @@ contract PreOrderTest is Test {
         // Revert on incorrect amount sent
         vm.startPrank(whale);
         vm.expectRevert("Incorrect amount sent");
-        preorder.mint{value: 1001 ether}(0);
+        preorder.mint{value: 1001 ether}(0, 0, whale);
         vm.expectRevert("Incorrect amount sent");
-        preorder.mint{value: 999 ether}(0);
+        preorder.mint{value: 999 ether}(0, 0, whale);
 
         // Revert on ETH direct sends to the contract
         vm.expectRevert("Direct transfers not allowed");
@@ -200,7 +221,9 @@ contract PreOrderTest is Test {
             admin,
             eEthToken,
             "https://www.cool-kid-metadata.com",
-            tiers
+            tiers,
+            block.number,
+            fiatMinter
         );
         vm.expectRevert("Incorrect address for gnosisSafe");
         preorder.initialize(
@@ -209,7 +232,9 @@ contract PreOrderTest is Test {
             admin,
             eEthToken,
             "https://www.cool-kid-metadata.com",
-            tiers
+            tiers,
+            block.number,
+            fiatMinter
         );
         vm.expectRevert("Incorrect address for admin");
         preorder.initialize(
@@ -218,7 +243,9 @@ contract PreOrderTest is Test {
             address(0),
             eEthToken,
             "https://www.cool-kid-metadata.com",
-            tiers
+            tiers,
+            block.number,
+            fiatMinter
         );
         vm.expectRevert("Incorrect address for eEthToken");
         preorder.initialize(
@@ -227,7 +254,20 @@ contract PreOrderTest is Test {
             admin,
             address(0),
             "https://www.cool-kid-metadata.com",
-            tiers
+            tiers,
+            block.number,
+            fiatMinter
+        );
+        vm.expectRevert("Incorrect address for fiatMinter");
+        preorder.initialize(
+            owner,
+            gnosis,
+            admin,
+            eEthToken,
+            "https://www.cool-kid-metadata.com",
+            tiers,
+            block.number,
+            address(0)
         );
     }
 
@@ -238,9 +278,9 @@ contract PreOrderTest is Test {
         vm.startPrank(whale);
 
         vm.expectRevert(PausableUpgradeable.EnforcedPause.selector);
-        preorder.mint{value: 1000 ether}(0);
+        preorder.mint{value: 1000 ether}(0, 0, whale);
         vm.expectRevert(PausableUpgradeable.EnforcedPause.selector);
-        preorder.MintWithPermit(0, 1 ether, 0, 0x0, 0x0, 0x0);
+        preorder.MintWithPermit(0, 0, whale, 1 ether, 0, 0x0, 0x0, 0x0);
 
         vm.expectRevert("Not the admin");
         preorder.unPauseContract();
@@ -250,7 +290,7 @@ contract PreOrderTest is Test {
         preorder.unPauseContract();
 
         vm.startPrank(whale);
-        preorder.mint{value: 1000 ether}(0);
+        preorder.mint{value: 1000 ether}(0, 0, whale);
         assertEq(preorder.balanceOf(whale, 0), 1);
     }
 
@@ -273,7 +313,9 @@ contract PreOrderTest is Test {
             admin,
             address(eEthMainnet),
             "https://www.cool-kid-metadata.com",
-            singleTier
+            singleTier,
+            block.number,
+            fiatMinter
         );
 
         // Send eEth to alice
@@ -306,15 +348,15 @@ contract PreOrderTest is Test {
 
         vm.startPrank(alice);
         vm.expectRevert("Incorrect amount sent");
-        preorder.MintWithPermit(0, 2 ether, deadline, v, r, s);
+        preorder.MintWithPermit(0, 0, alice, 2 ether, deadline, v, r, s);
 
         vm.expectRevert("Incorrect amount sent");
-        preorder.MintWithPermit(0, 0.9 ether, deadline, v, r, s);
+        preorder.MintWithPermit(0, 0, alice, 0.9 ether, deadline, v, r, s);
 
-        preorder.MintWithPermit(0, 1 ether, deadline, v, r, s);
+        preorder.MintWithPermit(0, 0, alice, 1 ether, deadline, v, r, s);
 
         vm.expectRevert("ERC20Permit: invalid signature");
-        preorder.MintWithPermit(0, 1 ether, deadline, v, r, s);
+        preorder.MintWithPermit(0, 0, alice, 1 ether, deadline, v, r, s);
 
         assertEq(preorder.balanceOf(alice, 0), 1);
 
@@ -348,7 +390,7 @@ contract PreOrderTest is Test {
         (v, r, s) = vm.sign(alicePk, permitHash);
 
         vm.expectRevert("ERC20Permit: invalid signature");
-        preorder.MintWithPermit(0, 1 ether, deadline, v, r, s);
+        preorder.MintWithPermit(0, 0, alice, 1 ether, deadline, v, r, s);
     }
 
     function testSellOutTiers() public {
@@ -366,7 +408,9 @@ contract PreOrderTest is Test {
             admin,
             eEthToken,
             "https://www.cool-kid-metadata.com/small-tiers",
-            smallTiers
+            smallTiers,
+            block.number,
+            fiatMinter
         );
 
         // Mint tokens until each tier is sold out
@@ -374,24 +418,24 @@ contract PreOrderTest is Test {
 
         // sell out each tier in a random order
         vm.prank(whale);
-        smallPreorder.mint{value: 0.1 ether}(0);
+        smallPreorder.mint{value: 0.1 ether}(0, 0, whale);
         vm.prank(whale2);
-        smallPreorder.mint{value: 0.3 ether}(2);
+        smallPreorder.mint{value: 0.3 ether}(0, 2, whale2);
         vm.expectRevert("Tier sold out");
-        smallPreorder.mint{value: 0.3 ether}(2);
+        smallPreorder.mint{value: 0.3 ether}(0, 2, whale2);
         vm.prank(tuna);
-        smallPreorder.mint{value: 0.2 ether}(1);
+        smallPreorder.mint{value: 0.2 ether}(0, 1, tuna);
         vm.prank(eBeggar);
-        smallPreorder.mint{value: 0.2 ether}(1);
+        smallPreorder.mint{value: 0.2 ether}(0, 1, eBeggar);
 
         vm.prank(whale2);
-        smallPreorder.mint{value: 0.1 ether}(0);
+        smallPreorder.mint{value: 0.1 ether}(0, 0, whale2);
         vm.expectRevert("Tier sold out");
-        smallPreorder.mint{value: 0.1 ether}(0);
+        smallPreorder.mint{value: 0.1 ether}(0, 0, whale2);
         vm.prank(whale);
-        smallPreorder.mint{value: 0.2 ether}(1);
+        smallPreorder.mint{value: 0.2 ether}(0, 1, whale);
         vm.expectRevert("Tier sold out");
-        smallPreorder.mint{value: 0.2 ether}(1);
+        smallPreorder.mint{value: 0.2 ether}(0, 1, whale);
 
         uint256 gnosisBalanceEnd = gnosis.balance;
 
@@ -448,7 +492,9 @@ contract PreOrderTest is Test {
             admin,
             eEthToken,
             "https://www.cool-kid-metadata.com",
-            tiers
+            tiers,
+            block.number,
+            fiatMinter
         );
     }
 

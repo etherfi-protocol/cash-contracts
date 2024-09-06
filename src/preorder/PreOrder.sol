@@ -17,7 +17,6 @@ contract PreOrder is
 {
     // Gnosis Safe to receive the preorder payments
     address payable public gnosisSafe;
-    address public fiatMinter;
 
     // Storages the data for each tier
     // Number of tiers is configurable upon initialization
@@ -45,11 +44,6 @@ contract PreOrder is
         uint32 startId;
     }
 
-    enum Type {
-        PRE_ORDER,
-        CRYPTO_ORDER,
-        FIAT_ORDER
-    }
 
     // Contract owner is the timelock, admin role needed to eeform timely actions on the contract
     address public admin;
@@ -62,6 +56,14 @@ contract PreOrder is
 
     // Pre Order cutoff block
     uint256 public preOrderCutoffBlockNumber;
+
+    enum Type {
+        PRE_ORDER,
+        CRYPTO_ORDER,
+        FIAT_ORDER
+    }
+    
+    address public fiatMinter;
 
     // Event emitted when a PreOrder is processed
     event PreOrderMint(
@@ -104,6 +106,7 @@ contract PreOrder is
         require(_gnosisSafe != address(0), "Incorrect address for gnosisSafe");
         require(_admin != address(0), "Incorrect address for admin");
         require(_eEthToken != address(0), "Incorrect address for eEthToken");
+        require(_fiatMinter != address(0), "Incorrect address for fiatMinter");
 
         __Ownable_init(initialOwner);
         __Pausable_init();
@@ -113,7 +116,7 @@ contract PreOrder is
         admin = _admin;
         eEthToken = _eEthToken;
         baseURI = _baseURI;
-        preOrderCutoffBlockNumber = _cutoffBlockNumber;
+        preOrderCutoffBlockNumber = _preOrderCutoffBlockNumber;
 
         uint32 totalCards = 0;
         for (uint8 i = 0; i < tierConfigArray.length; i++) {
@@ -139,7 +142,7 @@ contract PreOrder is
     //--------------------------------------------------------------------------------------
 
     // Mints a token with ETH as payment
-    function mint(uint8 _tier, uint8 _type, address _buyer) external payable whenNotPaused {
+    function mint(uint8 _type, uint8 _tier, address _buyer) external payable whenNotPaused {
         require(
             tiers[_tier].mintCount < tiers[_tier].maxSupply,
             "Tier sold out"
@@ -152,6 +155,51 @@ contract PreOrder is
             require(msg.value == tiers[_tier].costWei, "Incorrect amount sent");
             (bool success, ) = gnosisSafe.call{value: msg.value}("");
             require(success, "Transfer failed");
+
+            if (_type == uint8(Type.PRE_ORDER)) 
+                emit PreOrderMint(_buyer, _tier, msg.value, tokenId);
+            
+            if (_type == uint8(Type.CRYPTO_ORDER)) 
+                emit OrderCryptoMint(_buyer, _tier, msg.value, tokenId);
+        } else {
+            require(msg.sender == fiatMinter, "Not the fiatMinter");
+            emit OrderFiatMint(_buyer, _tier, 0, tokenId);
+        }
+
+        safeMint(_buyer, _tier, tokenId);
+    }
+
+    // Mints a token with eETH as payment
+    function MintWithPermit(
+        uint8 _type, 
+        uint8 _tier,
+        address _buyer,
+        uint256 _amount,
+        uint256 _deadline,
+        uint8 v,
+        bytes32 r,
+        bytes32 s
+    ) external whenNotPaused {
+        require(
+            tiers[_tier].mintCount < tiers[_tier].maxSupply,
+            "Tier sold out"
+        );
+
+        uint256 tokenId = tiers[_tier].startId + tiers[_tier].mintCount;
+        tiers[_tier].mintCount += 1;
+
+        if (_type != uint8(Type.FIAT_ORDER)){
+            require(_amount == tiers[_tier].costWei, "Incorrect amount sent");
+            IERC20Permit(eEthToken).permit(
+                msg.sender,
+                address(this),
+                _amount,
+                _deadline,
+                v,
+                r,
+                s
+            );
+            IERC20(eEthToken).transferFrom(msg.sender, gnosisSafe, _amount);
             if (_type == uint8(Type.PRE_ORDER)) {
                 emit PreOrderMint(_buyer, _tier, _amount, tokenId);
             }
@@ -160,44 +208,10 @@ contract PreOrder is
             }
         } else {
             require(msg.sender == fiatMinter, "Not the fiatMinter");
-            emit OrderFiatMint(_buyer, _tier, _amount, tokenId);
+            emit OrderFiatMint(_buyer, _tier, 0, tokenId);
         }
 
-        safeMint(_buyer, _tier, tokenId);
-    }
-
-    // Mints a token with eETH as payment
-    function MintWithPermit(
-        uint8 _tier,
-        uint256 _amount,
-        uint256 _deadline,
-        uint8 v,
-        bytes32 r,
-        bytes32 s
-    ) external whenNotPaused {
-        require(_amount == tiers[_tier].costWei, "Incorrect amount sent");
-        require(
-            tiers[_tier].mintCount < tiers[_tier].maxSupply,
-            "Tier sold out"
-        );
-
-        IERC20Permit(eEthToken).permit(
-            msg.sender,
-            address(this),
-            _amount,
-            _deadline,
-            v,
-            r,
-            s
-        );
-        IERC20(eEthToken).transferFrom(msg.sender, gnosisSafe, _amount);
-
-        uint256 tokenId = tiers[_tier].startId + tiers[_tier].mintCount;
-        tiers[_tier].mintCount += 1;
-
         safeMint(msg.sender, _tier, tokenId);
-
-        emit PreOrderMint(msg.sender, _tier, _amount, tokenId);
     }
 
     function maxSupply() external view returns (uint256) {
