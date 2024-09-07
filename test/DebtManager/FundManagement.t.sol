@@ -88,6 +88,12 @@ contract DebtManagerFundManagementTest is DebtManagerSetup {
         debtManager.supply(owner, address(weETH), 1);
     }
 
+    function test_CannotWithdrawTokenThatWasNotSupplied() public {
+        vm.prank(owner);
+        vm.expectRevert(IL2DebtManager.SharesCannotBeZero.selector);
+        debtManager.withdrawBorrowToken(address(weETH), 1 ether);
+    }
+
     function test_FundsManagementOnAave() public {
         vm.startPrank(owner);
 

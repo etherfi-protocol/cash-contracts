@@ -765,6 +765,8 @@ contract L2DebtManager is
             Math.Rounding.Ceil
         );
 
+        if (shares == 0) revert SharesCannotBeZero();
+
         if (_sharesOfBorrowTokens[msg.sender][borrowToken] < shares)
             revert InsufficientBorrowShares();
 
