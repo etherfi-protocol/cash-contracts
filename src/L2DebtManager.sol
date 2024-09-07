@@ -1198,7 +1198,7 @@ contract L2DebtManager is
         return
             tokenDecimals == 6
                 ? amount
-                : amount.mulDiv(1e6, 10 ** tokenDecimals, Math.Rounding.Floor);
+                : amount.mulDiv(1e6, 10 ** tokenDecimals, Math.Rounding.Ceil);
     }
 
     function _convertFromSixDecimals(
