@@ -60,8 +60,6 @@ contract L2DebtManager is
     mapping(address supplier => mapping(address borrowToken => uint256 shares))
         private _sharesOfBorrowTokens;
 
-    uint256 public constant ONE_SHARE = 1 ether;
-
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor(address __cashDataProvider) {
         _cashDataProvider = ICashDataProvider(__cashDataProvider);
@@ -540,9 +538,11 @@ contract L2DebtManager is
             return 0;
 
         return
-            (_sharesOfBorrowTokens[supplier][borrowToken] *
-                _getTotalBorrowTokenAmount(borrowToken)) /
-            _borrowTokenConfig[borrowToken].totalSharesOfBorrowTokens;
+            _sharesOfBorrowTokens[supplier][borrowToken].mulDiv(
+                _getTotalBorrowTokenAmount(borrowToken), 
+                _borrowTokenConfig[borrowToken].totalSharesOfBorrowTokens, 
+                Math.Rounding.Floor
+            );
     }
 
     /**
@@ -734,14 +734,13 @@ contract L2DebtManager is
         address borrowToken,
         uint256 amount
     ) external {
-        uint256 shares = _convertBorrowToShare(
-            borrowToken,
-            (_borrowTokenConfig[borrowToken].totalSharesOfBorrowTokens == 0)
-                ? amount
-                : (amount *
-                    _borrowTokenConfig[borrowToken].totalSharesOfBorrowTokens) /
-                    _getTotalBorrowTokenAmount(borrowToken)
-        );
+        uint256 shares = _borrowTokenConfig[borrowToken].totalSharesOfBorrowTokens == 0 ? 
+                            amount :
+                            amount.mulDiv(
+                                _borrowTokenConfig[borrowToken].totalSharesOfBorrowTokens, 
+                                _getTotalBorrowTokenAmount(borrowToken), 
+                                Math.Rounding.Floor
+                            );
 
         // Moving this before state update to prevent reentrancy
         IERC20(borrowToken).safeTransferFrom(msg.sender, address(this), amount);
@@ -759,9 +758,11 @@ contract L2DebtManager is
         uint256 totalBorrowTokenAmt = _getTotalBorrowTokenAmount(borrowToken);
         if (totalBorrowTokenAmt == 0) revert ZeroTotalBorrowTokens();
 
-        uint256 shares = (amount *
-            _borrowTokenConfig[borrowToken].totalSharesOfBorrowTokens) /
-            totalBorrowTokenAmt;
+        uint256 shares = amount.mulDiv(
+            _borrowTokenConfig[borrowToken].totalSharesOfBorrowTokens, 
+            totalBorrowTokenAmt, 
+            Math.Rounding.Ceil
+        );
 
         if (_sharesOfBorrowTokens[msg.sender][borrowToken] < shares)
             revert InsufficientBorrowShares();
@@ -1206,18 +1207,6 @@ contract L2DebtManager is
             tokenDecimals == 6
                 ? amount
                 : amount.mulDiv(10 ** tokenDecimals, 1e6, Math.Rounding.Floor);
-    }
-
-    function _convertBorrowToShare(
-        address borrowToken,
-        uint256 amount
-    ) internal view returns (uint256) {
-        return
-            amount.mulDiv(
-                ONE_SHARE,
-                10 ** _getDecimals(borrowToken),
-                Math.Rounding.Floor
-            );
     }
 
     function _authorizeUpgrade(

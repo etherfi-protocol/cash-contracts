@@ -32,7 +32,7 @@ contract DebtManagerFundManagementTest is DebtManagerSetup {
         vm.stopPrank();
     }
 
-    function test_supplier() public {
+    function test_Supply() public {
         uint256 principle = 0.01 ether;
 
         vm.startPrank(owner);
@@ -55,10 +55,31 @@ contract DebtManagerFundManagementTest is DebtManagerSetup {
             principle + earnings
         );
 
-        vm.startPrank(owner);
+        vm.prank(owner);
         debtManager.withdrawBorrowToken(address(usdc), earnings + principle);
 
         assertEq(debtManager.withdrawableBorrowToken(owner, address(usdc)), 0);
+    }
+
+    function test_SupplyTwice() public {
+        uint256 principle = 0.01 ether;
+        vm.startPrank(owner);
+        usdc.forceApprove(address(debtManager), principle);
+
+        vm.expectEmit(true, true, true, true);
+        emit IL2DebtManager.Supplied(owner, owner, address(usdc), principle);
+        debtManager.supply(owner, address(usdc), principle);
+        vm.stopPrank();
+
+        deal(address(usdc), alice, principle);
+        
+        vm.startPrank(alice);
+        usdc.forceApprove(address(debtManager), principle);
+
+        vm.expectEmit(true, true, true, true);
+        emit IL2DebtManager.Supplied(alice, alice, address(usdc), principle);
+        debtManager.supply(alice, address(usdc), principle);
+        vm.stopPrank();
     }
 
     function test_FundsManagementOnAave() public {
@@ -216,23 +237,5 @@ contract DebtManagerFundManagementTest is DebtManagerSetup {
         vm.stopPrank();
 
         return repayAmt - borrowAmt;
-    }
-
-    function _convertBorrowToShare(
-        address borrowToken,
-        uint256 amount
-    ) internal view returns (uint256) {
-        return
-            (amount * debtManager.ONE_SHARE()) /
-            IERC20Metadata(borrowToken).decimals();
-    }
-
-    function _convertShareToBorrow(
-        address borrowToken,
-        uint256 amount
-    ) internal view returns (uint256) {
-        return
-            (amount * IERC20Metadata(borrowToken).decimals()) /
-            debtManager.ONE_SHARE();
     }
 }
