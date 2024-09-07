@@ -843,7 +843,7 @@ contract L2DebtManager is
      * @inheritdoc IL2DebtManager
      */
     function withdrawCollateral(address token, uint256 amount) external {
-        _updateBorrowings(msg.sender, token);
+        _updateBorrowings(msg.sender);
         if (!isCollateralToken(token)) revert UnsupportedCollateralToken();
 
         _totalCollateralAmounts[token] -= amount;
@@ -899,7 +899,7 @@ contract L2DebtManager is
         address borrowToken,
         uint256 debtAmountInUsdc
     ) external {
-        _updateBorrowings(user, borrowToken);
+        _updateBorrowings(user);
         if (!liquidatable(user)) revert CannotLiquidateYet();
         if (!isBorrowToken(borrowToken)) revert UnsupportedBorrowToken();
 
