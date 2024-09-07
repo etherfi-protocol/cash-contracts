@@ -734,6 +734,7 @@ contract L2DebtManager is
         address borrowToken,
         uint256 amount
     ) external {
+        if (!isBorrowToken(borrowToken)) revert UnsupportedBorrowToken();
         uint256 shares = _borrowTokenConfig[borrowToken].totalSharesOfBorrowTokens == 0 ? 
                             amount :
                             amount.mulDiv(

@@ -82,6 +82,12 @@ contract DebtManagerFundManagementTest is DebtManagerSetup {
         vm.stopPrank();
     }
 
+    function test_CanOnlySupplyBorrowTokens() public {
+        vm.prank(alice);
+        vm.expectRevert(IL2DebtManager.UnsupportedBorrowToken.selector);
+        debtManager.supply(owner, address(weETH), 1);
+    }
+
     function test_FundsManagementOnAave() public {
         vm.startPrank(owner);
 
