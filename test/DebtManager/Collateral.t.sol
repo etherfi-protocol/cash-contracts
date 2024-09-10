@@ -228,6 +228,16 @@ contract DebtManagerCollateralTest is DebtManagerSetup {
         debtManager.depositCollateral(address(usdc), alice, 1);
     }
 
+    function test_CannotDepositCollateralOverSupplyCap() public {
+        uint256 amount = supplyCap + 1;
+        deal(address(weETH), alice, amount);
+        vm.startPrank(alice);
+        IERC20(address(weETH)).safeIncreaseAllowance(address(debtManager), amount);
+        vm.expectRevert(IL2DebtManager.SupplyCapBreached.selector);
+        debtManager.depositCollateral(address(weETH), alice, amount);
+        vm.stopPrank();
+    }
+
     function test_CannotDepositCollateralIfAllownaceIsInsufficient() public {
         deal(address(weETH), notOwner, 2);
 

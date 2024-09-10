@@ -36,6 +36,7 @@ contract DeployMockArbitrumSepoliaSetup is Utils {
     uint80 liquidationThreshold = 75e18;
     uint96 liquidationBonus = 5e18; 
     uint64 borrowApyPerSecond = 634195839675; // 20% APR -> 20e18 / (365 days in seconds)
+    uint256 supplyCap = 1000000 ether;
 
     // Shivam Metamask wallets
     address recoverySigner1 = 0x7fEd99d0aA90423de55e238Eb5F9416FF7Cc58eF;
@@ -78,12 +79,14 @@ contract DeployMockArbitrumSepoliaSetup is Utils {
         collateralTokenConfig[0] = IL2DebtManager.CollateralTokenConfig({
             ltv: ltv,
             liquidationThreshold: liquidationThreshold,
-            liquidationBonus: liquidationBonus
+            liquidationBonus: liquidationBonus,
+            supplyCap: supplyCap
         });
         collateralTokenConfig[1] = IL2DebtManager.CollateralTokenConfig({
             ltv: ltv,
             liquidationThreshold: liquidationThreshold,
-            liquidationBonus: liquidationBonus
+            liquidationBonus: liquidationBonus,
+            supplyCap: supplyCap
         });
 
         IL2DebtManager.BorrowTokenConfigData[]

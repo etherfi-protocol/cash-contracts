@@ -76,6 +76,7 @@ contract IntegrationTestSetup is Utils {
     uint96 liquidationBonus = 5e18; // 60%
     uint64 borrowApy = 1000; // 10%
     ChainConfig chainConfig;
+    uint256 supplyCap = 10000 ether;
 
     function setUp() public virtual {
         chainId = vm.envString("TEST_CHAIN");
@@ -145,7 +146,8 @@ contract IntegrationTestSetup is Utils {
         collateralTokenConfig[0] = IL2DebtManager.CollateralTokenConfig({
             ltv: ltv,
             liquidationThreshold: liquidationThreshold,
-            liquidationBonus: liquidationBonus
+            liquidationBonus: liquidationBonus,
+            supplyCap: supplyCap
         });
         IL2DebtManager.BorrowTokenConfigData[]
             memory borrowTokenConfig = new IL2DebtManager.BorrowTokenConfigData[](

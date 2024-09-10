@@ -28,6 +28,7 @@ interface IL2DebtManager {
         uint80 ltv;
         uint80 liquidationThreshold;
         uint96 liquidationBonus;
+        uint256 supplyCap;
     }
 
     struct TokenData {
@@ -159,6 +160,7 @@ interface IL2DebtManager {
     error BorrowAmountZero();
     error SharesCannotBeZero();
     error SharesCannotBeLessThanMinSharesToMint();
+    error SupplyCapBreached();
 
     /**
      * @notice Function to fetch the address of the Cash Data Provider.

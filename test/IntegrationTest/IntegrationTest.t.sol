@@ -47,7 +47,8 @@ contract IntegrationTest is IntegrationTestSetup {
             IL2DebtManager.CollateralTokenConfig memory config = IL2DebtManager.CollateralTokenConfig({
                 ltv: newLtv,
                 liquidationThreshold: newLiquidationThreshold,
-                liquidationBonus: newLiquidationBonus
+                liquidationBonus: newLiquidationBonus,
+                supplyCap: supplyCap
             });
 
             etherFiCashDebtManager.supportCollateralToken(
@@ -306,6 +307,7 @@ contract IntegrationTest is IntegrationTestSetup {
         config.ltv = newCollateralLtv;
         config.liquidationThreshold = newCollateralLiquidationThreshold;
         config.liquidationBonus = newCollateralLiquidationBonus;
+        config.supplyCap = 1000000 ether;
 
         etherFiCashDebtManager.supportCollateralToken(
             address(newCollateralToken),

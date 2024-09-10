@@ -828,6 +828,9 @@ contract L2DebtManager is
         _totalCollateralAmounts[token] += amount;
         _userCollateral[user][token] += amount;
 
+        if(_totalCollateralAmounts[token] > _collateralTokenConfig[token].supplyCap) 
+            revert SupplyCapBreached();
+
         emit DepositedCollateral(msg.sender, user, token, amount);
     }
 
@@ -1015,6 +1018,9 @@ contract L2DebtManager is
     ) internal {
         if (config.ltv > config.liquidationThreshold)
             revert LtvCannotBeGreaterThanLiquidationThreshold();
+        
+        if (config.liquidationBonus > HUNDRED_PERCENT) revert InvalidValue();
+
         emit CollateralTokenConfigSet(
             collateralToken,
             _collateralTokenConfig[collateralToken],

@@ -193,6 +193,7 @@ contract DebtManagerLiquidateTest is DebtManagerSetup {
         collateralTokenConfigNewCollateralToken.ltv = 5e18;
         collateralTokenConfigNewCollateralToken.liquidationThreshold = 10e18;
         collateralTokenConfigNewCollateralToken.liquidationBonus = 10e18;
+        collateralTokenConfigNewCollateralToken.supplyCap = 1000000 ether;
         deal(newCollateralToken, owner, 100 ether);
 
         vm.startPrank(owner);

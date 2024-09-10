@@ -50,6 +50,7 @@ contract DebtManagerSetup is Utils {
     address etherFiWallet = makeAddr("etherFiWallet");
     address swapper = makeAddr("swapper");
     ChainConfig chainConfig;
+    uint256 supplyCap = 10000 ether;
 
     function setUp() public virtual {
         chainId = vm.envString("TEST_CHAIN");
@@ -115,7 +116,8 @@ contract DebtManagerSetup is Utils {
         collateralTokenConfig[0] = IL2DebtManager.CollateralTokenConfig({
             ltv: ltv,
             liquidationThreshold: liquidationThreshold,
-            liquidationBonus: liquidationBonus
+            liquidationBonus: liquidationBonus,
+            supplyCap: supplyCap
         });
 
         IL2DebtManager.BorrowTokenConfigData[]

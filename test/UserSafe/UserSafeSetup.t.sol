@@ -74,6 +74,7 @@ contract UserSafeSetup is Utils {
     uint96 liquidationBonus = 5e18; // 5%
     uint64 borrowApy = 1e16; // 0.01% per second
     ChainConfig chainConfig;
+    uint256 supplyCap = 10000 ether;
 
     function setUp() public virtual {
         chainId = vm.envString("TEST_CHAIN");
@@ -146,7 +147,8 @@ contract UserSafeSetup is Utils {
         collateralTokenConfig[0] = IL2DebtManager.CollateralTokenConfig({
             ltv: ltv,
             liquidationThreshold: liquidationThreshold,
-            liquidationBonus: liquidationBonus
+            liquidationBonus: liquidationBonus,
+            supplyCap: supplyCap
         });
 
         IL2DebtManager.BorrowTokenConfigData[]
