@@ -4,6 +4,7 @@ pragma solidity ^0.8.24;
 import {Test} from "forge-std/Test.sol";
 import {IPool} from "@aave/interfaces/IPool.sol";
 import {IPoolDataProvider} from "@aave/interfaces/IPoolDataProvider.sol";
+import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {SafeERC20, IERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {MockERC20} from "../../src/mocks/MockERC20.sol";
 import {Utils, ChainConfig} from "../Utils.sol";
@@ -31,8 +32,8 @@ contract DebtManagerSetup is Utils {
     uint256 interestRateMode = 2;
     uint16 aaveReferralCode = 0;
 
-    IERC20 weETH;
-    IERC20 usdc;
+    ERC20 weETH;
+    ERC20 usdc;
     string chainId;
     address weEthWethOracle;
     address ethUsdcOracle;
@@ -42,7 +43,7 @@ contract DebtManagerSetup is Utils {
     uint256 mockWeETHPriceInUsd = 3000e6;
     uint256 ltv = 50e18; // 50%
     uint256 liquidationThreshold = 60e18; // 60%
-    uint256 borrowApyPerSecond = 1e18; // 1%
+    uint64 borrowApyPerSecond = 1e16; // 0.01%
 
     uint64 delay = 10;
     address etherFiWallet = makeAddr("etherFiWallet");
@@ -57,8 +58,8 @@ contract DebtManagerSetup is Utils {
         if (!isFork(chainId)) {
             emit log_named_string("Testing on ChainID", chainId);
 
-            usdc = IERC20(address(new MockERC20("USDC", "USDC", 6)));
-            weETH = IERC20(address(new MockERC20("weETH", "weETH", 18)));
+            usdc = ERC20(address(new MockERC20("USDC", "USDC", 6)));
+            weETH = ERC20(address(new MockERC20("weETH", "weETH", 18)));
             priceProvider = PriceProvider(
                 address(new MockPriceProvider(mockWeETHPriceInUsd))
             );
@@ -70,8 +71,8 @@ contract DebtManagerSetup is Utils {
             chainConfig = getChainConfig(chainId);
             vm.createSelectFork(chainConfig.rpc);
 
-            usdc = IERC20(chainConfig.usdc);
-            weETH = IERC20(chainConfig.weETH);
+            usdc = ERC20(chainConfig.usdc);
+            weETH = ERC20(chainConfig.weETH);
 
             aavePool = IPool(chainConfig.aaveV3Pool);
             aaveV3PoolDataProvider = IPoolDataProvider(
@@ -114,8 +115,15 @@ contract DebtManagerSetup is Utils {
             ltv: ltv,
             liquidationThreshold: liquidationThreshold
         });
-        uint256[] memory borrowApys = new uint256[](1);
-        borrowApys[0] = borrowApyPerSecond;
+
+        IL2DebtManager.BorrowTokenConfigData[]
+            memory borrowTokenConfig = new IL2DebtManager.BorrowTokenConfigData[](
+                1
+            );
+        borrowTokenConfig[0] = IL2DebtManager.BorrowTokenConfigData({
+           borrowApy: borrowApyPerSecond,
+           minSharesToMint: uint128(1 * 10 ** usdc.decimals())
+        });
 
         address debtManagerImpl = address(
             new L2DebtManager(address(cashDataProvider))
@@ -144,7 +152,7 @@ contract DebtManagerSetup is Utils {
             collateralTokens,
             collateralTokenConfig,
             borrowTokens,
-            borrowApys
+            borrowTokenConfig
         );
 
         vm.stopPrank();

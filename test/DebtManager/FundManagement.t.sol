@@ -27,7 +27,7 @@ contract DebtManagerFundManagementTest is DebtManagerSetup {
         deal(address(usdc), address(owner), 1 ether);
 
         vm.startPrank(owner);
-        weETH.safeIncreaseAllowance(address(debtManager), collateralAmt);
+        IERC20(address(weETH)).safeIncreaseAllowance(address(debtManager), collateralAmt);
         debtManager.depositCollateral(address(weETH), owner, collateralAmt);
         vm.stopPrank();
     }
@@ -36,7 +36,7 @@ contract DebtManagerFundManagementTest is DebtManagerSetup {
         uint256 principle = 0.01 ether;
 
         vm.startPrank(owner);
-        usdc.forceApprove(address(debtManager), principle);
+        IERC20(address(usdc)).forceApprove(address(debtManager), principle);
 
         vm.expectEmit(true, true, true, true);
         emit IL2DebtManager.Supplied(owner, owner, address(usdc), principle);
@@ -64,7 +64,7 @@ contract DebtManagerFundManagementTest is DebtManagerSetup {
     function test_SupplyTwice() public {
         uint256 principle = 0.01 ether;
         vm.startPrank(owner);
-        usdc.forceApprove(address(debtManager), principle);
+        IERC20(address(usdc)).forceApprove(address(debtManager), principle);
 
         vm.expectEmit(true, true, true, true);
         emit IL2DebtManager.Supplied(owner, owner, address(usdc), principle);
@@ -74,7 +74,7 @@ contract DebtManagerFundManagementTest is DebtManagerSetup {
         deal(address(usdc), alice, principle);
         
         vm.startPrank(alice);
-        usdc.forceApprove(address(debtManager), principle);
+        IERC20(address(usdc)).forceApprove(address(debtManager), principle);
 
         vm.expectEmit(true, true, true, true);
         emit IL2DebtManager.Supplied(alice, alice, address(usdc), principle);
@@ -151,7 +151,7 @@ contract DebtManagerFundManagementTest is DebtManagerSetup {
 
         ///// REPAY
         if (!isFork(chainId)) {
-            usdc.safeTransfer(address(debtManager), 10e6);
+            IERC20(address(usdc)).safeTransfer(address(debtManager), 10e6);
         }
 
         uint256 totalBorrowInAaveBeforeRepay = aaveV3Adapter.getDebt(
@@ -232,7 +232,7 @@ contract DebtManagerFundManagementTest is DebtManagerSetup {
         deal(address(weETH), alice, 1000 ether);
 
         vm.startPrank(alice);
-        weETH.safeIncreaseAllowance(address(debtManager), collateralAmount);
+        IERC20(address(weETH)).safeIncreaseAllowance(address(debtManager), collateralAmount);
         debtManager.depositCollateral(address(weETH), alice, collateralAmount);
 
         uint256 borrowAmt = debtManager.remainingBorrowingCapacityInUSDC(
@@ -244,7 +244,7 @@ contract DebtManagerFundManagementTest is DebtManagerSetup {
         vm.warp(block.timestamp + 24 * 60 * 60);
         uint256 repayAmt = debtManager.borrowingOf(alice, address(usdc));
 
-        usdc.forceApprove(address(debtManager), repayAmt);
+        IERC20(address(usdc)).forceApprove(address(debtManager), repayAmt);
         debtManager.repay(alice, address(usdc), repayAmt);
         vm.stopPrank();
 

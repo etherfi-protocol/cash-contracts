@@ -30,7 +30,7 @@ contract DebtManagerRepayTest is DebtManagerSetup {
         deal(address(usdc), address(debtManager), 1 ether);
 
         vm.startPrank(alice);
-        weETH.safeIncreaseAllowance(address(debtManager), collateralAmount);
+        IERC20(address(weETH)).safeIncreaseAllowance(address(debtManager), collateralAmount);
         debtManager.depositCollateral(address(weETH), alice, collateralAmount);
 
         borrowAmt = debtManager.remainingBorrowingCapacityInUSDC(alice) / 2;
@@ -46,7 +46,7 @@ contract DebtManagerRepayTest is DebtManagerSetup {
         uint256 repayAmt = debtAmtBefore;
 
         vm.startPrank(alice);
-        usdc.forceApprove(address(debtManager), repayAmt);
+        IERC20(address(usdc)).forceApprove(address(debtManager), repayAmt);
         debtManager.repay(alice, address(usdc), repayAmt);
         vm.stopPrank();
 
@@ -69,7 +69,7 @@ contract DebtManagerRepayTest is DebtManagerSetup {
         uint256 repayAmt = debtAmtBefore;
 
         vm.startPrank(alice);
-        usdc.forceApprove(address(debtManager), repayAmt);
+        IERC20(address(usdc)).forceApprove(address(debtManager), repayAmt);
         debtManager.repay(alice, address(usdc), repayAmt);
         vm.stopPrank();
 
@@ -80,7 +80,7 @@ contract DebtManagerRepayTest is DebtManagerSetup {
 
     function test_CannotRepayWithUsdcIfAllowanceIsInsufficient() public {
         vm.startPrank(alice);
-        usdc.forceApprove(address(debtManager), 0);
+        IERC20(address(usdc)).forceApprove(address(debtManager), 0);
 
         if (!isFork(chainId))
             vm.expectRevert(
@@ -101,7 +101,7 @@ contract DebtManagerRepayTest is DebtManagerSetup {
         deal(address(usdc), alice, 0);
 
         vm.startPrank(alice);
-        usdc.forceApprove(address(debtManager), 1);
+        IERC20(address(usdc)).forceApprove(address(debtManager), 1);
 
         if (!isFork(chainId))
             vm.expectRevert(
@@ -125,7 +125,7 @@ contract DebtManagerRepayTest is DebtManagerSetup {
 
         vm.startPrank(notOwner);
         deal(address(usdc), notOwner, repayAmt);
-        usdc.forceApprove(address(debtManager), repayAmt);
+        IERC20(address(usdc)).forceApprove(address(debtManager), repayAmt);
         debtManager.repay(alice, address(usdc), repayAmt);
         vm.stopPrank();
 

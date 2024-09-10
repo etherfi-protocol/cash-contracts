@@ -28,7 +28,6 @@ contract L2DebtManager is
 
     bytes32 public constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
     uint256 public constant AN_YEAR_IN_SECONDS = 365 * 24 * 60 * 60;
-    uint256 public constant MAX_BORROW_APY = 20e18;
 
     ICashDataProvider private immutable _cashDataProvider;
 
@@ -72,11 +71,25 @@ contract L2DebtManager is
         address[] calldata __supportedCollateralTokens,
         CollateralTokenConfigData[] calldata __collateralTokenConfigs,
         address[] calldata __supportedBorrowTokens,
-        uint256[] calldata __borrowApys
+        BorrowTokenConfigData[] calldata __borrowTokenConfig
     ) external initializer {
         _init(__owner, __defaultAdminDelay);
+        _initCollateralTokens(__supportedCollateralTokens, __collateralTokenConfigs);        
+        _initBorrowTokens(__supportedBorrowTokens, __borrowTokenConfig);
+    }
 
-        uint256 len = __supportedCollateralTokens.length;
+    // This function was added to avoid stack too deep error
+    function _init(address __owner, uint48 __defaultAdminDelay) internal {
+        __UUPSUpgradeable_init();
+        __AccessControlDefaultAdminRules_init(__defaultAdminDelay, __owner);
+        _grantRole(ADMIN_ROLE, __owner);
+    }
+
+    function _initCollateralTokens(        
+        address[] calldata __supportedCollateralTokens,
+        CollateralTokenConfigData[] calldata __collateralTokenConfigs
+    ) internal {
+                uint256 len = __supportedCollateralTokens.length;
         if (len != __collateralTokenConfigs.length)
             revert ArrayLengthMismatch();
 
@@ -92,24 +105,22 @@ contract L2DebtManager is
                 ++i;
             }
         }
+    }
 
-        len = __supportedBorrowTokens.length;
-        if (len != __borrowApys.length) revert ArrayLengthMismatch();
+    function _initBorrowTokens(
+        address[] calldata __supportedBorrowTokens,
+        BorrowTokenConfigData[] calldata __borrowTokenConfig
+    ) internal {
+        uint256 len = __supportedBorrowTokens.length;
+        if (len != __borrowTokenConfig.length) revert ArrayLengthMismatch();
 
         for (uint256 i = 0; i < len; ) {
             _supportBorrowToken(__supportedBorrowTokens[i]);
-            _setBorrowTokenConfig(__supportedBorrowTokens[i], __borrowApys[i]);
+            _setBorrowTokenConfig(__supportedBorrowTokens[i], __borrowTokenConfig[i].borrowApy, __borrowTokenConfig[i].minSharesToMint);
             unchecked {
                 ++i;
             }
         }
-    }
-
-    // This function was added to avoid stack too deep error
-    function _init(address __owner, uint48 __defaultAdminDelay) internal {
-        __UUPSUpgradeable_init();
-        __AccessControlDefaultAdminRules_init(__defaultAdminDelay, __owner);
-        _grantRole(ADMIN_ROLE, __owner);
     }
 
     /**
@@ -439,8 +450,17 @@ contract L2DebtManager is
      */
     function borrowApyPerSecond(
         address borrowToken
-    ) external view returns (uint256) {
+    ) external view returns (uint64) {
         return _borrowTokenConfig[borrowToken].borrowApy;
+    }
+
+    /**
+     * @inheritdoc IL2DebtManager
+     */
+    function borrowTokenMinSharesToMint(
+        address borrowToken
+    ) external view returns (uint128) {
+        return _borrowTokenConfig[borrowToken].minSharesToMint;
     }
 
     /**
@@ -665,10 +685,11 @@ contract L2DebtManager is
      */
     function supportBorrowToken(
         address token,
-        uint256 borrowApy
+        uint64 borrowApy,
+        uint128 minSharesToMint
     ) external onlyRole(ADMIN_ROLE) {
         _supportBorrowToken(token);
-        _setBorrowTokenConfig(token, borrowApy);
+        _setBorrowTokenConfig(token, borrowApy, minSharesToMint);
     }
 
     /**
@@ -721,9 +742,19 @@ contract L2DebtManager is
      */
     function setBorrowApy(
         address token,
-        uint256 apy
+        uint64 apy
     ) external onlyRole(ADMIN_ROLE) {
         _setBorrowApy(token, apy);
+    }
+
+    /**
+     * @inheritdoc IL2DebtManager
+     */
+    function setMinBorrowTokenSharesToMint(
+        address token,
+        uint128 shares
+    ) external onlyRole(ADMIN_ROLE) {
+        _setMinBorrowTokenSharesToMint(token, shares);
     }
 
     /**
@@ -742,6 +773,8 @@ contract L2DebtManager is
                                 _getTotalBorrowTokenAmount(borrowToken), 
                                 Math.Rounding.Floor
                             );
+        
+        if (shares < _borrowTokenConfig[borrowToken].minSharesToMint) revert SharesCannotBeLessThanMinSharesToMint();
 
         // Moving this before state update to prevent reentrancy
         IERC20(borrowToken).safeTransferFrom(msg.sender, address(this), amount);
@@ -990,18 +1023,22 @@ contract L2DebtManager is
 
     function _setBorrowTokenConfig(
         address borrowToken,
-        uint256 borrowApy
+        uint64 borrowApy,
+        uint128 minSharesToMint
     ) internal {
         if (!isBorrowToken(borrowToken)) revert UnsupportedBorrowToken();
         if (_borrowTokenConfig[borrowToken].lastUpdateTimestamp != 0)
             revert BorrowTokenConfigAlreadySet();
+        
+        if (borrowApy == 0 || minSharesToMint == 0) revert InvalidValue();
 
         BorrowTokenConfig memory cfg = BorrowTokenConfig({
             interestIndexSnapshot: 0,
-            borrowApy: borrowApy,
-            lastUpdateTimestamp: block.timestamp,
             totalBorrowingAmount: 0,
-            totalSharesOfBorrowTokens: 0
+            totalSharesOfBorrowTokens: 0,
+            lastUpdateTimestamp: uint64(block.timestamp),
+            borrowApy: borrowApy,
+            minSharesToMint: minSharesToMint
         });
 
         _borrowTokenConfig[borrowToken] = cfg;
@@ -1108,12 +1145,22 @@ contract L2DebtManager is
         emit BorrowTokenAdded(token);
     }
 
-    function _setBorrowApy(address token, uint256 apy) internal {
-        _updateBorrowings(address(0));
-        if (apy > MAX_BORROW_APY) revert BorrowApyGreaterThanMaxAllowed();
+    function _setBorrowApy(address token, uint64 apy) internal {
+        if (apy == 0) revert InvalidValue();
+        if (!isBorrowToken(token)) revert UnsupportedBorrowToken();
 
+        _updateBorrowings(address(0));
         emit BorrowApySet(token, _borrowTokenConfig[token].borrowApy, apy);
         _borrowTokenConfig[token].borrowApy = apy;
+    }
+
+    function _setMinBorrowTokenSharesToMint(address token, uint128 shares) internal {
+        if (shares == 0) revert InvalidValue();
+        if (!isBorrowToken(token)) revert UnsupportedBorrowToken();
+
+        _updateBorrowings(address(0));
+        emit MinSharesOfBorrowTokenToMintSet(token, _borrowTokenConfig[token].minSharesToMint, shares);
+        _borrowTokenConfig[token].minSharesToMint = shares;
     }
 
     function _getAmountWithInterest(
@@ -1158,7 +1205,7 @@ contract L2DebtManager is
             .interestIndexSnapshot = debtInterestIndexSnapshot(borrowToken);
         _borrowTokenConfig[borrowToken]
             .totalBorrowingAmount = totalBorrowingAmount(borrowToken);
-        _borrowTokenConfig[borrowToken].lastUpdateTimestamp = block.timestamp;
+        _borrowTokenConfig[borrowToken].lastUpdateTimestamp = uint64(block.timestamp);
 
         if (
             totalBorrowingAmtBeforeInterest !=

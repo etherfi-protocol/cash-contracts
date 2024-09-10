@@ -27,7 +27,7 @@ contract DebtManagerWithdrawTest is DebtManagerSetup {
         deal(address(usdc), address(debtManager), 1 ether);
 
         vm.startPrank(alice);
-        weETH.safeIncreaseAllowance(address(debtManager), collateralAmount);
+        IERC20(address(weETH)).safeIncreaseAllowance(address(debtManager), collateralAmount);
         debtManager.depositCollateral(address(weETH), alice, collateralAmount);
 
         borrowAmt = debtManager.remainingBorrowingCapacityInUSDC(alice) / 2;

@@ -293,7 +293,7 @@ contract IntegrationTest is IntegrationTestSetup {
 
         uint256 newCollateralLtv = 80e18;
         uint256 newCollateralLiquidationThreshold = 85e18;
-        uint256 newBorrowTokenApy = 1e18;
+        uint64 newBorrowTokenApy = 1e18;
 
         etherFiCashDebtManager.supportCollateralToken(
             address(newCollateralToken),
@@ -302,7 +302,8 @@ contract IntegrationTest is IntegrationTestSetup {
         );
         etherFiCashDebtManager.supportBorrowToken(
             address(newBorrowToken),
-            newBorrowTokenApy
+            newBorrowTokenApy,
+            1
         );
         vm.stopPrank();
 
@@ -380,10 +381,10 @@ contract IntegrationTest is IntegrationTestSetup {
         );
 
         uint256 timeElapsed = 24 * 60 * 60;
-        vm.warp(block.timestamp + 24 * 60 * 60);
+        uint256 expectedInterest = 1 ether * ((newBorrowTokenApy * timeElapsed) / 1e20);
+        
+        vm.warp(block.timestamp + timeElapsed);
 
-        uint256 expectedInterest = (1 ether * newBorrowTokenApy * timeElapsed) /
-            1e20;
         assertEq(
             etherFiCashDebtManager.borrowingOf(
                 address(aliceSafe),

@@ -29,7 +29,7 @@ contract DeployMockUserSafeSetup is Utils {
     uint256 delay = 60;
     uint256 ltv = 70e18;
     uint256 liquidationThreshold = 75e18;
-    uint256 borrowApyPerSecond = 634195839675; // 20% APR -> 20e18 / (365 days in seconds)
+    uint64 borrowApyPerSecond = 634195839675; // 20% APR -> 20e18 / (365 days in seconds)
 
     // Shivam Metamask wallets
     address recoverySigner1 = 0x7fEd99d0aA90423de55e238Eb5F9416FF7Cc58eF;
@@ -72,8 +72,15 @@ contract DeployMockUserSafeSetup is Utils {
             ltv: ltv,
             liquidationThreshold: liquidationThreshold
         });
-        uint256[] memory borrowApys = new uint256[](1);
-        borrowApys[0] = borrowApyPerSecond;
+
+        IL2DebtManager.BorrowTokenConfigData[]
+            memory borrowTokenConfig = new IL2DebtManager.BorrowTokenConfigData[](
+                1
+            );
+        borrowTokenConfig[0] = IL2DebtManager.BorrowTokenConfigData({
+           borrowApy: borrowApyPerSecond,
+           minSharesToMint: uint128(10 * 10 ** usdc.decimals())
+        });
 
         address debtManagerImpl = address(
             new L2DebtManager(address(cashDataProvider))
@@ -102,7 +109,7 @@ contract DeployMockUserSafeSetup is Utils {
             collateralTokens,
             collateralTokenConfig,
             borrowTokens,
-            borrowApys
+            borrowTokenConfig
         );
 
         userSafeImpl = new UserSafe(

@@ -28,7 +28,7 @@ contract DebtManagerLiquidateTest is DebtManagerSetup {
         deal(address(usdc), address(debtManager), 1 ether);
 
         vm.startPrank(alice);
-        weETH.safeIncreaseAllowance(address(debtManager), collateralAmount);
+        IERC20(address(weETH)).safeIncreaseAllowance(address(debtManager), collateralAmount);
         debtManager.depositCollateral(address(weETH), alice, collateralAmount);
 
         borrowAmt = debtManager.remainingBorrowingCapacityInUSDC(alice);
@@ -75,7 +75,7 @@ contract DebtManagerLiquidateTest is DebtManagerSetup {
         debtManager.setLtvAndLiquidationThreshold(address(weETH), 5e18, 10e18);
         assertEq(debtManager.liquidatable(alice), true);
 
-        usdc.forceApprove(address(debtManager), borrowAmt);
+        IERC20(address(usdc)).forceApprove(address(debtManager), borrowAmt);
         debtManager.liquidate(alice, address(usdc), borrowAmt);
 
         vm.stopPrank();
@@ -109,7 +109,7 @@ contract DebtManagerLiquidateTest is DebtManagerSetup {
         uint256 liquidatorWeEthBalBefore = weETH.balanceOf(owner);
         uint256 liquidationAmt = borrowAmt - (maxBorrow / 3);
 
-        usdc.forceApprove(address(debtManager), liquidationAmt);
+        IERC20(address(usdc)).forceApprove(address(debtManager), liquidationAmt);
         debtManager.liquidate(alice, address(usdc), liquidationAmt);
 
         vm.stopPrank();
@@ -139,7 +139,7 @@ contract DebtManagerLiquidateTest is DebtManagerSetup {
     function test_CannotLiquidateIfNotLiquidatable() public {
         vm.startPrank(owner);
         assertEq(debtManager.liquidatable(alice), false);
-        usdc.forceApprove(address(debtManager), borrowAmt);
+        IERC20(address(usdc)).forceApprove(address(debtManager), borrowAmt);
         vm.expectRevert(IL2DebtManager.CannotLiquidateYet.selector);
         debtManager.liquidate(alice, address(usdc), borrowAmt);
 

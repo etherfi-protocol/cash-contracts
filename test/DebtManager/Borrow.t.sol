@@ -26,17 +26,18 @@ contract DebtManagerBorrowTest is DebtManagerSetup {
         deal(address(usdc), address(debtManager), 1 ether);
 
         vm.startPrank(alice);
-        weETH.safeIncreaseAllowance(address(debtManager), collateralAmount);
+        IERC20(address(weETH)).safeIncreaseAllowance(address(debtManager), collateralAmount);
         debtManager.depositCollateral(address(weETH), alice, collateralAmount);
         vm.stopPrank();
     }
 
     function test_CanAddOrRemoveSupportedBorrowTokens() public {
         address newBorrowToken = address(new MockERC20("abc", "ABC", 12));
-        uint256 borrowApy = 1e18;
+        uint64 borrowApy = 1e18;
+        uint128 minSharesToMint = 1e12;
 
         vm.startPrank(owner);
-        debtManager.supportBorrowToken(newBorrowToken, borrowApy);
+        debtManager.supportBorrowToken(newBorrowToken, borrowApy, minSharesToMint);
 
         assertEq(debtManager.borrowApyPerSecond(newBorrowToken), borrowApy);
 
@@ -66,7 +67,7 @@ contract DebtManagerBorrowTest is DebtManagerSetup {
         vm.expectRevert(
             buildAccessControlRevertData(alice, debtManager.ADMIN_ROLE())
         );
-        debtManager.supportBorrowToken(newBorrowToken, 1);
+        debtManager.supportBorrowToken(newBorrowToken, 1, 1);
         vm.expectRevert(
             buildAccessControlRevertData(alice, debtManager.ADMIN_ROLE())
         );
@@ -77,14 +78,14 @@ contract DebtManagerBorrowTest is DebtManagerSetup {
     function test_CannotAddBorrowTokenIfAlreadySupported() public {
         vm.startPrank(owner);
         vm.expectRevert(IL2DebtManager.AlreadyBorrowToken.selector);
-        debtManager.supportBorrowToken(address(usdc), 1);
+        debtManager.supportBorrowToken(address(usdc), 1, 1);
         vm.stopPrank();
     }
 
     function test_CannotAddNullAddressAsBorrowToken() public {
         vm.startPrank(owner);
         vm.expectRevert(IL2DebtManager.InvalidValue.selector);
-        debtManager.supportBorrowToken(address(0), 1);
+        debtManager.supportBorrowToken(address(0), 1, 1);
         vm.stopPrank();
     }
 
@@ -175,10 +176,10 @@ contract DebtManagerBorrowTest is DebtManagerSetup {
     function test_BorrowTokenWithDecimalsOtherThanSix() public {
         MockERC20 newToken = new MockERC20("mockToken", "MTK", 12);
         deal(address(newToken), address(debtManager), 1 ether);
-        uint256 borrowApy = 1e18;
+        uint64 borrowApy = 1e18;
 
         vm.prank(owner);
-        debtManager.supportBorrowToken(address(newToken), borrowApy);
+        debtManager.supportBorrowToken(address(newToken), borrowApy, 1);
 
         uint256 remainingBorrowCapacityInUsdc = debtManager
             .remainingBorrowingCapacityInUSDC(alice);

@@ -15,12 +15,18 @@ interface IL2DebtManager {
         uint256 liquidationThreshold;
     }
 
+    struct BorrowTokenConfigData {
+        uint64 borrowApy;
+        uint128 minSharesToMint;
+    }
+
     struct BorrowTokenConfig {
         uint256 interestIndexSnapshot;
-        uint256 borrowApy;
-        uint256 lastUpdateTimestamp;
         uint256 totalBorrowingAmount;
         uint256 totalSharesOfBorrowTokens;
+        uint64 lastUpdateTimestamp;
+        uint64 borrowApy;
+        uint128 minSharesToMint;
     }
 
     struct TokenData {
@@ -83,6 +89,7 @@ interface IL2DebtManager {
     event BorrowTokenAdded(address token);
     event BorrowTokenRemoved(address token);
     event BorrowApySet(address indexed token, uint256 oldApy, uint256 newApy);
+    event MinSharesOfBorrowTokenToMintSet(address indexed token, uint128 oldMinShares, uint128 newMinShares);
     event UserInterestAdded(
         address indexed user,
         uint256 borrowingAmtBeforeInterest,
@@ -133,7 +140,6 @@ interface IL2DebtManager {
     error NotABorrowToken();
     error NoBorrowTokenLeft();
     error ArrayLengthMismatch();
-    error BorrowApyGreaterThanMaxAllowed();
     error TotalCollateralAmountNotZero();
     error InsufficientLiquidityPleaseTryAgainLater();
     error LiquidAmountLesserThanRequired();
@@ -150,6 +156,7 @@ interface IL2DebtManager {
     error OraclePriceZero();
     error BorrowAmountZero();
     error SharesCannotBeZero();
+    error SharesCannotBeLessThanMinSharesToMint();
 
     /**
      * @notice Function to fetch the address of the Cash Data Provider.
@@ -168,11 +175,21 @@ interface IL2DebtManager {
 
     /**
      * @notice Function to fetch the borrow APY per second with 18 decimals.
-     * @notice Borrow APY per second. Eg: 0.0001% -> 0.0001e18
+     * @param borrowToken Address of the borrow token.
+     * @return Borrow APY per second. Eg: 0.0001% -> 0.0001e18
      */
     function borrowApyPerSecond(
         address borrowToken
-    ) external view returns (uint256);
+    ) external view returns (uint64);
+
+    /**
+     * @notice Function to fetch the min shares of borrow token that can be minted by a supplier.
+     * @param borrowToken Address of the borrow token.
+     * @return minSharesToMint
+     */
+    function borrowTokenMinSharesToMint(
+        address borrowToken
+    ) external view returns (uint128);
 
     /**
      * @notice Function to fetch the array of collateral tokens.
@@ -215,9 +232,20 @@ interface IL2DebtManager {
      * @notice Function to set the borrow APY per second for a borrow token.
      * @dev Can only be called by an address with the ADMIN_ROLE.
      * @param token Address of the borrow token.
-     * @param apy Borrow APY in seconds with 18 decimals.
+     * @param apy Borrow APY per seconds with 18 decimals.
      */
-    function setBorrowApy(address token, uint256 apy) external;
+    function setBorrowApy(address token, uint64 apy) external;
+
+    /**
+     * @notice Function to set min borrow token shares to mint. 
+     * @notice Implemented to prevent inflation attacks.
+     * @param token Address of the borrow token.
+     * @param shares Min shares of that borrow token to mint. 
+     */
+    function setMinBorrowTokenSharesToMint(
+        address token,
+        uint128 shares
+    ) external;
 
     /**
      * @notice Function to set the LTV for a collateral token.
@@ -244,7 +272,7 @@ interface IL2DebtManager {
      * @param token Address of the token to be supported as borrow.
      * @param borrowApy Borrow APY per second in 18 decimals.
      */
-    function supportBorrowToken(address token, uint256 borrowApy) external;
+    function supportBorrowToken(address token, uint64 borrowApy, uint128 minBorrowTokenSharesToMint) external;
 
     /**
      * @notice Function to remove support for a borrow token.

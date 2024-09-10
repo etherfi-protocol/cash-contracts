@@ -99,7 +99,7 @@ contract DebtManagerCollateralTest is DebtManagerSetup {
     {
         uint256 amount = 0.1 ether;
         vm.startPrank(alice);
-        weETH.safeIncreaseAllowance(address(debtManager), amount);
+        IERC20(address(weETH)).safeIncreaseAllowance(address(debtManager), amount);
         debtManager.depositCollateral(address(weETH), alice, amount);
         vm.stopPrank();
 
@@ -161,7 +161,7 @@ contract DebtManagerCollateralTest is DebtManagerSetup {
         assertEq(totalCollateralInUsdcBefore, 0);
 
         vm.startPrank(alice);
-        weETH.safeIncreaseAllowance(address(debtManager), amount);
+        IERC20(address(weETH)).safeIncreaseAllowance(address(debtManager), amount);
 
         debtManager.depositCollateral(address(weETH), alice, amount);
 
@@ -206,7 +206,7 @@ contract DebtManagerCollateralTest is DebtManagerSetup {
         deal(address(weETH), notOwner, 2);
 
         vm.startPrank(notOwner);
-        weETH.forceApprove(address(debtManager), 1);
+        IERC20(address(weETH)).forceApprove(address(debtManager), 1);
 
         if (!isFork(chainId) || isScroll(chainId))
             vm.expectRevert(
@@ -226,7 +226,7 @@ contract DebtManagerCollateralTest is DebtManagerSetup {
 
     function test_CannotDepositCollateralIfBalanceIsInsufficient() public {
         vm.startPrank(notOwner);
-        weETH.safeIncreaseAllowance(address(debtManager), 1);
+        IERC20(address(weETH)).safeIncreaseAllowance(address(debtManager), 1);
 
         if (!isFork(chainId) || isScroll(chainId))
             vm.expectRevert(

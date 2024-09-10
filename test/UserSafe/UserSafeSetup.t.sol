@@ -71,7 +71,7 @@ contract UserSafeSetup is Utils {
 
     uint256 ltv = 50e18; // 50%
     uint256 liquidationThreshold = 60e18; // 60%
-    uint256 borrowApy = 1e16; // 0.01% per second
+    uint64 borrowApy = 1e16; // 0.01% per second
     ChainConfig chainConfig;
 
     function setUp() public virtual {
@@ -146,8 +146,15 @@ contract UserSafeSetup is Utils {
             ltv: ltv,
             liquidationThreshold: liquidationThreshold
         });
-        uint256[] memory borrowApys = new uint256[](1);
-        borrowApys[0] = borrowApy;
+
+        IL2DebtManager.BorrowTokenConfigData[]
+            memory borrowTokenConfig = new IL2DebtManager.BorrowTokenConfigData[](
+                1
+            );
+        borrowTokenConfig[0] = IL2DebtManager.BorrowTokenConfigData({
+           borrowApy: borrowApy,
+           minSharesToMint: uint128(1 * 10 ** usdc.decimals())
+        });
 
         etherFiCashDebtManager = address(
             new UUPSProxy(etherFiCashDebtManagerImpl, "")
@@ -172,7 +179,7 @@ contract UserSafeSetup is Utils {
             collateralTokens,
             collateralTokenConfig,
             borrowTokens,
-            borrowApys
+            borrowTokenConfig
         );
 
         (etherFiRecoverySigner, etherFiRecoverySignerPk) = makeAddrAndKey(
