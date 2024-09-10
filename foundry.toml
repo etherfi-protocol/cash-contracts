@@ -6,7 +6,7 @@ solc = "0.8.24"
 cbor_metadata = true
 ffi = true
 optimizer = true
-optimizer_runs = 15000
+optimizer_runs = 200
 evm_version = "shanghai"
 ast = true
 build_info = true
@@ -37,4 +37,4 @@ arbitrum_sepolia = "${ARBITRUM_SEPOLIA_RPC}"
 mainnet = { key = "${MAINNET_ETHERSCAN_KEY}" }
 sepolia = { key = "${MAINNET_ETHERSCAN_KEY}" }
 fi_sepolia = { url = "https://fi-sepolia-explorer.ether.fi/api", key = "5P1ZGHEFGJUN2N1T9NY6NVVDXQDJKPMD2Z" }
-arbitrum_sepolia = { key = "${ARBISCAN_ETHERSCAN_KEY}" }
+arbitrum_sepolia = { key = "${ARBISCAN_KEY}" }
