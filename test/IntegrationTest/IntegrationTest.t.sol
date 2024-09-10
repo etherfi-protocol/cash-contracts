@@ -40,13 +40,19 @@ contract IntegrationTest is IntegrationTestSetup {
             cashDataProvider.setPriceProvider(address(priceProvider));
 
             address newCollateralToken = address(weth);
-            uint256 newLtv = 80e18;
-            uint256 newLiquidationThreshold = 85e18;
+            uint80 newLtv = 80e18;
+            uint80 newLiquidationThreshold = 85e18;
+            uint96 newLiquidationBonus = 85e18;
+
+            IL2DebtManager.CollateralTokenConfig memory config = IL2DebtManager.CollateralTokenConfig({
+                ltv: newLtv,
+                liquidationThreshold: newLiquidationThreshold,
+                liquidationBonus: newLiquidationBonus
+            });
 
             etherFiCashDebtManager.supportCollateralToken(
                 newCollateralToken,
-                newLtv,
-                newLiquidationThreshold
+                config
             );
 
             /// If it is mainnet, supply 0.01 weETH and borrow 1 USDC from Aave
@@ -291,14 +297,19 @@ contract IntegrationTest is IntegrationTestSetup {
         MockERC20 newCollateralToken = new MockERC20("CollToken", "CTK", 18);
         MockERC20 newBorrowToken = new MockERC20("DebtToken", "DTK", 18);
 
-        uint256 newCollateralLtv = 80e18;
-        uint256 newCollateralLiquidationThreshold = 85e18;
+        uint80 newCollateralLtv = 80e18;
+        uint80 newCollateralLiquidationThreshold = 85e18;
+        uint96 newCollateralLiquidationBonus = 5e18;
         uint64 newBorrowTokenApy = 1e18;
+
+        IL2DebtManager.CollateralTokenConfig memory config;
+        config.ltv = newCollateralLtv;
+        config.liquidationThreshold = newCollateralLiquidationThreshold;
+        config.liquidationBonus = newCollateralLiquidationBonus;
 
         etherFiCashDebtManager.supportCollateralToken(
             address(newCollateralToken),
-            newCollateralLtv,
-            newCollateralLiquidationThreshold
+            config
         );
         etherFiCashDebtManager.supportBorrowToken(
             address(newBorrowToken),

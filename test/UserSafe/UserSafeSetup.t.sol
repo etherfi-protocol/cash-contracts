@@ -69,8 +69,9 @@ contract UserSafeSetup is Utils {
     uint256 interestRateMode = 2;
     uint16 aaveReferralCode = 0;
 
-    uint256 ltv = 50e18; // 50%
-    uint256 liquidationThreshold = 60e18; // 60%
+    uint80 ltv = 50e18; // 50%
+    uint80 liquidationThreshold = 60e18; // 60%
+    uint96 liquidationBonus = 5e18; // 5%
     uint64 borrowApy = 1e16; // 0.01% per second
     ChainConfig chainConfig;
 
@@ -138,13 +139,14 @@ contract UserSafeSetup is Utils {
         address etherFiCashDebtManagerImpl = address(
             new L2DebtManager(address(cashDataProvider))
         );
-        IL2DebtManager.CollateralTokenConfigData[]
-            memory collateralTokenConfig = new IL2DebtManager.CollateralTokenConfigData[](
+        IL2DebtManager.CollateralTokenConfig[]
+            memory collateralTokenConfig = new IL2DebtManager.CollateralTokenConfig[](
                 1
             );
-        collateralTokenConfig[0] = IL2DebtManager.CollateralTokenConfigData({
+        collateralTokenConfig[0] = IL2DebtManager.CollateralTokenConfig({
             ltv: ltv,
-            liquidationThreshold: liquidationThreshold
+            liquidationThreshold: liquidationThreshold,
+            liquidationBonus: liquidationBonus
         });
 
         IL2DebtManager.BorrowTokenConfigData[]

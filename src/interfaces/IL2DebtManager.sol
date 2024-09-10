@@ -10,11 +10,6 @@ interface IL2DebtManager {
         SupplyAndBorrow
     }
 
-    struct CollateralTokenConfigData {
-        uint256 ltv;
-        uint256 liquidationThreshold;
-    }
-
     struct BorrowTokenConfigData {
         uint64 borrowApy;
         uint128 minSharesToMint;
@@ -29,9 +24,21 @@ interface IL2DebtManager {
         uint128 minSharesToMint;
     }
 
+    struct CollateralTokenConfig {
+        uint80 ltv;
+        uint80 liquidationThreshold;
+        uint96 liquidationBonus;
+    }
+
     struct TokenData {
         address token;
         uint256 amount;
+    }
+
+    struct LiquidationTokenData {
+        address token;
+        uint256 amount;
+        uint256 liquidationBonus;
     }
 
     event SuppliedUSDC(uint256 amount);
@@ -76,7 +83,7 @@ interface IL2DebtManager {
         address indexed user,
         address indexed debtTokenToLiquidate,
         TokenData[] beforeCollateralAmount,
-        TokenData[] userCollateralLiquidated,
+        LiquidationTokenData[] userCollateralLiquidated,
         uint256 beforeDebtAmount,
         uint256 debtAmountLiquidated
     );
@@ -107,15 +114,10 @@ interface IL2DebtManager {
     );
     event AccountClosed(address indexed user, TokenData[] collateralWithdrawal);
     event BorrowTokenConfigSet(address indexed token, BorrowTokenConfig config);
-    event LtvSet(
+    event CollateralTokenConfigSet(
         address indexed collateralToken,
-        uint256 prevLtv,
-        uint256 newLtv
-    );
-    event LiquidationThresholdSet(
-        address indexed collateralToken,
-        uint256 prevThreshold,
-        uint256 newThreshold
+        CollateralTokenConfig oldConfig,
+        CollateralTokenConfig newConfig
     );
     event WithdrawBorrowToken(
         address indexed withdrawer,
@@ -145,13 +147,13 @@ interface IL2DebtManager {
     error LiquidAmountLesserThanRequired();
     error ZeroTotalBorrowTokens();
     error InsufficientBorrowShares();
-    error PartialLiquidationShouldOverCollaterallizeTheUser();
+    error UserStillLiquidatable();
     error TotalBorrowingsForUserNotZero();
     error BorrowTokenConfigAlreadySet();
     error AccountUnhealthy();
     error BorrowTokenStillInTheSystem();
     error RepaymentAmountIsZero();
-    error DebtAmountInUsdcIsZero();
+    error LiquidatableAmountIsZero();
     error LtvCannotBeGreaterThanLiquidationThreshold();
     error OraclePriceZero();
     error BorrowAmountZero();
@@ -219,13 +221,11 @@ interface IL2DebtManager {
      * @notice Function to add support for a new collateral token.
      * @dev Can only be called by an address with the ADMIN_ROLE.
      * @param token Address of the token to be supported as collateral.
-     * @param ltv LTV with 18 decimals.
-     * @param liqudiationThreshold Liqudiation Threshold with 18 decimals.
+     * @param config Collateral token config.
      */
     function supportCollateralToken(
         address token,
-        uint256 ltv,
-        uint256 liqudiationThreshold
+        CollateralTokenConfig memory config
     ) external;
 
     /**
@@ -248,15 +248,13 @@ interface IL2DebtManager {
     ) external;
 
     /**
-     * @notice Function to set the LTV for a collateral token.
+     * @notice Function to set the collateral token config.
      * @param __collateralToken Address of the collateral token.
-     * @param __ltv LTV with 18 decimals.
-     * @param __liquidationThreshold Liquidation threshold with 18 decimals.
+     * @param __config Collateral token config.
      */
-    function setLtvAndLiquidationThreshold(
+    function setCollateralTokenConfig(
         address __collateralToken,
-        uint256 __ltv,
-        uint256 __liquidationThreshold
+        CollateralTokenConfig memory __config
     ) external;
 
     /**
@@ -344,16 +342,19 @@ interface IL2DebtManager {
 
     // https://docs.aave.com/faq/liquidations
     /**
-     * @notice Liquidate the user's debt by repaying the entire debt using the collateral.
+     * @notice Liquidate the user's debt by repaying the partial/entire debt using the collateral.
+     * @notice If user's 50% debt is repaid and user is healthy, then only 50% will be repaid. Otherwise entire debt is repaid.
      * @dev do we need to add penalty?
      * @param  user Address of the user to liquidate.
-     * @param  debtToken Debt token address to liquidate.
-     * @param  debtAmountInUsdc Debt amount in USDC to liquidate. This is to support partial liquidations.
+     * @param  borrowToken Borrow token address to liquidate.
+     * @param  collateralTokensPreference Preference of order of collateral tokens to liquidate the user for.
+     * @param  debtAmountToLiquidateInUsdc Amount of debt to liquidate in six decimals.
      */
     function liquidate(
         address user,
-        address debtToken,
-        uint256 debtAmountInUsdc
+        address borrowToken,
+        address[] memory collateralTokensPreference,
+        uint256 debtAmountToLiquidateInUsdc
     ) external;
 
     /**
@@ -546,12 +547,11 @@ interface IL2DebtManager {
     /**
      * @notice Function to fetch the collateral token config.
      * @param  collateralToken Address of the collateral token.
-     * @return LTV.
-     * @return Liquidation threshold.
+     * @return CollateralTokenConfig.
      */
     function collateralTokenConfig(
         address collateralToken
-    ) external view returns (uint256, uint256);
+    ) external view returns (CollateralTokenConfig memory);
 
     /**
      * @notice Function to fetch the current state of collaterals and borrowings.

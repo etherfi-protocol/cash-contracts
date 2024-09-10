@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import {DebtManagerSetup} from "./DebtManagerSetup.t.sol";
+import {DebtManagerSetup, IL2DebtManager} from "./DebtManagerSetup.t.sol";
 
 contract DebtManagerDeployTest is DebtManagerSetup {
     function test_Deploy() public view {
@@ -24,9 +24,10 @@ contract DebtManagerDeployTest is DebtManagerSetup {
             false
         );
 
-        (uint256 _ltv, uint256 _liquidationThreshold) = debtManager.collateralTokenConfig(address(weETH));
-        assertEq(_ltv, ltv);
-        assertEq(_liquidationThreshold, liquidationThreshold);
+        IL2DebtManager.CollateralTokenConfig memory config = debtManager.collateralTokenConfig(address(weETH));
+        assertEq(config.ltv, ltv);
+        assertEq(config.liquidationThreshold, liquidationThreshold);
+        assertEq(config.liquidationBonus, liquidationBonus);
         assertEq(debtManager.borrowApyPerSecond(address(usdc)), borrowApyPerSecond);
 
         assertEq(debtManager.getCollateralTokens().length, 1);

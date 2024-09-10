@@ -32,8 +32,9 @@ contract DeployMockArbitrumSepoliaSetup is Utils {
     address etherFiWallet;
     address owner;
     uint256 delay = 60;
-    uint256 ltv = 70e18;
-    uint256 liquidationThreshold = 75e18;
+    uint80 ltv = 70e18;
+    uint80 liquidationThreshold = 75e18;
+    uint96 liquidationBonus = 5e18; 
     uint64 borrowApyPerSecond = 634195839675; // 20% APR -> 20e18 / (365 days in seconds)
 
     // Shivam Metamask wallets
@@ -70,17 +71,19 @@ contract DeployMockArbitrumSepoliaSetup is Utils {
         address[] memory borrowTokens = new address[](1);
         borrowTokens[0] = address(usdc);
 
-        IL2DebtManager.CollateralTokenConfigData[]
-            memory collateralTokenConfig = new IL2DebtManager.CollateralTokenConfigData[](
+        IL2DebtManager.CollateralTokenConfig[]
+            memory collateralTokenConfig = new IL2DebtManager.CollateralTokenConfig[](
                 2
             );
-        collateralTokenConfig[0] = IL2DebtManager.CollateralTokenConfigData({
+        collateralTokenConfig[0] = IL2DebtManager.CollateralTokenConfig({
             ltv: ltv,
-            liquidationThreshold: liquidationThreshold
+            liquidationThreshold: liquidationThreshold,
+            liquidationBonus: liquidationBonus
         });
-        collateralTokenConfig[1] = IL2DebtManager.CollateralTokenConfigData({
+        collateralTokenConfig[1] = IL2DebtManager.CollateralTokenConfig({
             ltv: ltv,
-            liquidationThreshold: liquidationThreshold
+            liquidationThreshold: liquidationThreshold,
+            liquidationBonus: liquidationBonus
         });
 
         IL2DebtManager.BorrowTokenConfigData[]

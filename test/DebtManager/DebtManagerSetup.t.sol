@@ -41,8 +41,9 @@ contract DebtManagerSetup is Utils {
     PriceProvider priceProvider;
     L2DebtManager debtManager;
     uint256 mockWeETHPriceInUsd = 3000e6;
-    uint256 ltv = 50e18; // 50%
-    uint256 liquidationThreshold = 60e18; // 60%
+    uint80 ltv = 50e18; // 50%
+    uint80 liquidationThreshold = 60e18; // 60%
+    uint96 liquidationBonus = 5e18; // 5%
     uint64 borrowApyPerSecond = 1e16; // 0.01%
 
     uint64 delay = 10;
@@ -107,13 +108,14 @@ contract DebtManagerSetup is Utils {
         address[] memory borrowTokens = new address[](1);
         borrowTokens[0] = address(usdc);
 
-        IL2DebtManager.CollateralTokenConfigData[]
-            memory collateralTokenConfig = new IL2DebtManager.CollateralTokenConfigData[](
+        IL2DebtManager.CollateralTokenConfig[]
+            memory collateralTokenConfig = new IL2DebtManager.CollateralTokenConfig[](
                 1
             );
-        collateralTokenConfig[0] = IL2DebtManager.CollateralTokenConfigData({
+        collateralTokenConfig[0] = IL2DebtManager.CollateralTokenConfig({
             ltv: ltv,
-            liquidationThreshold: liquidationThreshold
+            liquidationThreshold: liquidationThreshold,
+            liquidationBonus: liquidationBonus
         });
 
         IL2DebtManager.BorrowTokenConfigData[]

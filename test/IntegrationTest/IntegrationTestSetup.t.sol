@@ -71,8 +71,9 @@ contract IntegrationTestSetup is Utils {
 
     L2DebtManager etherFiCashDebtManager;
 
-    uint256 ltv = 50e18; //50%
-    uint256 liquidationThreshold = 60e18; // 60%
+    uint80 ltv = 50e18; //50%
+    uint80 liquidationThreshold = 60e18; // 60%
+    uint96 liquidationBonus = 5e18; // 60%
     uint64 borrowApy = 1000; // 10%
     ChainConfig chainConfig;
 
@@ -137,15 +138,15 @@ contract IntegrationTestSetup is Utils {
         address[] memory borrowTokens = new address[](1);
         borrowTokens[0] = address(usdc);
 
-        IL2DebtManager.CollateralTokenConfigData[]
-            memory collateralTokenConfig = new IL2DebtManager.CollateralTokenConfigData[](
+        IL2DebtManager.CollateralTokenConfig[]
+            memory collateralTokenConfig = new IL2DebtManager.CollateralTokenConfig[](
                 1
             );
-        collateralTokenConfig[0] = IL2DebtManager.CollateralTokenConfigData({
+        collateralTokenConfig[0] = IL2DebtManager.CollateralTokenConfig({
             ltv: ltv,
-            liquidationThreshold: liquidationThreshold
+            liquidationThreshold: liquidationThreshold,
+            liquidationBonus: liquidationBonus
         });
-
         IL2DebtManager.BorrowTokenConfigData[]
             memory borrowTokenConfig = new IL2DebtManager.BorrowTokenConfigData[](
                 1

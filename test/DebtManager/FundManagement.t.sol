@@ -103,13 +103,19 @@ contract DebtManagerFundManagementTest is DebtManagerSetup {
         cashDataProvider.setPriceProvider(address(priceProvider));
 
         address newCollateralToken = address(weth);
-        uint256 newLtv = 80e18;
-        uint256 newLiquidationThreshold = 85e18;
+        uint80 newLtv = 80e18;
+        uint80 newLiquidationThreshold = 85e18;
+        uint96 newLiquidationBonus = 10e18;
+
+        IL2DebtManager.CollateralTokenConfig memory collateralTokenConfig;
+        collateralTokenConfig.ltv = newLtv;
+        collateralTokenConfig.liquidationThreshold = newLiquidationThreshold;
+        collateralTokenConfig.liquidationBonus = newLiquidationBonus;
+
 
         debtManager.supportCollateralToken(
             newCollateralToken,
-            newLtv,
-            newLiquidationThreshold
+            collateralTokenConfig
         );
 
         deal(address(weth), address(debtManager), 1000 ether);
