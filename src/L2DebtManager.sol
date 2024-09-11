@@ -31,6 +31,8 @@ contract L2DebtManager is
 
     bytes32 public constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
     uint256 public constant HUNDRED_PERCENT = 100e18;
+    uint256 public constant PRECISION = 1e18;
+    uint256 public constant SIX_DECIMALS = 1e6;
 
     ICashDataProvider private immutable _cashDataProvider;
 
@@ -374,14 +376,14 @@ contract L2DebtManager is
                 // user collateral for token in USDC * 100 / liquidation threshold
                 totalMaxBorrow += collateral.mulDiv(
                     _collateralTokenConfig[_supportedCollateralTokens[i]].ltv,
-                    1e20,
+                    HUNDRED_PERCENT,
                     Math.Rounding.Floor
                 );
             else
                 totalMaxBorrow += collateral.mulDiv(
                     _collateralTokenConfig[_supportedCollateralTokens[i]]
                         .liquidationThreshold,
-                    1e20,
+                    HUNDRED_PERCENT,
                     Math.Rounding.Floor
                 );
 
@@ -1203,13 +1205,13 @@ contract L2DebtManager is
         uint256 accInterestAlreadyAdded
     ) internal view returns (uint256) {
         return
-            ((1e18 *
+            ((PRECISION *
                 (amountBefore *
                     (debtInterestIndexSnapshot(borrowToken) -
                         accInterestAlreadyAdded))) /
-                1e20 +
-                1e18 *
-                amountBefore) / 1e18;
+                HUNDRED_PERCENT +
+                PRECISION *
+                amountBefore) / PRECISION;
     }
 
     function _getTotalBorrowTokenAmount(
@@ -1281,7 +1283,7 @@ contract L2DebtManager is
         return
             tokenDecimals == 6
                 ? amount
-                : amount.mulDiv(1e6, 10 ** tokenDecimals, Math.Rounding.Ceil);
+                : amount.mulDiv(SIX_DECIMALS, 10 ** tokenDecimals, Math.Rounding.Ceil);
     }
 
     function _convertFromSixDecimals(
@@ -1292,7 +1294,7 @@ contract L2DebtManager is
         return
             tokenDecimals == 6
                 ? amount
-                : amount.mulDiv(10 ** tokenDecimals, 1e6, Math.Rounding.Floor);
+                : amount.mulDiv(10 ** tokenDecimals, SIX_DECIMALS, Math.Rounding.Floor);
     }
 
     function _authorizeUpgrade(
