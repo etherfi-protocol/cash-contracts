@@ -350,13 +350,11 @@ interface IL2DebtManager {
      * @param  user Address of the user to liquidate.
      * @param  borrowToken Borrow token address to liquidate.
      * @param  collateralTokensPreference Preference of order of collateral tokens to liquidate the user for.
-     * @param  debtAmountToLiquidateInUsdc Amount of debt to liquidate in six decimals.
      */
     function liquidate(
         address user,
         address borrowToken,
-        address[] memory collateralTokensPreference,
-        uint256 debtAmountToLiquidateInUsdc
+        address[] memory collateralTokensPreference
     ) external;
 
     /**

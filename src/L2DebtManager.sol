@@ -937,13 +937,32 @@ contract L2DebtManager is
     function liquidate(
         address user,
         address borrowToken,
-        address[] memory collateralTokensPreference,
-        uint256 debtAmountToLiquidateInUsdc
+        address[] memory collateralTokensPreference
     ) external {
         _updateBorrowings(user);
         if (!liquidatable(user)) revert CannotLiquidateYet();
         if (!isBorrowToken(borrowToken)) revert UnsupportedBorrowToken();
 
+        _liquidateUser(user, borrowToken, collateralTokensPreference);
+    }
+
+    function _liquidateUser(
+        address user,
+        address borrowToken,
+        address[] memory collateralTokensPreference
+    ) internal {
+        uint256 debtAmountToLiquidateInUsdc = _userBorrowings[user][borrowToken].ceilDiv(2);
+        _liquidate(user, borrowToken, collateralTokensPreference, debtAmountToLiquidateInUsdc);
+
+        if (liquidatable(user)) _liquidate(user, borrowToken, collateralTokensPreference, _userBorrowings[user][borrowToken]);
+    }
+
+    function _liquidate(
+        address user,
+        address borrowToken,
+        address[] memory collateralTokensPreference,
+        uint256 debtAmountToLiquidateInUsdc
+    ) internal {        
         uint256 beforeDebtAmount = _userBorrowings[user][borrowToken];
         if (debtAmountToLiquidateInUsdc == 0) revert LiquidatableAmountIsZero();
 
@@ -953,13 +972,13 @@ contract L2DebtManager is
             _convertFromSixDecimals(borrowToken, debtAmountToLiquidateInUsdc)
         );
 
-        (TokenData[] memory beforeCollateralAmounts, ) = collateralOf(user);
-
         LiquidationTokenData[] memory collateralTokensToSend = _getCollateralTokensForDebtAmount(
             user,
             debtAmountToLiquidateInUsdc,
             collateralTokensPreference
         );
+
+        (TokenData[] memory beforeCollateralAmounts, ) = collateralOf(user);
 
         uint256 len = collateralTokensToSend.length;
 
@@ -986,9 +1005,6 @@ contract L2DebtManager is
         _userBorrowings[user][borrowToken] -= debtAmountToLiquidateInUsdc;
         _borrowTokenConfig[borrowToken]
             .totalBorrowingAmount -= debtAmountToLiquidateInUsdc;
-
-        if (liquidatable(user))
-            revert UserStillLiquidatable();
 
         emit Liquidated(
             msg.sender,
