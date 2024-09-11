@@ -396,14 +396,6 @@ interface IL2DebtManager {
     ) external view returns (TokenData[] memory, uint256);
 
     /**
-     * @notice Function to calculate the debt ratio for a user.
-     * @notice Debt ratio is calculated as the ratio of the debt to the collateral value in USDC.
-     * @param  user Address of the user.
-     * @return Debt ratio in basis points.
-     */
-    function debtRatioOf(address user) external view returns (uint256);
-
-    /**
      * @notice Function to fetch the max borrow amount for liquidation purpose.
      * @notice Calculates user's total collateral amount in USDC and finds max borrowable amount using liquidation threshold.
      * @param  user Address of the user.

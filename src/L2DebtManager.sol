@@ -423,17 +423,6 @@ contract L2DebtManager is
         return (collaterals, totalCollateralInUsd);
     }
 
-    /**
-     * @inheritdoc IL2DebtManager
-     */
-    function debtRatioOf(address user) public view returns (uint256) {
-        (, uint256 totalDebtValue) = borrowingOf(user);
-        uint256 collateralValue = getCollateralValueInUsdc(user);
-        if (collateralValue == 0) revert ZeroCollateralValue();
-
-        return (totalDebtValue * 1e20) / collateralValue; // result in basis points
-    }
-
     // if user borrowings is greater than they can borrow as per LTV, revert
     function _ensureHealth(address user) public view {
         (, uint256 totalBorrowings) = borrowingOf(user);
