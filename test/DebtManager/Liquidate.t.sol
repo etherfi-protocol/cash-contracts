@@ -187,6 +187,72 @@ contract DebtManagerLiquidateTest is DebtManagerSetup {
         vm.stopPrank();
     }
 
+    function test_LiquidatorIsChargedRightAmountOfBorrowTokens() public {
+        priceProvider = PriceProvider(
+            address(new MockPriceProvider(mockWeETHPriceInUsd))
+        );
+        vm.prank(owner);
+        cashDataProvider.setPriceProvider(address(priceProvider));
+
+        vm.startPrank(owner);
+        uint256 newPrice = 1000e6; // 1000 USD per weETH
+        MockPriceProvider(address(priceProvider)).setPrice(newPrice);
+        
+        // Lower the thresholds for weETH as well
+        IL2DebtManager.CollateralTokenConfig memory collateralTokenConfigWeETH;
+        collateralTokenConfigWeETH.ltv = 5e18;
+        collateralTokenConfigWeETH.liquidationThreshold = 10e18;
+        collateralTokenConfigWeETH.liquidationBonus = 5e18;
+        debtManager.setCollateralTokenConfig(address(weETH), collateralTokenConfigWeETH);
+
+        // Now price of collateral token is 1000 USD per weETH
+        // total collateral = 0.01 weETH => 10 USD
+        // total debt = based on price 3000 USD per weETH and 50% LTV -> 15 USD
+        // So total collateral < total debt
+        // Also the user is liquidatable since liquidation threshold is 10% 
+        
+        // 50% liquidation -> 
+        // Debt is 15 USD -> 7.5 USD to liquidate first
+        // weETH amt -> 7.5 / 1000 = 0.0075 weETH
+        // bonus -> 5% -> 0.0075 * 5% = 0.000375 weETH
+        // total collateral gone -> 0.007875
+
+        // next 50% liquidation (since user is still liquidatable)
+        // collateral left -> 0.002125 weETH
+        // total value in USD -> 0.002125 * 1000 -> 2.125 USD
+        // total bonus -> 0.002125 * 5% = 0.00010625 weETH -> 0.10625 USD
+        // total collateral liquidated -> 2.125 - 0.10625 USD -> 2.01875 USD
+
+        // total liquidated amount -> 7.5 + 2.01875 USD = 9.51875 USD
+        
+        uint256 liquidationAmt = 9.51875 * 1e6;
+
+        address[] memory collateralTokenPreference = new address[](1);
+        collateralTokenPreference[0] = address(weETH);
+
+        uint256 ownerWeETHBalBefore = weETH.balanceOf(owner);
+        uint256 ownerUsdcBalBefore = IERC20(address(usdc)).balanceOf(owner);
+        uint256 aliceDebtBefore = debtManager.borrowingOf(alice, address(usdc));
+        uint256 aliceCollateralBefore = debtManager.getCollateralValueInUsdc(alice);
+
+        IERC20(address(usdc)).forceApprove(address(debtManager), liquidationAmt);
+        debtManager.liquidate(alice, address(usdc), collateralTokenPreference);
+
+        uint256 ownerWeETHBalAfter = weETH.balanceOf(owner);
+        uint256 ownerUsdcBalAfter = IERC20(address(usdc)).balanceOf(owner);
+        uint256 aliceDebtAfter = debtManager.borrowingOf(alice, address(usdc));
+        uint256 aliceCollateralAfter = debtManager.getCollateralValueInUsdc(alice);
+
+        assertEq(ownerWeETHBalAfter - ownerWeETHBalBefore, collateralAmount);
+        assertEq(ownerUsdcBalBefore - ownerUsdcBalAfter, liquidationAmt);
+        assertEq(aliceDebtBefore, borrowAmt);
+        assertEq(aliceDebtAfter, borrowAmt - liquidationAmt);
+        assertEq(aliceCollateralBefore, 10e6); // price dropped to 1000 USD and 0.01 weETH was collateral
+        assertEq(aliceCollateralAfter, 0);
+
+        vm.stopPrank();
+    }
+
     function test_ChooseCollateralPreferenceWhenLiquidating() public {
         priceProvider = PriceProvider(
             address(new MockPriceProvider(mockWeETHPriceInUsd))

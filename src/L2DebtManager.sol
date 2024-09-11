@@ -12,6 +12,7 @@ import {IEtherFiCashAaveV3Adapter} from "./interfaces/IEtherFiCashAaveV3Adapter.
 import {ICashDataProvider} from "./interfaces/ICashDataProvider.sol";
 import {AaveLib} from "./libraries/AaveLib.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
+import {ReentrancyGuardTransientUpgradeable} from "./utils/ReentrancyGuardTransientUpgradeable.sol";
 
 /**
  * @title L2 Debt Manager
@@ -20,8 +21,10 @@ import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
  */
 contract L2DebtManager is
     IL2DebtManager,
+    Initializable,
     UUPSUpgradeable,
-    AccessControlDefaultAdminRulesUpgradeable
+    AccessControlDefaultAdminRulesUpgradeable,
+    ReentrancyGuardTransientUpgradeable
 {
     using Math for uint256;
     using SafeERC20 for IERC20;
@@ -84,6 +87,7 @@ contract L2DebtManager is
     // This function was added to avoid stack too deep error
     function _init(address __owner, uint48 __defaultAdminDelay) internal {
         __UUPSUpgradeable_init();
+        __ReentrancyGuardTransient_init_unchained();
         __AccessControlDefaultAdminRules_init(__defaultAdminDelay, __owner);
         _grantRole(ADMIN_ROLE, __owner);
     }
@@ -821,15 +825,16 @@ contract L2DebtManager is
         address token,
         address user,
         uint256 amount
-    ) external {
+    ) external nonReentrant {
         if (!isCollateralToken(token)) revert UnsupportedCollateralToken();
 
-        IERC20(token).safeTransferFrom(msg.sender, address(this), amount);
         _totalCollateralAmounts[token] += amount;
         _userCollateral[user][token] += amount;
 
         if(_totalCollateralAmounts[token] > _collateralTokenConfig[token].supplyCap) 
             revert SupplyCapBreached();
+        
+        IERC20(token).safeTransferFrom(msg.sender, address(this), amount);
 
         emit DepositedCollateral(msg.sender, user, token, amount);
     }
@@ -938,7 +943,7 @@ contract L2DebtManager is
         address user,
         address borrowToken,
         address[] memory collateralTokensPreference
-    ) external {
+    ) external nonReentrant {
         _updateBorrowings(user);
         if (!liquidatable(user)) revert CannotLiquidateYet();
         if (!isBorrowToken(borrowToken)) revert UnsupportedBorrowToken();
@@ -962,17 +967,11 @@ contract L2DebtManager is
         address borrowToken,
         address[] memory collateralTokensPreference,
         uint256 debtAmountToLiquidateInUsdc
-    ) internal {        
+    ) internal {    
         uint256 beforeDebtAmount = _userBorrowings[user][borrowToken];
         if (debtAmountToLiquidateInUsdc == 0) revert LiquidatableAmountIsZero();
 
-        IERC20(borrowToken).safeTransferFrom(
-            msg.sender,
-            address(this),
-            _convertFromSixDecimals(borrowToken, debtAmountToLiquidateInUsdc)
-        );
-
-        LiquidationTokenData[] memory collateralTokensToSend = _getCollateralTokensForDebtAmount(
+        (LiquidationTokenData[] memory collateralTokensToSend, uint256 remainingDebt) = _getCollateralTokensForDebtAmount(
             user,
             debtAmountToLiquidateInUsdc,
             collateralTokensPreference
@@ -1002,9 +1001,12 @@ contract L2DebtManager is
             }
         }
 
-        _userBorrowings[user][borrowToken] -= debtAmountToLiquidateInUsdc;
+        uint256 liquidatedAmt = debtAmountToLiquidateInUsdc - remainingDebt;
+        _userBorrowings[user][borrowToken] -= liquidatedAmt;
         _borrowTokenConfig[borrowToken]
-            .totalBorrowingAmount -= debtAmountToLiquidateInUsdc;
+            .totalBorrowingAmount -= liquidatedAmt;
+
+        IERC20(borrowToken).safeTransferFrom(msg.sender, address(this), liquidatedAmt);
 
         emit Liquidated(
             msg.sender,
@@ -1013,7 +1015,7 @@ contract L2DebtManager is
             beforeCollateralAmounts,
             collateralTokensToSend,
             beforeDebtAmount,
-            debtAmountToLiquidateInUsdc
+            liquidatedAmt
         );
     }
 
@@ -1092,7 +1094,7 @@ contract L2DebtManager is
         address user,
         uint256 repayDebtUsdcAmt,
         address[] memory collateralTokenPreference
-    ) internal view returns (LiquidationTokenData[] memory) {
+    ) internal view returns (LiquidationTokenData[] memory, uint256 remainingDebt) {
         uint256 len = collateralTokenPreference.length;
         LiquidationTokenData[] memory collateral = new LiquidationTokenData[](len);
 
@@ -1151,7 +1153,7 @@ contract L2DebtManager is
             }
         }
 
-        return collateral;
+        return (collateral, repayDebtUsdcAmt);
     }
 
     function _supportCollateralToken(address token) internal {
