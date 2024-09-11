@@ -30,7 +30,6 @@ contract L2DebtManager is
     using SafeERC20 for IERC20;
 
     bytes32 public constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
-    uint256 public constant AN_YEAR_IN_SECONDS = 365 * 24 * 60 * 60;
     uint256 public constant HUNDRED_PERCENT = 100e18;
 
     ICashDataProvider private immutable _cashDataProvider;
