@@ -207,8 +207,11 @@ contract IntegrationTestSetup is Utils {
         (alice, alicePk) = makeAddrAndKey("alice");
         aliceBytes = abi.encode(alice);
 
+        bytes memory saltData = bytes("aliceSafe");
+
         aliceSafe = UserSafe(
             factory.createUserSafe(
+                saltData,
                 abi.encodeWithSelector(
                     // initialize(bytes,uint256, uint256)
                     0x32b218ac,

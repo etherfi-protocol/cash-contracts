@@ -20,6 +20,8 @@ contract UserSafeFactoryTest is UserSafeSetup {
     bytes bobBytes = abi.encode(bob);
 
     UserSafe bobSafe;
+    bytes saltData = bytes("bobSafe");
+
 
     function setUp() public override {
         super.setUp();
@@ -32,6 +34,7 @@ contract UserSafeFactoryTest is UserSafeSetup {
 
         bobSafe = UserSafe(
             factory.createUserSafe(
+                saltData,
                 abi.encodeWithSelector(
                     // initialize(bytes,uint256, uint256)
                     0x32b218ac,
@@ -46,6 +49,17 @@ contract UserSafeFactoryTest is UserSafeSetup {
     }
 
     function test_Deploy() public view {
+        address deterministicAddress = factory.getUserSafeAddress(
+            saltData, 
+            abi.encodeWithSelector(
+                // initialize(bytes,uint256, uint256)
+                0x32b218ac,
+                bobBytes,
+                defaultSpendingLimit,
+                collateralLimit
+            ));
+
+        assertEq(deterministicAddress, address(bobSafe));
         assertEq(aliceSafe.owner().ethAddr, alice);
         assertEq(bobSafe.owner().ethAddr, bob);
     }

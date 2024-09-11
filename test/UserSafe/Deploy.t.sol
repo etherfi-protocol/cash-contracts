@@ -3,6 +3,7 @@ pragma solidity ^0.8.24;
 
 import {IUserSafe, OwnerLib, UserSafe} from "../../src/user-safe/UserSafe.sol";
 import {UserSafeSetup} from "./UserSafeSetup.t.sol";
+import {CREATE3} from "solady/utils/CREATE3.sol";
 
 contract UserSafeDeployTest is UserSafeSetup {
     address bob = makeAddr("bob");
@@ -23,14 +24,37 @@ contract UserSafeDeployTest is UserSafeSetup {
     }
 
     function test_DeployAUserSafe() public {
-        factory.createUserSafe(
-            abi.encodeWithSelector(
-                // initialize(bytes,uint256, uint256)
-                0x32b218ac,
-                bobBytes,
-                defaultSpendingLimit,
-                collateralLimit
-            )
+        bytes memory salt = abi.encode("safe", block.timestamp);
+
+        bytes memory initData = abi.encodeWithSelector(
+            // initialize(bytes,uint256, uint256)
+            0x32b218ac,
+            bobBytes,
+            defaultSpendingLimit,
+            collateralLimit
         );
+        
+        address deterministicAddress = factory.getUserSafeAddress(salt, initData);
+        address safe = factory.createUserSafe(salt, initData);
+        assertEq(deterministicAddress, safe);
+    }
+
+    function test_CannotDeployTwoUserSafesAtTheSameAddress() public {
+        bytes memory salt = abi.encode("safe", block.timestamp);
+
+        bytes memory initData = abi.encodeWithSelector(
+            // initialize(bytes,uint256, uint256)
+            0x32b218ac,
+            bobBytes,
+            defaultSpendingLimit,
+            collateralLimit
+        );
+        
+        address deterministicAddress = factory.getUserSafeAddress(salt, initData);
+        address safe = factory.createUserSafe(salt, initData);
+        assertEq(deterministicAddress, safe);
+
+        vm.expectRevert(CREATE3.DeploymentFailed.selector);
+        factory.createUserSafe(salt, initData);
     }
 }
