@@ -26,6 +26,9 @@ contract DebtManagerFundManagementTest is DebtManagerSetup {
         deal(address(weETH), address(owner), 1000 ether);
         deal(address(usdc), address(owner), 1 ether);
 
+        vm.prank(address(userSafeFactory));
+        cashDataProvider.whitelistUserSafe(owner);
+
         vm.startPrank(owner);
         IERC20(address(weETH)).safeIncreaseAllowance(address(debtManager), collateralAmt);
         debtManager.depositCollateral(address(weETH), owner, collateralAmt);

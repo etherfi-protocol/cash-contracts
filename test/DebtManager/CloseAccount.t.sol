@@ -63,4 +63,9 @@ contract DebtManagerCloseAccountTest is DebtManagerSetup {
         );
         assertEq(aliceCollateralAfter, 0);
     }
+
+    function test_CannotCloseAccountIfNotUserSafe() public {
+        vm.expectRevert(IL2DebtManager.OnlyUserSafe.selector);
+        debtManager.closeAccount();
+    }
 }

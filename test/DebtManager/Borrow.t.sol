@@ -123,17 +123,12 @@ contract DebtManagerBorrowTest is DebtManagerSetup {
         (, uint256 borrowingOfUserBefore) = debtManager.borrowingOf(alice);
         assertEq(borrowingOfUserBefore, 0);
 
-        uint256 debtRatioOfBefore = debtManager.debtRatioOf(alice);
-        assertEq(debtRatioOfBefore, 0);
-
         vm.startPrank(alice);
         debtManager.borrow(address(usdc), borrowAmt);
         vm.stopPrank();
 
         uint256 borrowInUsdc = debtManager.borrowingOf(alice, address(usdc));
         assertEq(borrowInUsdc, borrowAmt);
-
-        uint256 expectedDebtRatio = (borrowAmt * 1e20) / collateralValueInUsdc;
 
         (, uint256 totalBorrowingAmountAfter) = debtManager
             .totalBorrowingAmounts();
@@ -144,9 +139,6 @@ contract DebtManagerBorrowTest is DebtManagerSetup {
 
         (, uint256 borrowingOfUserAfter) = debtManager.borrowingOf(alice);
         assertEq(borrowingOfUserAfter, borrowAmt);
-
-        uint256 debtRatioOfAfter = debtManager.debtRatioOf(alice);
-        assertEq(debtRatioOfAfter, expectedDebtRatio);
     }
 
     function test_BorrowIncursInterestWithTime() public {
@@ -234,6 +226,10 @@ contract DebtManagerBorrowTest is DebtManagerSetup {
     }
 
     function test_CannotBorrowIfTokenIsNotSupported() public {
+        vm.prank(address(userSafeFactory));
+        cashDataProvider.whitelistUserSafe(notOwner);
+
+        vm.startPrank(notOwner);        
         vm.expectRevert(IL2DebtManager.UnsupportedBorrowToken.selector);
         debtManager.borrow(address(weETH), 1);
     }
@@ -260,9 +256,17 @@ contract DebtManagerBorrowTest is DebtManagerSetup {
     }
 
     function test_CannotBorrowIfNoCollateral() public {
+        vm.prank(address(userSafeFactory));
+        cashDataProvider.whitelistUserSafe(notOwner);
+
         vm.startPrank(notOwner);
         vm.expectRevert(IL2DebtManager.AccountUnhealthy.selector);
         debtManager.borrow(address(usdc), 1);
         vm.stopPrank();
+    }
+
+    function test_CannotBorrowIfNotUserSafe() public {
+        vm.expectRevert(IL2DebtManager.OnlyUserSafe.selector);
+        debtManager.borrow(address(usdc), 1);
     }
 }

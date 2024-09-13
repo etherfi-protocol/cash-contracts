@@ -161,6 +161,7 @@ interface IL2DebtManager {
     error SharesCannotBeZero();
     error SharesCannotBeLessThanMinSharesToMint();
     error SupplyCapBreached();
+    error OnlyUserSafe();
 
     /**
      * @notice Function to fetch the address of the Cash Data Provider.
@@ -350,13 +351,11 @@ interface IL2DebtManager {
      * @param  user Address of the user to liquidate.
      * @param  borrowToken Borrow token address to liquidate.
      * @param  collateralTokensPreference Preference of order of collateral tokens to liquidate the user for.
-     * @param  debtAmountToLiquidateInUsdc Amount of debt to liquidate in six decimals.
      */
     function liquidate(
         address user,
         address borrowToken,
-        address[] memory collateralTokensPreference,
-        uint256 debtAmountToLiquidateInUsdc
+        address[] memory collateralTokensPreference
     ) external;
 
     /**
@@ -396,14 +395,6 @@ interface IL2DebtManager {
     function borrowingOf(
         address user
     ) external view returns (TokenData[] memory, uint256);
-
-    /**
-     * @notice Function to calculate the debt ratio for a user.
-     * @notice Debt ratio is calculated as the ratio of the debt to the collateral value in USDC.
-     * @param  user Address of the user.
-     * @return Debt ratio in basis points.
-     */
-    function debtRatioOf(address user) external view returns (uint256);
 
     /**
      * @notice Function to fetch the max borrow amount for liquidation purpose.
