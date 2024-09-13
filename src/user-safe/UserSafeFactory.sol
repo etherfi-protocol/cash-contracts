@@ -2,6 +2,7 @@
 pragma solidity ^0.8.24;
 
 import {BeaconProxy} from "@openzeppelin/contracts/proxy/beacon/BeaconProxy.sol";
+import {UpgradeableBeacon} from "@openzeppelin/contracts/proxy/beacon/UpgradeableBeacon.sol";
 import {CREATE3} from "solady/utils/CREATE3.sol";
 import {ICashDataProvider} from "../interfaces/ICashDataProvider.sol";
 
