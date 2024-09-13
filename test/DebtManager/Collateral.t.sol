@@ -224,6 +224,10 @@ contract DebtManagerCollateralTest is DebtManagerSetup {
     }
 
     function test_CannotDepositCollateralIfTokenNotSupported() public {
+        vm.prank(address(userSafeFactory));
+        cashDataProvider.whitelistUserSafe(notOwner);
+
+        vm.prank(notOwner);
         vm.expectRevert(IL2DebtManager.UnsupportedCollateralToken.selector);
         debtManager.depositCollateral(address(usdc), alice, 1);
     }
@@ -240,6 +244,9 @@ contract DebtManagerCollateralTest is DebtManagerSetup {
 
     function test_CannotDepositCollateralIfAllownaceIsInsufficient() public {
         deal(address(weETH), notOwner, 2);
+
+        vm.prank(address(userSafeFactory));
+        cashDataProvider.whitelistUserSafe(notOwner);
 
         vm.startPrank(notOwner);
         IERC20(address(weETH)).forceApprove(address(debtManager), 1);
@@ -261,6 +268,9 @@ contract DebtManagerCollateralTest is DebtManagerSetup {
     }
 
     function test_CannotDepositCollateralIfBalanceIsInsufficient() public {
+        vm.prank(address(userSafeFactory));
+        cashDataProvider.whitelistUserSafe(notOwner);
+
         vm.startPrank(notOwner);
         IERC20(address(weETH)).safeIncreaseAllowance(address(debtManager), 1);
 
@@ -277,5 +287,10 @@ contract DebtManagerCollateralTest is DebtManagerSetup {
 
         debtManager.depositCollateral(address(weETH), alice, 1);
         vm.stopPrank();
+    }
+    
+    function test_CannotDepositCollateralIfNotUserSafe() public {
+        vm.expectRevert(IL2DebtManager.OnlyUserSafe.selector);
+        debtManager.depositCollateral(address(weETH), alice, 1);
     }
 }

@@ -3,7 +3,6 @@ pragma solidity ^0.8.24;
 
 import {SafeERC20, IERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
-import {ICashDataProvider} from "./interfaces/ICashDataProvider.sol";
 import {AccessControlDefaultAdminRulesUpgradeable} from "openzeppelin-contracts-upgradeable/contracts/access/extensions/AccessControlDefaultAdminRulesUpgradeable.sol";
 import {UUPSUpgradeable, Initializable} from "openzeppelin-contracts-upgradeable/contracts/proxy/utils/UUPSUpgradeable.sol";
 import {IL2DebtManager} from "./interfaces/IL2DebtManager.sol";
@@ -815,7 +814,7 @@ contract L2DebtManager is
         address token,
         address user,
         uint256 amount
-    ) external nonReentrant {
+    ) external nonReentrant onlyUserSafe {
         if (!isCollateralToken(token)) revert UnsupportedCollateralToken();
 
         _totalCollateralAmounts[token] += amount;
@@ -832,7 +831,7 @@ contract L2DebtManager is
     /**
      * @inheritdoc IL2DebtManager
      */
-    function borrow(address token, uint256 amount) external {
+    function borrow(address token, uint256 amount) external onlyUserSafe {
         if (!isBorrowToken(token)) revert UnsupportedBorrowToken();
         _updateBorrowings(msg.sender, token);
 
@@ -877,7 +876,7 @@ contract L2DebtManager is
     /**
      * @inheritdoc IL2DebtManager
      */
-    function withdrawCollateral(address token, uint256 amount) external {
+    function withdrawCollateral(address token, uint256 amount) external onlyUserSafe {
         _updateBorrowings(msg.sender);
         if (!isCollateralToken(token)) revert UnsupportedCollateralToken();
 
@@ -894,7 +893,7 @@ contract L2DebtManager is
     /**
      * @inheritdoc IL2DebtManager
      */
-    function closeAccount() external {
+    function closeAccount() external onlyUserSafe {
         _updateBorrowings(msg.sender);
         (, uint256 userBorrowing) = borrowingOf(msg.sender);
         if (userBorrowing != 0) revert TotalBorrowingsForUserNotZero();
@@ -1300,4 +1299,13 @@ contract L2DebtManager is
     function _authorizeUpgrade(
         address newImplementation
     ) internal override onlyRole(DEFAULT_ADMIN_ROLE) {}
+
+    function _isUserSafe() internal view {
+        if (!ICashDataProvider(_cashDataProvider).isUserSafe(msg.sender)) revert OnlyUserSafe();
+    }
+
+    modifier onlyUserSafe() {
+        _isUserSafe();
+        _;
+    }
 }

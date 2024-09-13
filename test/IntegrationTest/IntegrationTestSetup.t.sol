@@ -166,28 +166,6 @@ contract IntegrationTestSetup is Utils {
             address(new UUPSProxy(debtManagerImpl, ""))
         );
 
-        CashDataProvider(address(cashDataProvider)).initialize(
-            owner,
-            delay,
-            etherFiWallet,
-            etherFiCashMultisig,
-            address(etherFiCashDebtManager),
-            address(usdc),
-            address(weETH),
-            address(priceProvider),
-            address(swapper),
-            address(aaveV3Adapter)
-        );
-
-        etherFiCashDebtManager.initialize(
-            owner,
-            uint48(delay),
-            collateralTokens,
-            collateralTokenConfig,
-            borrowTokens,
-            borrowTokenConfig
-        );
-
         (etherFiRecoverySigner, etherFiRecoverySignerPk) = makeAddrAndKey(
             "etherFiRecoverySigner"
         );
@@ -202,7 +180,28 @@ contract IntegrationTestSetup is Utils {
             thirdPartyRecoverySigner
         );
 
-        factory = new UserSafeFactory(address(impl), owner);
+        factory = new UserSafeFactory(address(impl), owner, address(cashDataProvider));
+
+        CashDataProvider(address(cashDataProvider)).initialize(
+            owner,
+            delay,
+            etherFiWallet,
+            etherFiCashMultisig,
+            address(etherFiCashDebtManager),
+            address(priceProvider),
+            address(swapper),
+            address(aaveV3Adapter),
+            address(factory)
+        );
+
+        etherFiCashDebtManager.initialize(
+            owner,
+            uint48(delay),
+            collateralTokens,
+            collateralTokenConfig,
+            borrowTokens,
+            borrowTokenConfig
+        );
 
         (alice, alicePk) = makeAddrAndKey("alice");
         aliceBytes = abi.encode(alice);

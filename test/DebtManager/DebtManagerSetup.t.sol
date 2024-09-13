@@ -23,6 +23,7 @@ contract DebtManagerSetup is Utils {
     address notOwner = makeAddr("notOwner");
     address alice = makeAddr("alice");
 
+    address userSafeFactory;
     IEtherFiCashAaveV3Adapter aaveV3Adapter;
     CashDataProvider cashDataProvider;
 
@@ -137,17 +138,18 @@ contract DebtManagerSetup is Utils {
             address(new UUPSProxy(debtManagerImpl, ""))
         );
 
+        userSafeFactory = address(1);
+
         CashDataProvider(address(cashDataProvider)).initialize(
             owner,
             delay,
             etherFiWallet,
             etherFiCashSafe,
             address(debtManager),
-            address(usdc),
-            address(weETH),
             address(priceProvider),
             address(swapper),
-            address(aaveV3Adapter)
+            address(aaveV3Adapter),
+            userSafeFactory
         );
 
         debtManager.initialize(
@@ -160,5 +162,8 @@ contract DebtManagerSetup is Utils {
         );
 
         vm.stopPrank();
+        
+        vm.prank(userSafeFactory);
+        cashDataProvider.whitelistUserSafe(alice);
     }
 }

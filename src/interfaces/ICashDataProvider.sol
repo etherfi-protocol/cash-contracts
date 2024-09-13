@@ -9,8 +9,6 @@ interface ICashDataProvider {
         address oldDebtManager,
         address newDebtManager
     );
-    event UsdcAddressUpdated(address oldUsdc, address newUsdc);
-    event WeETHAddressUpdated(address OldWeETH, address newWeETH);
     event PriceProviderUpdated(
         address oldPriceProvider,
         address newPriceProvider
@@ -18,8 +16,11 @@ interface ICashDataProvider {
     event SwapperUpdated(address oldSwapper, address newSwapper);
     event EtherFiRecoverySafeUpdated(address oldSafe, address newSafe);
     event AaveAdapterUpdated(address oldAdapter, address newAdapter);
+    event UserSafeFactoryUpdated(address oldFactory, address newFactory);
+    event UserSafeWhitelisted(address userSafe);
 
     error InvalidValue();
+    error OnlyUserSafeFactory();
 
     /**
      * @notice Function to fetch the timelock delay for tokens from User Safe
@@ -47,17 +48,6 @@ interface ICashDataProvider {
     function etherFiCashDebtManager() external view returns (address);
 
     /**
-     * @notice Function to fetch the address of the USDC contract
-     * @return USDC contract address
-     */
-    function usdc() external view returns (address);
-
-    /**
-     * @notice Function to fetch the address of the weETH contract
-     * @return weETH contract address
-     */ function weETH() external view returns (address);
-
-    /**
      * @notice Function to fetch the address of the Price Provider contract
      * @return Price Provider contract address
      */
@@ -74,6 +64,21 @@ interface ICashDataProvider {
      * @return Aave adapter address
      */
     function aaveAdapter() external view returns (address);
+
+
+    /**
+     * @notice Function to fetch the address of the user safe factory
+     * @return Address of the user safe factory
+     */
+    function userSafeFactory() external view returns (address);
+
+    /**
+     * @notice Function to check if an account is a user safe
+     * @param account Address of the account
+     * @return isUserSafe 
+     */
+    function isUserSafe(address account) external view returns (bool);
+
 
     /**
      * @notice Function to set the timelock delay for tokens from User Safe
@@ -104,20 +109,6 @@ interface ICashDataProvider {
     function setEtherFiCashDebtManager(address cashDebtManager) external;
 
     /**
-     * @notice Function to set the address of USDC
-     * @dev Can only be called by the owner of the contract
-     * @param usdc USDC contract address
-     */
-    function setUsdcAddress(address usdc) external;
-
-    /**
-     * @notice Function to set the address of weETH
-     * @dev Can only be called by the owner of the contract
-     * @param weETH weETH contract address
-     */
-    function setWeETHAddress(address weETH) external;
-
-    /**
      * @notice Function to set the address of PriceProvider contract
      * @dev Can only be called by the owner of the contract
      * @param priceProvider PriceProvider contract address
@@ -137,4 +128,17 @@ interface ICashDataProvider {
      * @param adapter Aave adapter address
      */
     function setAaveAdapter(address adapter) external;
+
+    /**
+     * @notice Function to set the addrss of the user safe factory.
+     * @param factory Address of the new factory
+     */
+    function setUserSafeFactory(address factory) external;
+
+    /**
+     * @notice Function to whitelist user safes
+     * @notice Can only be called by the user safe factory
+     * @param safe Address of the safe
+     */
+    function whitelistUserSafe(address safe) external;    
 }

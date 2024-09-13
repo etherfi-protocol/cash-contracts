@@ -226,6 +226,10 @@ contract DebtManagerBorrowTest is DebtManagerSetup {
     }
 
     function test_CannotBorrowIfTokenIsNotSupported() public {
+        vm.prank(address(userSafeFactory));
+        cashDataProvider.whitelistUserSafe(notOwner);
+
+        vm.startPrank(notOwner);        
         vm.expectRevert(IL2DebtManager.UnsupportedBorrowToken.selector);
         debtManager.borrow(address(weETH), 1);
     }
@@ -252,9 +256,17 @@ contract DebtManagerBorrowTest is DebtManagerSetup {
     }
 
     function test_CannotBorrowIfNoCollateral() public {
+        vm.prank(address(userSafeFactory));
+        cashDataProvider.whitelistUserSafe(notOwner);
+
         vm.startPrank(notOwner);
         vm.expectRevert(IL2DebtManager.AccountUnhealthy.selector);
         debtManager.borrow(address(usdc), 1);
         vm.stopPrank();
+    }
+
+    function test_CannotBorrowIfNotUserSafe() public {
+        vm.expectRevert(IL2DebtManager.OnlyUserSafe.selector);
+        debtManager.borrow(address(usdc), 1);
     }
 }

@@ -254,6 +254,9 @@ contract DebtManagerLiquidateTest is DebtManagerSetup {
     }
 
     function test_ChooseCollateralPreferenceWhenLiquidating() public {
+        vm.prank(address(userSafeFactory));
+        cashDataProvider.whitelistUserSafe(owner);
+        
         priceProvider = PriceProvider(
             address(new MockPriceProvider(mockWeETHPriceInUsd))
         );

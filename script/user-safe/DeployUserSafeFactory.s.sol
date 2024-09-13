@@ -11,6 +11,7 @@ contract DeployUserSafeFactory is Utils {
 
     UserSafeFactory userSafeFactory;
     address userSafeImpl;
+    address cashDataProvider;
     address owner;
 
     function run() public {
@@ -31,7 +32,12 @@ contract DeployUserSafeFactory is Utils {
             string.concat(".", "addresses", ".", "userSafeImpl")
         );
 
-        userSafeFactory = new UserSafeFactory(address(userSafeImpl), owner);
+        cashDataProvider = stdJson.readAddress(
+            deployments,
+            string.concat(".", "addresses", ".", "cashDataProviderProxy")
+        );
+
+        userSafeFactory = new UserSafeFactory(address(userSafeImpl), owner, cashDataProvider);
 
         vm.stopBroadcast();
     }

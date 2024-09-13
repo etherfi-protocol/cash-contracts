@@ -94,17 +94,24 @@ contract DeployMockUserSafeSetup is Utils {
             address(new UUPSProxy(debtManagerImpl, ""))
         );
 
+        userSafeImpl = new UserSafe(
+            address(cashDataProvider),
+            recoverySigner1,
+            recoverySigner2
+        );
+
+        userSafeFactory = new UserSafeFactory(address(userSafeImpl), owner, address(cashDataProvider));
+
         CashDataProvider(address(cashDataProvider)).initialize(
             owner,
             uint64(delay),
             etherFiWallet,
             etherFiCashMultisig,
             address(debtManager),
-            address(usdc),
-            address(weETH),
             address(priceProvider),
             address(swapper),
-            address(aaveAdapter)
+            address(aaveAdapter),
+            address(userSafeFactory)
         );
 
         debtManager.initialize(
@@ -115,15 +122,7 @@ contract DeployMockUserSafeSetup is Utils {
             borrowTokens,
             borrowTokenConfig
         );
-
-        userSafeImpl = new UserSafe(
-            address(cashDataProvider),
-            recoverySigner1,
-            recoverySigner2
-        );
-
-        userSafeFactory = new UserSafeFactory(address(userSafeImpl), owner);
-
+        
         string memory parentObject = "parent object";
 
         string memory deployedAddresses = "addresses";
