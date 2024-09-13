@@ -20,8 +20,11 @@ contract UserSafeWebAuthnSignatureTest is UserSafeSetup {
     function setUp() public override {
         super.setUp();
 
+        bytes memory saltData = bytes("passkeySafe");
+
         passkeyOwnerSafe = UserSafe(
             factory.createUserSafe(
+                saltData,
                 abi.encodeWithSelector(
                     // initialize(bytes,uint256, uint256)
                     0x32b218ac,
