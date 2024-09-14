@@ -19,6 +19,12 @@ struct ChainConfig {
 }
 
 contract Utils is Test {
+    bytes32 public constant DEFAULT_ADMIN_ROLE = bytes32(0);
+    bytes32 public constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
+    uint256 public constant HUNDRED_PERCENT = 100e18;
+    uint256 public constant PRECISION = 1e18;
+    uint256 public constant SIX_DECIMALS = 1e6;
+
     function getChainConfig(
         string memory chainId
     ) internal view returns (ChainConfig memory) {

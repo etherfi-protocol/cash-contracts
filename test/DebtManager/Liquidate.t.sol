@@ -66,7 +66,7 @@ contract DebtManagerLiquidateTest is DebtManagerSetup {
 
         vm.startPrank(notOwner);
         vm.expectRevert(
-            buildAccessControlRevertData(notOwner, debtManager.ADMIN_ROLE())
+            buildAccessControlRevertData(notOwner, ADMIN_ROLE)
         );
         debtManager.setCollateralTokenConfig(
             address(weETH),
@@ -105,7 +105,7 @@ contract DebtManagerLiquidateTest is DebtManagerSetup {
         uint256 liquidatedUsdcCollateralAmt = debtManager.convertUsdcToCollateralToken(address(weETH), borrowAmt);
         uint256 liquidationBonusReceived =  (
             liquidatedUsdcCollateralAmt * collateralTokenConfig.liquidationBonus
-        ) / debtManager.HUNDRED_PERCENT();
+        ) / HUNDRED_PERCENT;
         uint256 liquidationBonusInUsdc = debtManager.convertCollateralTokenToUsdc(address(weETH), liquidationBonusReceived);
 
         assertApproxEqAbs(
@@ -155,7 +155,7 @@ contract DebtManagerLiquidateTest is DebtManagerSetup {
         uint256 liquidatedUsdcCollateralAmt = debtManager.convertUsdcToCollateralToken(address(weETH), liquidationAmt);
         uint256 liquidationBonusReceived =  (
             liquidatedUsdcCollateralAmt * collateralTokenConfig.liquidationBonus
-        ) / debtManager.HUNDRED_PERCENT();
+        ) / HUNDRED_PERCENT;
         uint256 liquidationBonusInUsdc = debtManager.convertCollateralTokenToUsdc(address(weETH), liquidationBonusReceived);
 
 

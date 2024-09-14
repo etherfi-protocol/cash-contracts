@@ -224,7 +224,7 @@ contract DebtManagerFundManagementTest is DebtManagerSetup {
     function test_OnlyAdminCanManageFunds() public {
         vm.startPrank(notOwner);
         vm.expectRevert(
-            buildAccessControlRevertData(notOwner, debtManager.ADMIN_ROLE())
+            buildAccessControlRevertData(notOwner, ADMIN_ROLE)
         );
         debtManager.fundManagementOperation(
             uint8(AaveLib.MarketOperationType.Supply),
