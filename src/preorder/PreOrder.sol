@@ -186,7 +186,7 @@ contract PreOrder is
         if (_type != uint8(Type.FIAT_ORDER)){
             require(_amount == tiers[_tier].costWei, "Incorrect amount sent");
             IERC20Permit(eEthToken).permit(
-                msg.sender,
+                _buyer,
                 address(this),
                 _amount,
                 _deadline,
@@ -194,7 +194,7 @@ contract PreOrder is
                 r,
                 s
             );
-            IERC20(eEthToken).transferFrom(msg.sender, gnosisSafe, _amount);
+            IERC20(eEthToken).transferFrom(_buyer, gnosisSafe, _amount);
             if (_type == uint8(Type.PRE_ORDER)) {
                 emit PreOrderMint(_buyer, _tier, _amount, tokenId);
             }
