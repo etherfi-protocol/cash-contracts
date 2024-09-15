@@ -137,19 +137,10 @@ contract DebtManagerSetup is Utils {
         address debtManagerCoreImpl = address(new DebtManagerCore());
         address debtManagerAdminImpl = address(new DebtManagerAdmin());
         address debtManagerInitializer = address(new DebtManagerInitializer());
-        address debtManagerProxy = address(new UUPSProxy(
-            debtManagerInitializer, 
-            abi.encodeWithSelector(
-                DebtManagerInitializer.initialize.selector, 
-                owner,
-                uint48(delay),
-                address(cashDataProvider)
-            )
-        ));
+        address debtManagerProxy = address(new UUPSProxy(debtManagerInitializer, ""));
 
-        debtManager = IL2DebtManager(
-            address(debtManagerProxy)
-        );
+        debtManager = IL2DebtManager(address(debtManagerProxy));
+
 
         userSafeFactory = address(1);
 
@@ -164,16 +155,13 @@ contract DebtManagerSetup is Utils {
             address(aaveV3Adapter),
             userSafeFactory
         );
-
-        // debtManager.initialize(
-        //     owner,
-        //     uint48(delay),
-        //     collateralTokens,
-        //     collateralTokenConfig,
-        //     borrowTokens,
-        //     borrowTokenConfig
-        // );
     
+        DebtManagerInitializer(address(debtManager)).initialize(
+            owner,
+            uint48(delay),
+            address(cashDataProvider)
+        );
+
         DebtManagerCore(debtManagerProxy).upgradeToAndCall(debtManagerCoreImpl, "");
         debtManagerCore = DebtManagerCore(debtManagerProxy);
         debtManagerCore.setAdminImpl(debtManagerAdminImpl);

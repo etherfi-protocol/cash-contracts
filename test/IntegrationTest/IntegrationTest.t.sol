@@ -11,7 +11,7 @@ contract IntegrationTest is IntegrationTestSetup {
 
     IERC20 weth;
     uint256 collateralAmount = 0.01 ether;
-    uint256 supplyAmount = 1e6;
+    uint256 supplyAmount = 10e6;
     uint256 borrowAmount = 1e6;
 
     function setUp() public override {
