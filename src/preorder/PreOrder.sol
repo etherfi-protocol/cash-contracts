@@ -206,7 +206,7 @@ contract PreOrder is
             emit OrderFiatMint(_buyer, _tier, 0, tokenId);
         }
 
-        safeMint(msg.sender, _tier, tokenId);
+        safeMint(_buyer, _tier, tokenId);
     }
 
     function maxSupply() external view returns (uint256) {
