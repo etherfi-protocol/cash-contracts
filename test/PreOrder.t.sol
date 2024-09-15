@@ -274,7 +274,7 @@ contract PreOrderTest is Test {
         vm.expectRevert(PausableUpgradeable.EnforcedPause.selector);
         preorder.mint{value: 1000 ether}(0, 0, whale);
         vm.expectRevert(PausableUpgradeable.EnforcedPause.selector);
-        preorder.MintWithPermit(0, 0, whale, 1 ether, 0, 0x0, 0x0, 0x0);
+        preorder.MintWithPermit(0, 0, whale, whale, 1 ether, 0, 0x0, 0x0, 0x0);
 
         vm.expectRevert("Not the admin");
         preorder.unPauseContract();
@@ -341,15 +341,15 @@ contract PreOrderTest is Test {
 
         vm.startPrank(alice);
         vm.expectRevert("Incorrect amount sent");
-        preorder.MintWithPermit(0, 0, alice, 2 ether, deadline, v, r, s);
+        preorder.MintWithPermit(0, 0, alice, alice, 2 ether, deadline, v, r, s);
 
         vm.expectRevert("Incorrect amount sent");
-        preorder.MintWithPermit(0, 0, alice, 0.9 ether, deadline, v, r, s);
+        preorder.MintWithPermit(0, 0, alice, alice, 0.9 ether, deadline, v, r, s);
 
-        preorder.MintWithPermit(0, 0, alice, 1 ether, deadline, v, r, s);
+        preorder.MintWithPermit(0, 0, alice, alice, 1 ether, deadline, v, r, s);
 
         vm.expectRevert("ERC20Permit: invalid signature");
-        preorder.MintWithPermit(0, 0, alice, 1 ether, deadline, v, r, s);
+        preorder.MintWithPermit(0, 0, alice, alice, 1 ether, deadline, v, r, s);
 
         assertEq(preorder.balanceOf(alice, 0), 1);
 
@@ -383,7 +383,7 @@ contract PreOrderTest is Test {
         (v, r, s) = vm.sign(alicePk, permitHash);
 
         vm.expectRevert("ERC20Permit: invalid signature");
-        preorder.MintWithPermit(0, 0, alice, 1 ether, deadline, v, r, s);
+        preorder.MintWithPermit(0, 0, alice, alice, 1 ether, deadline, v, r, s);
     }
 
     function testSellOutTiers() public {
