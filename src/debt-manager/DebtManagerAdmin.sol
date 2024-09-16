@@ -138,7 +138,7 @@ function _setCollateralTokenConfig(
         if (config.ltv > config.liquidationThreshold)
             revert LtvCannotBeGreaterThanLiquidationThreshold();
         
-        if (config.liquidationBonus > HUNDRED_PERCENT) revert InvalidValue();
+        if (config.liquidationThreshold + config.liquidationBonus > HUNDRED_PERCENT) revert InvalidValue();
 
         emit CollateralTokenConfigSet(
             collateralToken,
