@@ -23,8 +23,6 @@ contract DeployUserSafeFactory is Utils {
         // Start broadcast with deployer as the signer
         vm.startBroadcast(deployerPrivateKey);
 
-        // (owner, ownerKey) = makeAddrAndKey("owner");
-
         string memory deployments = readDeploymentFile();
 
         owner = deployer;
@@ -51,7 +49,6 @@ contract DeployUserSafeFactory is Utils {
                 ))
             )
         );
-
 
         vm.stopBroadcast();
     }
