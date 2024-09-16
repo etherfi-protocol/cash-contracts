@@ -114,7 +114,19 @@ contract DeployUserSafeSetup is Utils {
             recoverySigner2
         );
 
-        userSafeFactory = new UserSafeFactory(address(userSafeImpl), owner, address(cashDataProvider));
+        address factoryImpl = address(new UserSafeFactory());
+        
+        userSafeFactory = UserSafeFactory(
+            address(new UUPSProxy(
+                factoryImpl, 
+                abi.encodeWithSelector(
+                    UserSafeFactory.initialize.selector, 
+                    address(userSafeImpl), 
+                    owner, 
+                    address(cashDataProvider)
+                ))
+            )
+        );
 
         CashDataProvider(address(cashDataProvider)).initialize(
             owner,
@@ -160,6 +172,11 @@ contract DeployUserSafeSetup is Utils {
             deployedAddresses,
             "userSafeImpl",
             address(userSafeImpl)
+        );
+        vm.serializeAddress(
+            deployedAddresses,
+            "userSafeFactoryImpl",
+            address(factoryImpl)
         );
         vm.serializeAddress(
             deployedAddresses,

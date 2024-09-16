@@ -173,7 +173,19 @@ contract IntegrationTestSetup is Utils {
             thirdPartyRecoverySigner
         );
 
-        factory = new UserSafeFactory(address(impl), owner, address(cashDataProvider));
+        address factoryImpl = address(new UserSafeFactory());
+        
+        factory = UserSafeFactory(
+            address(new UUPSProxy(
+                factoryImpl, 
+                abi.encodeWithSelector(
+                    UserSafeFactory.initialize.selector, 
+                    address(impl), 
+                    owner, 
+                    address(cashDataProvider)
+                ))
+            )
+        );
 
         CashDataProvider(address(cashDataProvider)).initialize(
             owner,

@@ -92,7 +92,19 @@ contract DeployMockUserSafeSetup is Utils {
             recoverySigner2
         );
 
-        userSafeFactory = new UserSafeFactory(address(userSafeImpl), owner, address(cashDataProvider));
+        address factoryImpl = address(new UserSafeFactory());
+        
+        userSafeFactory = UserSafeFactory(
+            address(new UUPSProxy(
+                factoryImpl, 
+                abi.encodeWithSelector(
+                    UserSafeFactory.initialize.selector, 
+                    address(userSafeImpl), 
+                    owner, 
+                    address(cashDataProvider)
+                ))
+            )
+        );
 
         CashDataProvider(address(cashDataProvider)).initialize(
             owner,
@@ -141,7 +153,12 @@ contract DeployMockUserSafeSetup is Utils {
         );
         vm.serializeAddress(
             deployedAddresses,
-            "userSafeFactory",
+            "userSafeFactoryImpl",
+            address(factoryImpl)
+        );
+        vm.serializeAddress(
+            deployedAddresses,
+            "userSafeFactoryProxy",
             address(userSafeFactory)
         );
         vm.serializeAddress(

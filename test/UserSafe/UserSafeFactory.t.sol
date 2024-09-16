@@ -11,6 +11,14 @@ import {PriceProvider} from "../../src/oracle/PriceProvider.sol";
 import {CashDataProvider} from "../../src/utils/CashDataProvider.sol";
 import {UserSafeSetup} from "./UserSafeSetup.t.sol";
 
+error OwnableUnauthorizedAccount(address account);
+
+contract UserSafeFactoryV2 is UserSafeFactory {
+    function version() external pure returns (uint256) {
+        return 2;
+    }
+}
+
 contract UserSafeFactoryTest is UserSafeSetup {
     using OwnerLib for address;
 
@@ -64,14 +72,35 @@ contract UserSafeFactoryTest is UserSafeSetup {
         assertEq(bobSafe.owner().ethAddr, bob);
     }
 
-    function test_Upgrade() public {
+    function test_UpgradeUserSafeImpl() public {
         vm.prank(owner);
-        factory.upgradeTo(address(implV2));
+        factory.upgradeUserSafeImpl(address(implV2));
 
         UserSafeV2Mock aliceSafeV2 = UserSafeV2Mock(address(aliceSafe));
         UserSafeV2Mock bobSafeV2 = UserSafeV2Mock(address(bobSafe));
 
         assertEq(aliceSafeV2.version(), 2);
         assertEq(bobSafeV2.version(), 2);
+    }
+
+    function test_UpgradeUserSafeFactory() public {
+        UserSafeFactoryV2 factoryV2 = new UserSafeFactoryV2();
+         
+        vm.prank(owner);
+        factory.upgradeToAndCall(address(factoryV2), "");
+
+        assertEq(UserSafeFactoryV2(address(factory)).version(), 2);
+    }
+
+    function test_OnlyOwnerCanUpgradeUserSafeImpl() public {
+        vm.prank(notOwner);
+        vm.expectRevert(abi.encodeWithSelector(OwnableUnauthorizedAccount.selector, notOwner));
+        factory.upgradeUserSafeImpl(address(implV2));
+    }
+
+    function test_OnlyOwnerCanUpgradeFactoryImpl() public {
+        vm.prank(notOwner);
+        vm.expectRevert(abi.encodeWithSelector(OwnableUnauthorizedAccount.selector, notOwner));
+        factory.upgradeToAndCall(address(1), "");
     }
 }
