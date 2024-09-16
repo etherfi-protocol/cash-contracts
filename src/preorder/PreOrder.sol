@@ -142,6 +142,7 @@ contract PreOrder is
             tiers[_tier].mintCount < tiers[_tier].maxSupply,
             "Tier sold out"
         );
+        require(_type < 3, "Invalid type");
 
         uint256 tokenId = tiers[_tier].startId + tiers[_tier].mintCount;
         tiers[_tier].mintCount += 1;
@@ -180,7 +181,8 @@ contract PreOrder is
             tiers[_tier].mintCount < tiers[_tier].maxSupply,
             "Tier sold out"
         );
-
+        require(_type < 3, "Invalid type");
+        
         uint256 tokenId = tiers[_tier].startId + tiers[_tier].mintCount;
         tiers[_tier].mintCount += 1;
 
