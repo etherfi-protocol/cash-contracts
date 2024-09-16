@@ -15,9 +15,9 @@ import {PriceProvider} from "../../src/oracle/PriceProvider.sol";
 import {IL2DebtManager, L2DebtManager} from "../../src/L2DebtManager.sol";
 import {UUPSProxy} from "../../src/UUPSProxy.sol";
 import {CashDataProvider} from "../../src/utils/CashDataProvider.sol";
-import {DebtManagerCore} from "../../src/DebtManagerCore.sol";
-import {DebtManagerAdmin} from "../../src/DebtManagerAdmin.sol";
-import {DebtManagerInitializer} from "../../src/DebtManagerInitializer.sol";
+import {DebtManagerCore} from "../../src/debt-manager/DebtManagerCore.sol";
+import {DebtManagerAdmin} from "../../src/debt-manager/DebtManagerAdmin.sol";
+import {DebtManagerInitializer} from "../../src/debt-manager/DebtManagerInitializer.sol";
 
 contract DebtManagerSetup is Utils {
     using SafeERC20 for IERC20;

@@ -2,7 +2,7 @@
 pragma solidity ^0.8.24;
 
 import {DebtManagerStorage} from "./DebtManagerStorage.sol";
-import {IPriceProvider} from "./interfaces/IPriceProvider.sol";
+import {IPriceProvider} from "../interfaces/IPriceProvider.sol";
 
 contract DebtManagerAdmin is DebtManagerStorage {
     function supportCollateralToken(

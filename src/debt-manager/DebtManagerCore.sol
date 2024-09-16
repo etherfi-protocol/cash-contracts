@@ -2,11 +2,11 @@
 pragma solidity ^0.8.24;
 
 import {DebtManagerStorage} from "./DebtManagerStorage.sol";
-import {IPriceProvider} from "./interfaces/IPriceProvider.sol";
+import {IPriceProvider} from "../interfaces/IPriceProvider.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {SafeERC20, IERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IERC20Metadata} from "@openzeppelin/contracts/interfaces/IERC20Metadata.sol";
-import {AaveLib} from "./libraries/AaveLib.sol";
+import {AaveLib} from "../libraries/AaveLib.sol";
 
 contract DebtManagerCore is DebtManagerStorage {
     using Math for uint256;

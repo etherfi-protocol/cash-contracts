@@ -5,13 +5,13 @@ import {SafeERC20, IERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeE
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import {AccessControlDefaultAdminRulesUpgradeable} from "openzeppelin-contracts-upgradeable/contracts/access/extensions/AccessControlDefaultAdminRulesUpgradeable.sol";
 import {UUPSUpgradeable, Initializable} from "openzeppelin-contracts-upgradeable/contracts/proxy/utils/UUPSUpgradeable.sol";
-import {IL2DebtManager} from "./interfaces/IL2DebtManager.sol";
-import {IPriceProvider} from "./interfaces/IPriceProvider.sol";
-import {IEtherFiCashAaveV3Adapter} from "./interfaces/IEtherFiCashAaveV3Adapter.sol";
-import {ICashDataProvider} from "./interfaces/ICashDataProvider.sol";
-import {AaveLib} from "./libraries/AaveLib.sol";
+import {IL2DebtManager} from "../interfaces/IL2DebtManager.sol";
+import {IPriceProvider} from "../interfaces/IPriceProvider.sol";
+import {IEtherFiCashAaveV3Adapter} from "../interfaces/IEtherFiCashAaveV3Adapter.sol";
+import {ICashDataProvider} from "../interfaces/ICashDataProvider.sol";
+import {AaveLib} from "../libraries/AaveLib.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
-import {ReentrancyGuardTransientUpgradeable} from "./utils/ReentrancyGuardTransientUpgradeable.sol";
+import {ReentrancyGuardTransientUpgradeable} from "../utils/ReentrancyGuardTransientUpgradeable.sol";
 
 /**
  * @title L2 Debt Manager
