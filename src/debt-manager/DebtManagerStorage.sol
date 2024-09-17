@@ -114,13 +114,13 @@ contract DebtManagerStorage is
     event Borrowed(
         address indexed user,
         address indexed token,
-        uint256 borrowUsdcAmount
+        uint256 amount
     );
     event Repaid(
         address indexed user,
         address indexed payer,
         address indexed token,
-        uint256 repaidUsdcDebtAmount
+        uint256 amount
     );
     event RepaidWithCollateralToken(
         address indexed user,
