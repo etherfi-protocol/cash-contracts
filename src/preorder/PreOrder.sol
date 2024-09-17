@@ -142,6 +142,7 @@ contract PreOrder is
             tiers[_tier].mintCount < tiers[_tier].maxSupply,
             "Tier sold out"
         );
+        require(_type < 3, "Invalid type");
 
         uint256 tokenId = tiers[_tier].startId + tiers[_tier].mintCount;
         tiers[_tier].mintCount += 1;
@@ -169,6 +170,7 @@ contract PreOrder is
         uint8 _type, 
         uint8 _tier,
         address _buyer,
+        address _from,
         uint256 _amount,
         uint256 _deadline,
         uint8 v,
@@ -179,14 +181,15 @@ contract PreOrder is
             tiers[_tier].mintCount < tiers[_tier].maxSupply,
             "Tier sold out"
         );
-
+        require(_type < 3, "Invalid type");
+        
         uint256 tokenId = tiers[_tier].startId + tiers[_tier].mintCount;
         tiers[_tier].mintCount += 1;
 
         if (_type != uint8(Type.FIAT_ORDER)){
             require(_amount == tiers[_tier].costWei, "Incorrect amount sent");
             IERC20Permit(eEthToken).permit(
-                msg.sender,
+                _from,
                 address(this),
                 _amount,
                 _deadline,
@@ -194,7 +197,7 @@ contract PreOrder is
                 r,
                 s
             );
-            IERC20(eEthToken).transferFrom(msg.sender, gnosisSafe, _amount);
+            IERC20(eEthToken).transferFrom(_from, gnosisSafe, _amount);
             if (_type == uint8(Type.PRE_ORDER)) {
                 emit PreOrderMint(_buyer, _tier, _amount, tokenId);
             }
@@ -206,7 +209,7 @@ contract PreOrder is
             emit OrderFiatMint(_buyer, _tier, 0, tokenId);
         }
 
-        safeMint(msg.sender, _tier, tokenId);
+        safeMint(_buyer, _tier, tokenId);
     }
 
     function maxSupply() external view returns (uint256) {
