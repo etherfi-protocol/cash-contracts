@@ -21,6 +21,7 @@ contract DeployPreOrder is Script {
     address GnosisSafe = 0xe61B416113292696f9d4e4f7c1d42d5B2FB8BE79;
     address eEthToken = 0x35fA164735182de50811E8e2E824cFb9B6118ac2;
 
+
     string baseURI =
         "https://etherfi-membership-metadata.s3.ap-southeast-1.amazonaws.com/cash-metadata/";
 
@@ -71,7 +72,8 @@ contract DeployPreOrder is Script {
             deployerAddress,
             eEthToken,
             baseURI,
-            tiers
+            tiers,
+            deployerAddress
         );
         vm.stopBroadcast();
 
