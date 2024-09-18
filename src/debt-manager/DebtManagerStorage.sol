@@ -57,6 +57,7 @@ contract DebtManagerStorage is
 
     // Shares have 18 decimals
     mapping(address supplier => mapping(address borrowToken => uint256 shares)) internal _sharesOfBorrowTokens;
+    address internal _cashTokenWrapperFactory;
 
     enum MarketOperationType {
         Supply,
@@ -218,7 +219,7 @@ contract DebtManagerStorage is
     error SharesCannotBeLessThanMinSharesToMint();
     error SupplyCapBreached();
     error OnlyUserSafe();
-
+    error TokenWrapperContractNotFound();
 
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {

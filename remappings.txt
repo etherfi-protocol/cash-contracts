@@ -2,3 +2,5 @@
 @openzeppelin/=lib/openzeppelin-contracts/
 @aave/=lib/aave-v3-core/contracts/
 SmoothCryptoLib=lib/crypto-lib/src
+aave-address-book/=lib/aave-helpers/lib/aave-address-book/src/
+aave-helpers/=lib/aave-helpers/src/

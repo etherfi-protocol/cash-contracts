@@ -53,6 +53,8 @@ contract DebtManagerWithdrawTest is DebtManagerSetup {
             alice
         );
 
+        assertEq(weETH.balanceOf(address(wweETH)), collateralAmount);
+        assertApproxEqAbs(aaveV3Adapter.getCollateralBalance(address(debtManager), address(wweETH)), collateralAmount, 1);
         // Can easily withdraw the amount till liquidation threshold
         vm.prank(alice);
         vm.expectEmit(true, true, true, true);
@@ -62,6 +64,9 @@ contract DebtManagerWithdrawTest is DebtManagerSetup {
             withdrawAmt
         );
         debtManager.withdrawCollateral(address(weETH), withdrawAmt);
+
+        assertEq(weETH.balanceOf(address(wweETH)), collateralAmount - withdrawAmt);
+        assertApproxEqAbs(aaveV3Adapter.getCollateralBalance(address(debtManager), address(wweETH)), collateralAmount - withdrawAmt, 1);
 
         uint256 aliceBalAfter = weETH.balanceOf(alice);
         uint256 aliceCollateralAfter = debtManager.getCollateralValueInUsdc(

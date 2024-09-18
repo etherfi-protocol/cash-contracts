@@ -54,6 +54,36 @@ contract DebtManagerRepayTest is DebtManagerSetup {
         assertEq(debtAmtBefore - debtAmtAfter, repayAmt);
     }
 
+    function test_BorrowAndRepayWithAave() public {
+        if (!isScroll(chainId)) return;
+
+        // repay all loans first
+        uint256 debtAmtBefore = debtManager.borrowingOf(alice, address(usdc));
+        assertGt(debtAmtBefore, 0);
+        uint256 repayAmt = debtAmtBefore;
+        vm.startPrank(alice);
+        IERC20(address(usdc)).forceApprove(address(debtManager), repayAmt);
+        debtManager.repay(alice, address(usdc), repayAmt);
+        vm.stopPrank();
+
+        // borrow from aave
+        deal(address(usdc), address(debtManager), 0);
+        uint256 totalCanBorrow = debtManager.remainingBorrowingCapacityInUSDC(
+            alice
+        );
+
+        uint256 borrowAmount = totalCanBorrow / 2;
+        vm.startPrank(alice);
+        debtManager.borrow(address(usdc), borrowAmount);
+        assertEq(aaveV3Adapter.getDebt(address(debtManager), address(usdc)), borrowAmount);
+        
+        IERC20(address(usdc)).forceApprove(address(debtManager), borrowAmount);
+        debtManager.repay(alice, address(usdc), borrowAmount);
+        
+        assertEq(aaveV3Adapter.getDebt(address(debtManager), address(usdc)), 0);
+        vm.stopPrank();
+    }
+
     function test_RepayAfterSomeTimeIncursInterestOnTheBorrowings() public {
         uint256 timeElapsed = 10;
 

@@ -5,8 +5,9 @@ import {ERC20Upgradeable} from "openzeppelin-contracts-upgradeable/contracts/tok
 import {ERC20PermitUpgradeable} from "openzeppelin-contracts-upgradeable/contracts/token/ERC20/extensions/ERC20PermitUpgradeable.sol";
 import {SafeERC20, IERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {Initializable} from "openzeppelin-contracts-upgradeable/contracts/proxy/utils/Initializable.sol";
+import {ReentrancyGuardTransientUpgradeable} from "../utils/ReentrancyGuardTransientUpgradeable.sol";
 
-contract CashWrappedERC20 is Initializable, ERC20Upgradeable, ERC20PermitUpgradeable {
+contract CashWrappedERC20 is Initializable, ERC20Upgradeable, ERC20PermitUpgradeable, ReentrancyGuardTransientUpgradeable {
     using SafeERC20 for IERC20;
     
     uint8 _decimals;
@@ -36,6 +37,7 @@ contract CashWrappedERC20 is Initializable, ERC20Upgradeable, ERC20PermitUpgrade
     ) external initializer {
         __ERC20_init(__name, __symbol);
         __ERC20Permit_init(__name);
+        __ReentrancyGuardTransient_init();
         _decimals = __decimals;
         baseToken = __baseToken;
         factory = msg.sender;
@@ -45,12 +47,12 @@ contract CashWrappedERC20 is Initializable, ERC20Upgradeable, ERC20PermitUpgrade
         return _decimals;
     }
 
-    function mint(address to, uint256 amount) external {
+    function mint(address to, uint256 amount) external nonReentrant {
         if (!isWhitelistedMinter[msg.sender]) revert OnlyWhitelistedMinter();
         if (!isWhitelistedRecipient[to]) revert NotAWhitelistedRecipient();
 
-        IERC20(baseToken).safeTransferFrom(msg.sender, address(this), amount);
         _mint(to, amount);
+        IERC20(baseToken).safeTransferFrom(msg.sender, address(this), amount);
     }
 
     function withdraw(address to, uint256 amount) external {

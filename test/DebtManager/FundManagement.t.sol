@@ -14,14 +14,9 @@ contract DebtManagerFundManagementTest is DebtManagerSetup {
     using SafeERC20 for IERC20;
 
     uint256 collateralAmt = 0.01 ether;
-    IERC20 weth;
 
     function setUp() public override {
         super.setUp();
-
-        if (!isFork(chainId))
-            weth = IERC20(address(new MockERC20("WETH", "WETH", 18)));
-        else weth = IERC20(chainConfig.weth);
 
         deal(address(weETH), address(owner), 1000 ether);
         deal(address(usdc), address(owner), 1 ether);

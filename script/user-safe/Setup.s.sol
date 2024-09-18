@@ -15,6 +15,7 @@ import {CashDataProvider} from "../../src/utils/CashDataProvider.sol";
 import {Utils, ChainConfig} from "./Utils.sol";
 import {EtherFiCashAaveV3Adapter} from "../../src/adapters/aave-v3/EtherFiCashAaveV3Adapter.sol";
 import {UUPSProxy} from "../../src/UUPSProxy.sol";
+import {CashTokenWrapperFactory, CashWrappedERC20} from "../../src/cash-wrapper-token/CashTokenWrapperFactory.sol";
 
 contract DeployUserSafeSetup is Utils {
     ERC20 usdc;
@@ -43,6 +44,9 @@ contract DeployUserSafeSetup is Utils {
     string chainId;
     uint16 aaveV3ReferralCode = 0;
     uint256 interestRateMode = 2; // variable
+
+    CashTokenWrapperFactory wrapperTokenFactory;
+    CashWrappedERC20 wrappedERC20Impl;
 
     function run() public {
         // Pulling deployer info from the environment
@@ -80,6 +84,9 @@ contract DeployUserSafeSetup is Utils {
             aaveV3ReferralCode,
             interestRateMode
         );
+
+        address cashWrappedERC20Impl = address(new CashWrappedERC20());
+        wrapperTokenFactory = new CashTokenWrapperFactory(address(cashWrappedERC20Impl), owner);
 
         address cashDataProviderImpl = address(new CashDataProvider());
         cashDataProvider = CashDataProvider(
@@ -143,7 +150,8 @@ contract DeployUserSafeSetup is Utils {
         DebtManagerInitializer(address(debtManager)).initialize(
             owner,
             uint48(delay),
-            address(cashDataProvider)
+            address(cashDataProvider),
+            address(wrapperTokenFactory)
         );
         DebtManagerCore(debtManagerProxy).upgradeToAndCall(debtManagerCoreImpl, "");
         DebtManagerCore debtManagerCore = DebtManagerCore(debtManagerProxy);
@@ -182,6 +190,16 @@ contract DeployUserSafeSetup is Utils {
             deployedAddresses,
             "userSafeFactory",
             address(userSafeFactory)
+        );
+        vm.serializeAddress(
+            deployedAddresses,
+            "wrapperTokenFactory",
+            address(wrapperTokenFactory)
+        );
+        vm.serializeAddress(
+            deployedAddresses,
+            "wrappedERC20Impl",
+            address(wrappedERC20Impl)
         );
         vm.serializeAddress(
             deployedAddresses,

@@ -15,6 +15,7 @@ import {CashDataProvider} from "../../src/utils/CashDataProvider.sol";
 import {Utils, ChainConfig} from "./Utils.sol";
 import {MockAaveAdapter} from "../../src/mocks/MockAaveAdapter.sol";
 import {UUPSProxy} from "../../src/UUPSProxy.sol";
+import {CashTokenWrapperFactory, CashWrappedERC20} from "../../src/cash-wrapper-token/CashTokenWrapperFactory.sol";
 
 contract DeployMockUserSafeSetup is Utils {
     MockERC20 usdc;
@@ -39,6 +40,8 @@ contract DeployMockUserSafeSetup is Utils {
     // Shivam Metamask wallets
     address recoverySigner1 = 0x7fEd99d0aA90423de55e238Eb5F9416FF7Cc58eF;
     address recoverySigner2 = 0x24e311DA50784Cf9DB1abE59725e4A1A110220FA;
+    CashTokenWrapperFactory wrapperTokenFactory;
+    CashWrappedERC20 wrappedERC20Impl;
 
     function run() public {
         // Pulling deployer info from the environment
@@ -58,6 +61,9 @@ contract DeployMockUserSafeSetup is Utils {
         aaveAdapter = new MockAaveAdapter();
 
         usdc.transfer(address(swapper), 1000 ether);
+
+        address cashWrappedERC20Impl = address(new CashWrappedERC20());
+        wrapperTokenFactory = new CashTokenWrapperFactory(address(cashWrappedERC20Impl), owner);
 
         address cashDataProviderImpl = address(new CashDataProvider());
         cashDataProvider = CashDataProvider(
@@ -121,7 +127,8 @@ contract DeployMockUserSafeSetup is Utils {
         DebtManagerInitializer(address(debtManager)).initialize(
             owner,
             uint48(delay),
-            address(cashDataProvider)
+            address(cashDataProvider),
+            address(wrapperTokenFactory)
         );
         DebtManagerCore(debtManagerProxy).upgradeToAndCall(debtManagerCoreImpl, "");
         DebtManagerCore debtManagerCore = DebtManagerCore(debtManagerProxy);
@@ -160,6 +167,16 @@ contract DeployMockUserSafeSetup is Utils {
             deployedAddresses,
             "userSafeFactoryProxy",
             address(userSafeFactory)
+        );
+        vm.serializeAddress(
+            deployedAddresses,
+            "wrapperTokenFactory",
+            address(wrapperTokenFactory)
+        );
+        vm.serializeAddress(
+            deployedAddresses,
+            "wrappedERC20Impl",
+            address(wrappedERC20Impl)
         );
         vm.serializeAddress(
             deployedAddresses,

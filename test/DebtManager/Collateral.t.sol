@@ -123,6 +123,7 @@ contract DebtManagerCollateralTest is DebtManagerSetup {
     function test_CannotUnsupportCollateralTokenIfTotalCollateralNotZeroForTheToken()
         public
     {
+        assertEq(wweETH.isWhitelistedMinter(address(debtManager)), true);
         uint256 amount = 0.1 ether;
         vm.startPrank(alice);
         IERC20(address(weETH)).safeIncreaseAllowance(address(debtManager), amount);
@@ -190,6 +191,9 @@ contract DebtManagerCollateralTest is DebtManagerSetup {
         IERC20(address(weETH)).safeIncreaseAllowance(address(debtManager), amount);
 
         debtManager.depositCollateral(address(weETH), alice, amount);
+
+        assertEq(weETH.balanceOf(address(wweETH)), amount);
+        assertEq(aaveV3Adapter.getCollateralBalance(address(debtManager), address(wweETH)), amount);
 
         (
             IL2DebtManager.TokenData[] memory collateralsAfter,

@@ -24,6 +24,7 @@ import {IEtherFiCashAaveV3Adapter, EtherFiCashAaveV3Adapter} from "../../src/ada
 import {MockAaveAdapter} from "../../src/mocks/MockAaveAdapter.sol";
 import {L2DebtManager} from "../../src/L2DebtManager.sol";
 import {UUPSProxy} from "../../src/UUPSProxy.sol";
+import {CashTokenWrapperFactory, CashWrappedERC20} from "../../src/cash-wrapper-token/CashTokenWrapperFactory.sol";
 
 contract IntegrationTestSetup is Utils {
     using OwnerLib for address;
@@ -81,6 +82,8 @@ contract IntegrationTestSetup is Utils {
     ChainConfig chainConfig;
     uint256 supplyCap = 10000 ether;
 
+    CashTokenWrapperFactory wrapperTokenFactory;
+
     function setUp() public virtual {
         chainId = vm.envString("TEST_CHAIN");
 
@@ -131,6 +134,9 @@ contract IntegrationTestSetup is Utils {
                 )
             );
         }
+
+        address cashWrappedERC20Impl = address(new CashWrappedERC20());
+        wrapperTokenFactory = new CashTokenWrapperFactory(address(cashWrappedERC20Impl), owner);
 
         address cashDataProviderImpl = address(new CashDataProvider());
         cashDataProvider = CashDataProvider(
@@ -202,7 +208,8 @@ contract IntegrationTestSetup is Utils {
         DebtManagerInitializer(address(etherFiCashDebtManager)).initialize(
             owner,
             uint48(delay),
-            address(cashDataProvider)
+            address(cashDataProvider),
+            address(wrapperTokenFactory)
         );
         DebtManagerCore(debtManagerProxy).upgradeToAndCall(debtManagerCoreImpl, "");
         DebtManagerCore debtManagerCore = DebtManagerCore(debtManagerProxy);

@@ -7,6 +7,9 @@ import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {SafeERC20, IERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IERC20Metadata} from "@openzeppelin/contracts/interfaces/IERC20Metadata.sol";
 import {AaveLib} from "../libraries/AaveLib.sol";
+import {CashWrappedERC20} from "../cash-wrapper-token/CashWrappedERC20.sol";
+import {CashTokenWrapperFactory} from "../cash-wrapper-token/CashTokenWrapperFactory.sol";
+import {IEtherFiCashAaveV3Adapter} from "../interfaces/IEtherFiCashAaveV3Adapter.sol";
 
 contract DebtManagerCore is DebtManagerStorage {
     using Math for uint256;
@@ -430,9 +433,13 @@ contract DebtManagerCore is DebtManagerStorage {
             revert SupplyCapBreached();
         
         IERC20(token).safeTransferFrom(msg.sender, address(this), amount);
+        
+        address wrappedToken = _wrapToken(token, amount);
+        AaveLib.supplyOnAave(_cashDataProvider.aaveAdapter(), wrappedToken, amount);
 
         emit DepositedCollateral(msg.sender, user, token, amount);
     }
+
     function borrow(address token, uint256 amount) external onlyUserSafe {
         if (!isBorrowToken(token)) revert UnsupportedBorrowToken();
         _updateBorrowings(msg.sender, token);
@@ -444,10 +451,11 @@ contract DebtManagerCore is DebtManagerStorage {
         _userBorrowings[msg.sender][token] += borrowAmt;
         _borrowTokenConfig[token].totalBorrowingAmount += borrowAmt;
 
-        _ensureHealth(msg.sender);
+        _ensureHealth(msg.sender);      
 
-        if (IERC20(token).balanceOf(address(this)) < amount)
-            revert InsufficientLiquidity();
+        uint256 borrowTokenBal = IERC20(token).balanceOf(address(this));
+        if (borrowTokenBal < amount)
+            AaveLib.borrowFromAave(_cashDataProvider.aaveAdapter(), token, amount - borrowTokenBal);
 
         IERC20(token).safeTransfer(
             _cashDataProvider.etherFiCashMultiSig(),
@@ -469,7 +477,16 @@ contract DebtManagerCore is DebtManagerStorage {
         if (!isBorrowToken(token)) revert UnsupportedRepayToken();
 
         _repayWithBorrowToken(token, user, repayDebtUsdcAmt);
+
+        address aaveV3Adapter = _cashDataProvider.aaveAdapter();
+        uint256 aaveRepayAmount = IEtherFiCashAaveV3Adapter(aaveV3Adapter).getDebt(address(this), token);
+        
+        if (aaveRepayAmount != 0) {
+            if (aaveRepayAmount > repayDebtUsdcAmt) AaveLib.repayOnAave(aaveV3Adapter, token, repayDebtUsdcAmt);
+            else AaveLib.repayOnAave(aaveV3Adapter, token, aaveRepayAmount);
+        }
     }
+
     function withdrawCollateral(address token, uint256 amount) external onlyUserSafe {
         _updateBorrowings(msg.sender);
         if (!isCollateralToken(token)) revert UnsupportedCollateralToken();
@@ -479,6 +496,13 @@ contract DebtManagerCore is DebtManagerStorage {
 
         _ensureHealth(msg.sender);
 
+        address wrappedToken = CashTokenWrapperFactory(_cashTokenWrapperFactory).cashWrappedToken(token);
+        AaveLib.withdrawFromAave(
+            _cashDataProvider.aaveAdapter(), 
+            CashTokenWrapperFactory(_cashTokenWrapperFactory).cashWrappedToken(token), 
+            amount
+        );
+        _unwrapToken(wrappedToken, amount);
         IERC20(token).safeTransfer(msg.sender, amount);
 
         emit WithdrawCollateral(msg.sender, token, amount);
@@ -490,16 +514,15 @@ contract DebtManagerCore is DebtManagerStorage {
 
         (TokenData[] memory tokenData, ) = collateralOf(msg.sender);
         uint256 len = tokenData.length;
+        address aaveV3Adapter = _cashDataProvider.aaveAdapter();
 
         for (uint256 i = 0; i < len; ) {
-            if (
-                IERC20(tokenData[i].token).balanceOf(address(this)) <
-                tokenData[i].amount
-            ) revert InsufficientLiquidityPleaseTryAgainLater();
-
             _userCollateral[msg.sender][tokenData[i].token] -= tokenData[i]
                 .amount;
             _totalCollateralAmounts[tokenData[i].token] -= tokenData[i].amount;
+            address wrappedToken = CashTokenWrapperFactory(_cashTokenWrapperFactory).cashWrappedToken(tokenData[i].token);
+            AaveLib.withdrawFromAave(aaveV3Adapter, wrappedToken, tokenData[i].amount);
+            _unwrapToken(wrappedToken, tokenData[i].amount);
 
             IERC20(tokenData[i].token).safeTransfer(
                 msg.sender,
@@ -556,16 +579,20 @@ contract DebtManagerCore is DebtManagerStorage {
         (TokenData[] memory beforeCollateralAmounts, ) = collateralOf(user);
 
         uint256 len = collateralTokensToSend.length;
+        address aaveV3Adapter = _cashDataProvider.aaveAdapter();
 
         for (uint256 i = 0; i < len; ) {
             if (collateralTokensToSend[i].amount > 0) {
-                _userCollateral[user][
-                    collateralTokensToSend[i].token
-                ] -= collateralTokensToSend[i].amount;
-                _totalCollateralAmounts[
-                    collateralTokensToSend[i].token
-                ] -= collateralTokensToSend[i].amount;
+                _userCollateral[user][collateralTokensToSend[i].token] -= collateralTokensToSend[i].amount;
+                _totalCollateralAmounts[collateralTokensToSend[i].token] -= collateralTokensToSend[i].amount;
 
+                address wrappedToken = CashTokenWrapperFactory(_cashTokenWrapperFactory).cashWrappedToken(collateralTokensToSend[i].token);
+                AaveLib.withdrawFromAave(
+                    aaveV3Adapter, 
+                    wrappedToken, 
+                    collateralTokensToSend[i].amount
+                );
+                _unwrapToken(wrappedToken, collateralTokensToSend[i].amount);
                 IERC20(collateralTokensToSend[i].token).safeTransfer(
                     msg.sender,
                     collateralTokensToSend[i].amount
@@ -583,6 +610,12 @@ contract DebtManagerCore is DebtManagerStorage {
             .totalBorrowingAmount -= liquidatedAmt;
 
         IERC20(borrowToken).safeTransferFrom(msg.sender, address(this), liquidatedAmt);
+
+        uint256 aaveRepayAmount = IEtherFiCashAaveV3Adapter(aaveV3Adapter).getDebt(address(this), borrowToken);
+        if(aaveRepayAmount != 0) {
+            if (aaveRepayAmount > liquidatedAmt) AaveLib.repayOnAave(aaveV3Adapter, borrowToken, liquidatedAmt);
+            else AaveLib.repayOnAave(aaveV3Adapter, borrowToken, aaveRepayAmount);
+        }
 
         emit Liquidated(
             msg.sender,
@@ -684,6 +717,19 @@ contract DebtManagerCore is DebtManagerStorage {
         }
 
         return (collateral, repayDebtUsdcAmt);
+    }
+
+    function _wrapToken(address token, uint256 amount) internal returns (address) {
+        address wrappedToken = CashTokenWrapperFactory(_cashTokenWrapperFactory).cashWrappedToken(token);
+        if (wrappedToken == address(0)) revert TokenWrapperContractNotFound();
+        IERC20(token).forceApprove(wrappedToken, amount);
+        CashWrappedERC20(wrappedToken).mint(address(this), amount);
+
+        return wrappedToken;
+    }
+
+    function _unwrapToken(address token, uint256 amount) internal {
+        CashWrappedERC20(token).withdraw(address(this), amount);
     }
 
     function _getDecimals(address token) internal view returns (uint8) {

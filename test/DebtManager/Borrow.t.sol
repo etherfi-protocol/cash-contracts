@@ -127,6 +127,48 @@ contract DebtManagerBorrowTest is DebtManagerSetup {
         debtManager.borrow(address(usdc), borrowAmt);
         vm.stopPrank();
 
+        assertEq(aaveV3Adapter.getDebt(address(debtManager), address(usdc)), 0);
+
+        uint256 borrowInUsdc = debtManager.borrowingOf(alice, address(usdc));
+        assertEq(borrowInUsdc, borrowAmt);
+
+        (, uint256 totalBorrowingAmountAfter) = debtManager
+            .totalBorrowingAmounts();
+        assertEq(totalBorrowingAmountAfter, borrowAmt);
+
+        bool isUserLiquidatableAfter = debtManager.liquidatable(alice);
+        assertEq(isUserLiquidatableAfter, false);
+
+        (, uint256 borrowingOfUserAfter) = debtManager.borrowingOf(alice);
+        assertEq(borrowingOfUserAfter, borrowAmt);
+    }
+
+    function test_BorrowWithAave() public {
+        if (!isScroll(chainId)) return;
+
+        deal(address(usdc), address(debtManager), 0);
+
+        uint256 totalCanBorrow = debtManager.remainingBorrowingCapacityInUSDC(
+            alice
+        );
+
+        uint256 borrowAmt = totalCanBorrow / 2;
+
+        (, uint256 totalBorrowingAmountBefore) = debtManager.totalBorrowingAmounts();
+        assertEq(totalBorrowingAmountBefore, 0);
+
+        bool isUserLiquidatableBefore = debtManager.liquidatable(alice);
+        assertEq(isUserLiquidatableBefore, false);
+
+        (, uint256 borrowingOfUserBefore) = debtManager.borrowingOf(alice);
+        assertEq(borrowingOfUserBefore, 0);
+
+        vm.startPrank(alice);
+        debtManager.borrow(address(usdc), borrowAmt);
+        vm.stopPrank();
+
+        assertEq(aaveV3Adapter.getDebt(address(debtManager), address(usdc)), borrowAmt);
+
         uint256 borrowInUsdc = debtManager.borrowingOf(alice, address(usdc));
         assertEq(borrowInUsdc, borrowAmt);
 
@@ -244,14 +286,6 @@ contract DebtManagerBorrowTest is DebtManagerSetup {
         vm.expectRevert(IL2DebtManager.AccountUnhealthy.selector);
         debtManager.borrow(address(usdc), 1);
 
-        vm.stopPrank();
-    }
-
-    function test_CannotBorrowIfUsdcBalanceInsufficientInDebtManager() public {
-        deal(address(usdc), address(debtManager), 0);
-        vm.startPrank(alice);
-        vm.expectRevert(IL2DebtManager.InsufficientLiquidity.selector);
-        debtManager.borrow(address(usdc), 1);
         vm.stopPrank();
     }
 

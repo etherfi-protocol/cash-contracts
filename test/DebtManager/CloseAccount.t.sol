@@ -44,12 +44,15 @@ contract DebtManagerCloseAccountTest is DebtManagerSetup {
             alice
         );
 
+        assertEq(aaveV3Adapter.getCollateralBalance(address(debtManager), address(wweETH)), collateralAmount);
         // Can easily withdraw the amount till liquidation threshold
         vm.startPrank(alice);
         vm.expectEmit(true, true, true, true);
         emit IL2DebtManager.AccountClosed(alice, tokenData);
         debtManager.closeAccount();
         vm.stopPrank();
+
+        assertEq(aaveV3Adapter.getCollateralBalance(address(debtManager), address(wweETH)), 0);
 
         uint256 aliceCollateralAfter = debtManager.getCollateralValueInUsdc(
             alice

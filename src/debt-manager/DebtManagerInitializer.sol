@@ -11,7 +11,8 @@ contract DebtManagerInitializer is DebtManagerStorage {
         function initialize(
         address __owner,
         uint48 __defaultAdminDelay,
-        address __cashDataProvider    
+        address __cashDataProvider,
+        address __cashTokenWrapperFactory    
     ) external initializer {
         __UUPSUpgradeable_init();
         __ReentrancyGuardTransient_init_unchained();
@@ -19,5 +20,6 @@ contract DebtManagerInitializer is DebtManagerStorage {
         _grantRole(ADMIN_ROLE, __owner);
 
         _cashDataProvider = ICashDataProvider(__cashDataProvider);
+        _cashTokenWrapperFactory = __cashTokenWrapperFactory;
     }
 }
