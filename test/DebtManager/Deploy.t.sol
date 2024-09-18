@@ -2,6 +2,7 @@
 pragma solidity ^0.8.24;
 
 import {DebtManagerSetup, IL2DebtManager} from "./DebtManagerSetup.t.sol";
+import {IAccessControl} from "@openzeppelin/contracts/access/IAccessControl.sol";
 
 contract DebtManagerDeployTest is DebtManagerSetup {
     function test_Deploy() public view {
@@ -11,16 +12,16 @@ contract DebtManagerDeployTest is DebtManagerSetup {
         );
 
         assertEq(
-            debtManager.hasRole(debtManager.DEFAULT_ADMIN_ROLE(), owner),
+            IAccessControl(address(debtManager)).hasRole(DEFAULT_ADMIN_ROLE, owner),
             true
         );
-        assertEq(debtManager.hasRole(debtManager.ADMIN_ROLE(), owner), true);
+        assertEq(IAccessControl(address(debtManager)).hasRole(ADMIN_ROLE, owner), true);
         assertEq(
-            debtManager.hasRole(debtManager.DEFAULT_ADMIN_ROLE(), notOwner),
+            IAccessControl(address(debtManager)).hasRole(DEFAULT_ADMIN_ROLE, notOwner),
             false
         );
         assertEq(
-            debtManager.hasRole(debtManager.ADMIN_ROLE(), notOwner),
+            IAccessControl(address(debtManager)).hasRole(ADMIN_ROLE, notOwner),
             false
         );
 

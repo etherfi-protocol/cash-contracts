@@ -5,7 +5,10 @@ import {Test, console, stdError} from "forge-std/Test.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {UserSafeFactory} from "../../src/user-safe/UserSafeFactory.sol";
 import {UserSafe} from "../../src//user-safe/UserSafe.sol";
-import {IL2DebtManager, L2DebtManager} from "../../src/L2DebtManager.sol";
+import {IL2DebtManager} from "../../src/interfaces/IL2DebtManager.sol";
+import {DebtManagerCore} from "../../src/debt-manager/DebtManagerCore.sol";
+import {DebtManagerAdmin} from "../../src/debt-manager/DebtManagerAdmin.sol";
+import {DebtManagerInitializer} from "../../src/debt-manager/DebtManagerInitializer.sol";
 import {UserSafeV2Mock} from "../../src/mocks/UserSafeV2Mock.sol";
 import {SwapperOpenOcean} from "../../src/utils/SwapperOpenOcean.sol";
 import {PriceProvider} from "../../src/oracle/PriceProvider.sol";
@@ -137,32 +140,22 @@ contract UserSafeSetup is Utils {
         address[] memory borrowTokens = new address[](1);
         borrowTokens[0] = address(usdc);
 
-        address etherFiCashDebtManagerImpl = address(
-            new L2DebtManager(address(cashDataProvider))
-        );
-        IL2DebtManager.CollateralTokenConfig[]
-            memory collateralTokenConfig = new IL2DebtManager.CollateralTokenConfig[](
+        DebtManagerCore.CollateralTokenConfig[]
+            memory collateralTokenConfig = new DebtManagerCore.CollateralTokenConfig[](
                 1
             );
-        collateralTokenConfig[0] = IL2DebtManager.CollateralTokenConfig({
-            ltv: ltv,
-            liquidationThreshold: liquidationThreshold,
-            liquidationBonus: liquidationBonus,
-            supplyCap: supplyCap
-        });
 
-        IL2DebtManager.BorrowTokenConfigData[]
-            memory borrowTokenConfig = new IL2DebtManager.BorrowTokenConfigData[](
-                1
-            );
-        borrowTokenConfig[0] = IL2DebtManager.BorrowTokenConfigData({
-           borrowApy: borrowApy,
-           minSharesToMint: uint128(1 * 10 ** usdc.decimals())
-        });
+        collateralTokenConfig[0].ltv = ltv;
+        collateralTokenConfig[0].liquidationThreshold = liquidationThreshold;
+        collateralTokenConfig[0].liquidationBonus = liquidationBonus;
+        collateralTokenConfig[0].supplyCap = supplyCap;
 
-        etherFiCashDebtManager = address(
-            new UUPSProxy(etherFiCashDebtManagerImpl, "")
-        );
+        address debtManagerCoreImpl = address(new DebtManagerCore());
+        address debtManagerAdminImpl = address(new DebtManagerAdmin());
+        address debtManagerInitializer = address(new DebtManagerInitializer());
+        address debtManagerProxy = address(new UUPSProxy(debtManagerInitializer, ""));
+
+        etherFiCashDebtManager = address(IL2DebtManager(address(debtManagerProxy)));
 
         (etherFiRecoverySigner, etherFiRecoverySignerPk) = makeAddrAndKey(
             "etherFiRecoverySigner"
@@ -178,7 +171,20 @@ contract UserSafeSetup is Utils {
             thirdPartyRecoverySigner
         );
 
-        factory = new UserSafeFactory(address(impl), owner, address(cashDataProvider));
+        address factoryImpl = address(new UserSafeFactory());
+        
+        factory = UserSafeFactory(
+            address(new UUPSProxy(
+                factoryImpl, 
+                abi.encodeWithSelector(
+                    UserSafeFactory.initialize.selector, 
+                    address(impl), 
+                    owner, 
+                    address(cashDataProvider)
+                ))
+            )
+        );
+        
 
         CashDataProvider(address(cashDataProvider)).initialize(
             owner,
@@ -192,14 +198,21 @@ contract UserSafeSetup is Utils {
             address(factory)
         );
 
-        L2DebtManager(etherFiCashDebtManager).initialize(
+        DebtManagerInitializer(etherFiCashDebtManager).initialize(
             owner,
             uint48(delay),
-            collateralTokens,
-            collateralTokenConfig,
-            borrowTokens,
-            borrowTokenConfig
+            address(cashDataProvider)
         );
+        DebtManagerCore(debtManagerProxy).upgradeToAndCall(debtManagerCoreImpl, "");
+        DebtManagerCore debtManagerCore = DebtManagerCore(debtManagerProxy);
+        debtManagerCore.setAdminImpl(debtManagerAdminImpl);
+        DebtManagerAdmin(address(debtManagerCore)).supportCollateralToken(address(weETH), collateralTokenConfig[0]);
+        DebtManagerAdmin(address(debtManagerCore)).supportBorrowToken(
+            address(usdc), 
+            borrowApy, 
+            uint128(10 * 10 ** usdc.decimals())
+        );
+
 
         (alice, alicePk) = makeAddrAndKey("alice");
         aliceBytes = abi.encode(alice);

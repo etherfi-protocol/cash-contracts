@@ -49,7 +49,7 @@ contract UpgradeUserSafe is Utils {
             recoverySigner2
         );
 
-        userSafeFactory.upgradeTo(address(userSafeImpl));
+        userSafeFactory.upgradeUserSafeImpl(address(userSafeImpl));
 
         vm.stopBroadcast();
     }

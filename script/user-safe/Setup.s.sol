@@ -6,8 +6,11 @@ import {UserSafeFactory} from "../../src/user-safe/UserSafeFactory.sol";
 import {UserSafe} from "../../src/user-safe/UserSafe.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {PriceProvider} from "../../src/oracle/PriceProvider.sol";
-import {Swapper1InchV6} from "../../src/utils/Swapper1InchV6.sol";
-import {IL2DebtManager, L2DebtManager} from "../../src/L2DebtManager.sol";
+import {SwapperOpenOcean} from "../../src/utils/SwapperOpenOcean.sol";
+import {IL2DebtManager} from "../../src/interfaces/IL2DebtManager.sol";
+import {DebtManagerCore} from "../../src/debt-manager/DebtManagerCore.sol";
+import {DebtManagerAdmin} from "../../src/debt-manager/DebtManagerAdmin.sol";
+import {DebtManagerInitializer} from "../../src/debt-manager/DebtManagerInitializer.sol";
 import {CashDataProvider} from "../../src/utils/CashDataProvider.sol";
 import {Utils, ChainConfig} from "./Utils.sol";
 import {EtherFiCashAaveV3Adapter} from "../../src/adapters/aave-v3/EtherFiCashAaveV3Adapter.sol";
@@ -17,10 +20,10 @@ contract DeployUserSafeSetup is Utils {
     ERC20 usdc;
     ERC20 weETH;
     PriceProvider priceProvider;
-    Swapper1InchV6 swapper;
+    SwapperOpenOcean swapper;
     UserSafe userSafeImpl;
     UserSafeFactory userSafeFactory;
-    L2DebtManager debtManager;
+    IL2DebtManager debtManager;
     CashDataProvider cashDataProvider;
     EtherFiCashAaveV3Adapter aaveV3Adapter;
     address etherFiCashMultisig;
@@ -67,8 +70,8 @@ contract DeployUserSafeSetup is Utils {
             chainConfig.weEthWethOracle,
             chainConfig.ethUsdcOracle
         );
-        swapper = new Swapper1InchV6(
-            chainConfig.swapRouter1InchV6,
+        swapper = new SwapperOpenOcean(
+            chainConfig.swapRouterOpenOcean,
             supportedCollateralTokens
         );
         aaveV3Adapter = new EtherFiCashAaveV3Adapter(
@@ -88,33 +91,22 @@ contract DeployUserSafeSetup is Utils {
         address[] memory borrowTokens = new address[](1);
         borrowTokens[0] = address(usdc);
 
-        IL2DebtManager.CollateralTokenConfig[]
-            memory collateralTokenConfig = new IL2DebtManager.CollateralTokenConfig[](
+        DebtManagerCore.CollateralTokenConfig[]
+            memory collateralTokenConfig = new DebtManagerCore.CollateralTokenConfig[](
                 1
             );
-        collateralTokenConfig[0] = IL2DebtManager.CollateralTokenConfig({
-            ltv: ltv,
-            liquidationThreshold: liquidationThreshold,
-            liquidationBonus: liquidationBonus,
-            supplyCap: supplyCap
-        });
 
-        IL2DebtManager.BorrowTokenConfigData[]
-            memory borrowTokenConfig = new IL2DebtManager.BorrowTokenConfigData[](
-                1
-            );
-        borrowTokenConfig[0] = IL2DebtManager.BorrowTokenConfigData({
-           borrowApy: borrowApyPerSecond,
-           minSharesToMint: uint128(10 * 10 ** usdc.decimals())
-        });
+        collateralTokenConfig[0].ltv = ltv;
+        collateralTokenConfig[0].liquidationThreshold = liquidationThreshold;
+        collateralTokenConfig[0].liquidationBonus = liquidationBonus;
+        collateralTokenConfig[0].supplyCap = supplyCap;
 
-        address debtManagerImpl = address(
-            new L2DebtManager(address(cashDataProvider))
-        );
+        address debtManagerCoreImpl = address(new DebtManagerCore());
+        address debtManagerAdminImpl = address(new DebtManagerAdmin());
+        address debtManagerInitializer = address(new DebtManagerInitializer());
+        address debtManagerProxy = address(new UUPSProxy(debtManagerInitializer, ""));
 
-        debtManager = L2DebtManager(
-            address(new UUPSProxy(debtManagerImpl, ""))
-        );
+        debtManager = IL2DebtManager(address(debtManagerProxy));
 
         userSafeImpl = new UserSafe(
             address(cashDataProvider),
@@ -122,7 +114,19 @@ contract DeployUserSafeSetup is Utils {
             recoverySigner2
         );
 
-        userSafeFactory = new UserSafeFactory(address(userSafeImpl), owner, address(cashDataProvider));
+        address factoryImpl = address(new UserSafeFactory());
+        
+        userSafeFactory = UserSafeFactory(
+            address(new UUPSProxy(
+                factoryImpl, 
+                abi.encodeWithSelector(
+                    UserSafeFactory.initialize.selector, 
+                    address(userSafeImpl), 
+                    owner, 
+                    address(cashDataProvider)
+                ))
+            )
+        );
 
         CashDataProvider(address(cashDataProvider)).initialize(
             owner,
@@ -136,13 +140,19 @@ contract DeployUserSafeSetup is Utils {
             address(userSafeFactory)
         );
 
-        debtManager.initialize(
+        DebtManagerInitializer(address(debtManager)).initialize(
             owner,
             uint48(delay),
-            collateralTokens,
-            collateralTokenConfig,
-            borrowTokens,
-            borrowTokenConfig
+            address(cashDataProvider)
+        );
+        DebtManagerCore(debtManagerProxy).upgradeToAndCall(debtManagerCoreImpl, "");
+        DebtManagerCore debtManagerCore = DebtManagerCore(debtManagerProxy);
+        debtManagerCore.setAdminImpl(debtManagerAdminImpl);
+        DebtManagerAdmin(address(debtManagerCore)).supportCollateralToken(address(weETH), collateralTokenConfig[0]);
+        DebtManagerAdmin(address(debtManagerCore)).supportBorrowToken(
+            address(usdc), 
+            borrowApyPerSecond, 
+            uint128(10 * 10 ** usdc.decimals())
         );
 
         string memory parentObject = "parent object";
@@ -165,6 +175,11 @@ contract DeployUserSafeSetup is Utils {
         );
         vm.serializeAddress(
             deployedAddresses,
+            "userSafeFactoryImpl",
+            address(factoryImpl)
+        );
+        vm.serializeAddress(
+            deployedAddresses,
             "userSafeFactory",
             address(userSafeFactory)
         );
@@ -175,8 +190,18 @@ contract DeployUserSafeSetup is Utils {
         );
         vm.serializeAddress(
             deployedAddresses,
-            "debtManagerImpl",
-            address(debtManagerImpl)
+            "debtManagerCore",
+            address(debtManagerCoreImpl)
+        );
+        vm.serializeAddress(
+            deployedAddresses,
+            "debtManagerAdminImpl",
+            address(debtManagerAdminImpl)
+        );
+        vm.serializeAddress(
+            deployedAddresses,
+            "debtManagerInitializer",
+            address(debtManagerInitializer)
         );
         vm.serializeAddress(
             deployedAddresses,

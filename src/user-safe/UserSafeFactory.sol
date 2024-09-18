@@ -5,29 +5,43 @@ import {BeaconProxy} from "@openzeppelin/contracts/proxy/beacon/BeaconProxy.sol"
 import {UpgradeableBeacon} from "@openzeppelin/contracts/proxy/beacon/UpgradeableBeacon.sol";
 import {CREATE3} from "solady/utils/CREATE3.sol";
 import {ICashDataProvider} from "../interfaces/ICashDataProvider.sol";
+import {UUPSUpgradeable, Initializable} from "openzeppelin-contracts-upgradeable/contracts/proxy/utils/UUPSUpgradeable.sol";
+import {OwnableUpgradeable} from "openzeppelin-contracts-upgradeable/contracts/access/OwnableUpgradeable.sol";
 
 /**
  * @title UserSafeFactory
  * @author ether.fi [shivam@ether.fi]
  * @notice Factory to deploy User Safe contracts
  */
-contract UserSafeFactory is UpgradeableBeacon {
+contract UserSafeFactory is Initializable, UUPSUpgradeable, OwnableUpgradeable {
     address public cashDataProvider;
+    address public beacon;
 
     event UserSafeDeployed(address indexed safe);
     event CashDataProviderSet(address oldProvider, address newProvider);
+    event BeaconSet(address oldBeacon, address newBeacon);
 
-    constructor(
+    constructor() {
+        _disableInitializers();
+    }
+
+    function initialize(
         address _implementation,
         address _owner,
         address _cashDataProvider
-    ) UpgradeableBeacon(_implementation, _owner) {
+    ) external initializer {
+        __Ownable_init(_owner);
+        beacon = address(new UpgradeableBeacon(_implementation, address(this)));
         cashDataProvider = _cashDataProvider;
     }
 
     function setCashDataProvider(address _cashDataProvider) external onlyOwner {
         emit CashDataProviderSet(cashDataProvider, _cashDataProvider);
         cashDataProvider = _cashDataProvider;
+    }
+
+    function setBeacon(address _beacon) external onlyOwner {
+        beacon = _beacon;
     }
 
     function getUserSafeAddress(bytes memory saltData, bytes memory data) external view returns (address) {
@@ -44,7 +58,7 @@ contract UserSafeFactory is UpgradeableBeacon {
             CREATE3.deployDeterministic(
                 abi.encodePacked(
                     type(BeaconProxy).creationCode, 
-                    abi.encode(address(this), data)
+                    abi.encode(beacon, data)
                 ), 
                 keccak256(abi.encode(saltData, data))
             )
@@ -55,4 +69,12 @@ contract UserSafeFactory is UpgradeableBeacon {
         emit UserSafeDeployed(safe);
         return safe;
     }
+
+    function upgradeUserSafeImpl(address newImplementation) external onlyOwner {
+        UpgradeableBeacon(beacon).upgradeTo(newImplementation);
+    }
+
+    function _authorizeUpgrade(
+        address newImplementation
+    ) internal override onlyOwner {}
 }

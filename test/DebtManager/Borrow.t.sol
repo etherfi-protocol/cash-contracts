@@ -65,11 +65,11 @@ contract DebtManagerBorrowTest is DebtManagerSetup {
 
         vm.startPrank(alice);
         vm.expectRevert(
-            buildAccessControlRevertData(alice, debtManager.ADMIN_ROLE())
+            buildAccessControlRevertData(alice, ADMIN_ROLE)
         );
         debtManager.supportBorrowToken(newBorrowToken, 1, 1);
         vm.expectRevert(
-            buildAccessControlRevertData(alice, debtManager.ADMIN_ROLE())
+            buildAccessControlRevertData(alice, ADMIN_ROLE)
         );
         debtManager.unsupportBorrowToken(address(weETH));
         vm.stopPrank();

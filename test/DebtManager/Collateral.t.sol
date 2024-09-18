@@ -86,11 +86,11 @@ contract DebtManagerCollateralTest is DebtManagerSetup {
 
         vm.startPrank(alice);
         vm.expectRevert(
-            buildAccessControlRevertData(alice, debtManager.ADMIN_ROLE())
+            buildAccessControlRevertData(alice, ADMIN_ROLE)
         );
         debtManager.supportCollateralToken(newCollateralToken, collateralTokenConfig);
         vm.expectRevert(
-            buildAccessControlRevertData(alice, debtManager.ADMIN_ROLE())
+            buildAccessControlRevertData(alice, ADMIN_ROLE)
         );
         debtManager.unsupportCollateralToken(address(weETH));
         vm.stopPrank();

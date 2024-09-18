@@ -7,7 +7,10 @@ import {UserSafe} from "../../src/user-safe/UserSafe.sol";
 import {MockERC20} from "../../src/mocks/MockERC20.sol";
 import {MockPriceProvider} from "../../src/mocks/MockPriceProvider.sol";
 import {MockSwapper} from "../../src/mocks/MockSwapper.sol";
-import {IL2DebtManager, L2DebtManager} from "../../src/L2DebtManager.sol";
+import {IL2DebtManager} from "../../src/interfaces/IL2DebtManager.sol";
+import {DebtManagerCore} from "../../src/debt-manager/DebtManagerCore.sol";
+import {DebtManagerAdmin} from "../../src/debt-manager/DebtManagerAdmin.sol";
+import {DebtManagerInitializer} from "../../src/debt-manager/DebtManagerInitializer.sol";
 import {CashDataProvider} from "../../src/utils/CashDataProvider.sol";
 import {Utils, ChainConfig} from "./Utils.sol";
 import {MockAaveAdapter} from "../../src/mocks/MockAaveAdapter.sol";
@@ -25,7 +28,7 @@ contract DeployMockArbitrumSepoliaSetup is Utils {
     MockSwapper swapper;
     UserSafe userSafeImpl;
     UserSafeFactory userSafeFactory;
-    L2DebtManager debtManager;
+    IL2DebtManager debtManager;
     CashDataProvider cashDataProvider;
     MockAaveAdapter aaveAdapter = MockAaveAdapter(0x1a329FaE0ab264328B3c07Eb7218775923E6fFAa);
     address etherFiCashMultisig;
@@ -72,39 +75,27 @@ contract DeployMockArbitrumSepoliaSetup is Utils {
         address[] memory borrowTokens = new address[](1);
         borrowTokens[0] = address(usdc);
 
-        IL2DebtManager.CollateralTokenConfig[]
-            memory collateralTokenConfig = new IL2DebtManager.CollateralTokenConfig[](
+        DebtManagerCore.CollateralTokenConfig[]
+            memory collateralTokenConfig = new DebtManagerCore.CollateralTokenConfig[](
                 2
             );
-        collateralTokenConfig[0] = IL2DebtManager.CollateralTokenConfig({
-            ltv: ltv,
-            liquidationThreshold: liquidationThreshold,
-            liquidationBonus: liquidationBonus,
-            supplyCap: supplyCap
-        });
-        collateralTokenConfig[1] = IL2DebtManager.CollateralTokenConfig({
-            ltv: ltv,
-            liquidationThreshold: liquidationThreshold,
-            liquidationBonus: liquidationBonus,
-            supplyCap: supplyCap
-        });
 
-        IL2DebtManager.BorrowTokenConfigData[]
-            memory borrowTokenConfig = new IL2DebtManager.BorrowTokenConfigData[](
-                1
-            );
-        borrowTokenConfig[0] = IL2DebtManager.BorrowTokenConfigData({
-           borrowApy: borrowApyPerSecond,
-           minSharesToMint: uint128(10 * 10 ** usdc.decimals())
-        });
+        collateralTokenConfig[0].ltv = ltv;
+        collateralTokenConfig[0].liquidationThreshold = liquidationThreshold;
+        collateralTokenConfig[0].liquidationBonus = liquidationBonus;
+        collateralTokenConfig[0].supplyCap = supplyCap;
+        
+        collateralTokenConfig[0].ltv = ltv;
+        collateralTokenConfig[0].liquidationThreshold = liquidationThreshold;
+        collateralTokenConfig[0].liquidationBonus = liquidationBonus;
+        collateralTokenConfig[0].supplyCap = supplyCap;
 
-        address debtManagerImpl = address(
-            new L2DebtManager(address(cashDataProvider))
-        );
+        address debtManagerCoreImpl = address(new DebtManagerCore());
+        address debtManagerAdminImpl = address(new DebtManagerAdmin());
+        address debtManagerInitializer = address(new DebtManagerInitializer());
+        address debtManagerProxy = address(new UUPSProxy(debtManagerInitializer, ""));
 
-        debtManager = L2DebtManager(
-            address(new UUPSProxy(debtManagerImpl, ""))
-        );
+        debtManager = IL2DebtManager(address(debtManagerProxy));
 
         userSafeImpl = new UserSafe(
             address(cashDataProvider),
@@ -112,7 +103,19 @@ contract DeployMockArbitrumSepoliaSetup is Utils {
             recoverySigner2
         );
 
-        userSafeFactory = new UserSafeFactory(address(userSafeImpl), owner, address(cashDataProvider));
+        address factoryImpl = address(new UserSafeFactory());
+        
+        userSafeFactory = UserSafeFactory(
+            address(new UUPSProxy(
+                factoryImpl, 
+                abi.encodeWithSelector(
+                    UserSafeFactory.initialize.selector, 
+                    address(userSafeImpl), 
+                    owner, 
+                    address(cashDataProvider)
+                ))
+            )
+        );
 
 
         CashDataProvider(address(cashDataProvider)).initialize(
@@ -127,13 +130,20 @@ contract DeployMockArbitrumSepoliaSetup is Utils {
             address(userSafeFactory)
         );
         
-        debtManager.initialize(
+        DebtManagerInitializer(address(debtManager)).initialize(
             owner,
             uint48(delay),
-            collateralTokens,
-            collateralTokenConfig,
-            borrowTokens,
-            borrowTokenConfig
+            address(cashDataProvider)
+        );
+        DebtManagerCore(debtManagerProxy).upgradeToAndCall(debtManagerCoreImpl, "");
+        DebtManagerCore debtManagerCore = DebtManagerCore(debtManagerProxy);
+        debtManagerCore.setAdminImpl(debtManagerAdminImpl);
+        DebtManagerAdmin(address(debtManagerCore)).supportCollateralToken(address(weETH), collateralTokenConfig[0]);
+        DebtManagerAdmin(address(debtManagerCore)).supportCollateralToken(address(weth), collateralTokenConfig[1]);
+        DebtManagerAdmin(address(debtManagerCore)).supportBorrowToken(
+            address(usdc), 
+            borrowApyPerSecond, 
+            uint128(10 * 10 ** usdc.decimals())
         );
 
         string memory parentObject = "parent object";
@@ -156,6 +166,11 @@ contract DeployMockArbitrumSepoliaSetup is Utils {
         );
         vm.serializeAddress(
             deployedAddresses,
+            "userSafeFactoryImpl",
+            address(factoryImpl)
+        );
+        vm.serializeAddress(
+            deployedAddresses,
             "userSafeFactory",
             address(userSafeFactory)
         );
@@ -166,8 +181,18 @@ contract DeployMockArbitrumSepoliaSetup is Utils {
         );
         vm.serializeAddress(
             deployedAddresses,
-            "debtManagerImpl",
-            address(debtManagerImpl)
+            "debtManagerCore",
+            address(debtManagerCoreImpl)
+        );
+        vm.serializeAddress(
+            deployedAddresses,
+            "debtManagerAdminImpl",
+            address(debtManagerAdminImpl)
+        );
+        vm.serializeAddress(
+            deployedAddresses,
+            "debtManagerInitializer",
+            address(debtManagerInitializer)
         );
         vm.serializeAddress(
             deployedAddresses,

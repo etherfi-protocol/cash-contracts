@@ -15,6 +15,9 @@ import {PriceProvider} from "../../src/oracle/PriceProvider.sol";
 import {IL2DebtManager, L2DebtManager} from "../../src/L2DebtManager.sol";
 import {UUPSProxy} from "../../src/UUPSProxy.sol";
 import {CashDataProvider} from "../../src/utils/CashDataProvider.sol";
+import {DebtManagerCore} from "../../src/debt-manager/DebtManagerCore.sol";
+import {DebtManagerAdmin} from "../../src/debt-manager/DebtManagerAdmin.sol";
+import {DebtManagerInitializer} from "../../src/debt-manager/DebtManagerInitializer.sol";
 
 contract DebtManagerSetup is Utils {
     using SafeERC20 for IERC20;
@@ -40,7 +43,7 @@ contract DebtManagerSetup is Utils {
     address ethUsdcOracle;
     address etherFiCashSafe = makeAddr("etherFiCashSafe");
     PriceProvider priceProvider;
-    L2DebtManager debtManager;
+    IL2DebtManager debtManager;
     uint256 mockWeETHPriceInUsd = 3000e6;
     uint80 ltv = 50e18; // 50%
     uint80 liquidationThreshold = 60e18; // 60%
@@ -52,6 +55,9 @@ contract DebtManagerSetup is Utils {
     address swapper = makeAddr("swapper");
     ChainConfig chainConfig;
     uint256 supplyCap = 10000 ether;
+
+    DebtManagerCore debtManagerCore;
+    DebtManagerAdmin debtManagerAdmin;
 
     function setUp() public virtual {
         chainId = vm.envString("TEST_CHAIN");
@@ -110,16 +116,14 @@ contract DebtManagerSetup is Utils {
         address[] memory borrowTokens = new address[](1);
         borrowTokens[0] = address(usdc);
 
-        IL2DebtManager.CollateralTokenConfig[]
-            memory collateralTokenConfig = new IL2DebtManager.CollateralTokenConfig[](
+        DebtManagerCore.CollateralTokenConfig[]
+            memory collateralTokenConfig = new DebtManagerCore.CollateralTokenConfig[](
                 1
             );
-        collateralTokenConfig[0] = IL2DebtManager.CollateralTokenConfig({
-            ltv: ltv,
-            liquidationThreshold: liquidationThreshold,
-            liquidationBonus: liquidationBonus,
-            supplyCap: supplyCap
-        });
+        collateralTokenConfig[0].ltv = ltv;
+        collateralTokenConfig[0].liquidationThreshold = liquidationThreshold;
+        collateralTokenConfig[0].liquidationBonus = liquidationBonus;
+        collateralTokenConfig[0].supplyCap = supplyCap;
 
         IL2DebtManager.BorrowTokenConfigData[]
             memory borrowTokenConfig = new IL2DebtManager.BorrowTokenConfigData[](
@@ -130,13 +134,13 @@ contract DebtManagerSetup is Utils {
            minSharesToMint: uint128(1 * 10 ** usdc.decimals())
         });
 
-        address debtManagerImpl = address(
-            new L2DebtManager(address(cashDataProvider))
-        );
+        address debtManagerCoreImpl = address(new DebtManagerCore());
+        address debtManagerAdminImpl = address(new DebtManagerAdmin());
+        address debtManagerInitializer = address(new DebtManagerInitializer());
+        address debtManagerProxy = address(new UUPSProxy(debtManagerInitializer, ""));
 
-        debtManager = L2DebtManager(
-            address(new UUPSProxy(debtManagerImpl, ""))
-        );
+        debtManager = IL2DebtManager(address(debtManagerProxy));
+
 
         userSafeFactory = address(1);
 
@@ -151,14 +155,21 @@ contract DebtManagerSetup is Utils {
             address(aaveV3Adapter),
             userSafeFactory
         );
-
-        debtManager.initialize(
+    
+        DebtManagerInitializer(address(debtManager)).initialize(
             owner,
             uint48(delay),
-            collateralTokens,
-            collateralTokenConfig,
-            borrowTokens,
-            borrowTokenConfig
+            address(cashDataProvider)
+        );
+
+        DebtManagerCore(debtManagerProxy).upgradeToAndCall(debtManagerCoreImpl, "");
+        debtManagerCore = DebtManagerCore(debtManagerProxy);
+        debtManagerCore.setAdminImpl(debtManagerAdminImpl);
+        DebtManagerAdmin(address(debtManagerCore)).supportCollateralToken(address(weETH), collateralTokenConfig[0]);
+        DebtManagerAdmin(address(debtManagerCore)).supportBorrowToken(
+            address(usdc), 
+            borrowApyPerSecond, 
+            uint128(1 * 10 ** usdc.decimals())
         );
 
         vm.stopPrank();
