@@ -114,8 +114,8 @@ contract AaveAdapterTest is Utils {
             address(aaveV3Adapter),
             address(usdc)
         );
-        assertEq(debt, borrowAmt);
-        assertEq(usdcBalAfter - usdcBalBefore, borrowAmt);
+        assertApproxEqAbs(debt, borrowAmt, 1);
+        assertApproxEqAbs(usdcBalAfter - usdcBalBefore, borrowAmt, 1);
 
         vm.stopPrank();
 

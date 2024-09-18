@@ -22,6 +22,7 @@ contract UserSafeWebAuthnSignatureTest is UserSafeSetup {
 
         bytes memory saltData = bytes("passkeySafe");
 
+        vm.prank(owner);
         passkeyOwnerSafe = UserSafe(
             factory.createUserSafe(
                 saltData,

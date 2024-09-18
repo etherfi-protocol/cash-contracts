@@ -35,11 +35,13 @@ contract UserSafeDeployTest is UserSafeSetup {
         );
         
         address deterministicAddress = factory.getUserSafeAddress(salt, initData);
+        vm.prank(owner);
         address safe = factory.createUserSafe(salt, initData);
         assertEq(deterministicAddress, safe);
     }
 
     function test_CannotDeployTwoUserSafesAtTheSameAddress() public {
+        vm.startPrank(owner);
         bytes memory salt = abi.encode("safe", block.timestamp);
 
         bytes memory initData = abi.encodeWithSelector(
@@ -56,5 +58,6 @@ contract UserSafeDeployTest is UserSafeSetup {
 
         vm.expectRevert(CREATE3.DeploymentFailed.selector);
         factory.createUserSafe(salt, initData);
+        vm.stopPrank();
     }
 }
