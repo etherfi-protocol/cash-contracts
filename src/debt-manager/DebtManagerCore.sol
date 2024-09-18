@@ -395,13 +395,14 @@ contract DebtManagerCore is DebtManagerStorage {
 
         emit Supplied(msg.sender, user, borrowToken, amount);
     }
+    
     function withdrawBorrowToken(address borrowToken, uint256 amount) external {
         uint256 totalBorrowTokenAmt = _getTotalBorrowTokenAmount(borrowToken);
         if (totalBorrowTokenAmt == 0) revert ZeroTotalBorrowTokens();
 
         uint256 shares = amount.mulDiv(
             _borrowTokenConfig[borrowToken].totalSharesOfBorrowTokens,
-            totalBorrowTokenAmt,
+            _convertFromSixDecimals(borrowToken, totalBorrowTokenAmt),
             Math.Rounding.Ceil
         );
 
@@ -686,31 +687,6 @@ contract DebtManagerCore is DebtManagerStorage {
         return (collateral, repayDebtUsdcAmt);
     }
 
-    function _getDecimals(address token) internal view returns (uint8) {
-        return IERC20Metadata(token).decimals();
-    }
-
-    function _convertToSixDecimals(
-        address token,
-        uint256 amount
-    ) internal view returns (uint256) {
-        uint8 tokenDecimals = _getDecimals(token);
-        return
-            tokenDecimals == 6
-                ? amount
-                : amount.mulDiv(SIX_DECIMALS, 10 ** tokenDecimals, Math.Rounding.Ceil);
-    }
-
-    function _convertFromSixDecimals(
-        address token,
-        uint256 amount
-    ) internal view returns (uint256) {
-        uint8 tokenDecimals = _getDecimals(token);
-        return
-            tokenDecimals == 6
-                ? amount
-                : amount.mulDiv(10 ** tokenDecimals, SIX_DECIMALS, Math.Rounding.Floor);
-    }
 
     function _isUserSafe() internal view {
         if (!_cashDataProvider.isUserSafe(msg.sender)) revert OnlyUserSafe();

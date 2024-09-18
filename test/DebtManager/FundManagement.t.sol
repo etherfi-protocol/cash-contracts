@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import {DebtManagerSetup, PriceProvider, MockPriceProvider, MockERC20} from "./DebtManagerSetup.t.sol";
+import {DebtManagerSetup, DebtManagerAdmin, PriceProvider, MockPriceProvider, MockERC20} from "./DebtManagerSetup.t.sol";
 import {IL2DebtManager} from "../../src/interfaces/IL2DebtManager.sol";
 import {AaveLib} from "../../src/libraries/AaveLib.sol";
 import {SafeERC20, IERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
@@ -62,6 +62,38 @@ contract DebtManagerFundManagementTest is DebtManagerSetup {
         debtManager.withdrawBorrowToken(address(usdc), earnings + principle);
 
         assertEq(debtManager.withdrawableBorrowToken(owner, address(usdc)), 0);
+    }
+
+    function test_SupplyEighteenDecimalsTwice() public {
+        address[] memory borrowTokens = new address[](1);
+        borrowTokens[0] = address(usdc);
+
+
+        vm.startPrank(owner);
+        DebtManagerAdmin(address(debtManagerCore)).supportBorrowToken(
+            address(weth), 
+            borrowApyPerSecond, 
+            uint128(1 * 10 ** IERC20Metadata(address(weth)).decimals())
+        );
+
+        uint256 principle = 1 ether;
+        deal(address(weth), owner, principle);
+        IERC20(address(weth)).forceApprove(address(debtManager), principle);
+
+        vm.expectEmit(true, true, true, true);
+        emit IL2DebtManager.Supplied(owner, owner, address(weth), principle);
+        debtManager.supply(owner, address(weth), principle);
+        vm.stopPrank();
+
+        deal(address(weth), alice, principle);
+        
+        vm.startPrank(alice);
+        IERC20(address(weth)).forceApprove(address(debtManager), principle);
+
+        vm.expectEmit(true, true, true, true);
+        emit IL2DebtManager.Supplied(alice, alice, address(weth), principle);
+        debtManager.supply(alice, address(weth), principle);
+        vm.stopPrank();
     }
 
     function test_SupplyTwice() public {

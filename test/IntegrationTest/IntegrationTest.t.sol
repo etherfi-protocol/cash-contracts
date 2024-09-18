@@ -42,7 +42,7 @@ contract IntegrationTest is IntegrationTestSetup {
             address newCollateralToken = address(weth);
             uint80 newLtv = 80e18;
             uint80 newLiquidationThreshold = 85e18;
-            uint96 newLiquidationBonus = 85e18;
+            uint96 newLiquidationBonus = 8.5e18;
 
             IL2DebtManager.CollateralTokenConfig memory config = IL2DebtManager.CollateralTokenConfig({
                 ltv: newLtv,

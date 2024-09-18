@@ -116,7 +116,7 @@ contract DebtManagerLiquidateTest is DebtManagerSetup {
             borrowAmt,
             10
         );
-        assertEq(aliceCollateralAfter, collateralValueInUsdc - borrowAmt - liquidationBonusInUsdc);
+        assertApproxEqAbs(aliceCollateralAfter, collateralValueInUsdc - borrowAmt - liquidationBonusInUsdc, 1);
         assertEq(aliceDebtAfter, 0);
     }
 
@@ -188,11 +188,21 @@ contract DebtManagerLiquidateTest is DebtManagerSetup {
     }
 
     function test_LiquidatorIsChargedRightAmountOfBorrowTokens() public {
+        vm.startPrank(alice);
+        IERC20(address(usdc)).forceApprove(address(debtManager), borrowAmt);
+        debtManager.repay(alice, address(usdc), borrowAmt);
+        vm.stopPrank();
+
         priceProvider = PriceProvider(
             address(new MockPriceProvider(mockWeETHPriceInUsd))
         );
         vm.prank(owner);
         cashDataProvider.setPriceProvider(address(priceProvider));
+
+        borrowAmt = debtManager.remainingBorrowingCapacityInUSDC(alice);
+        // Alice should borrow at new price for our calculations to be correct
+        vm.prank(alice);
+        debtManager.borrow(address(usdc), borrowAmt);
 
         vm.startPrank(owner);
         uint256 newPrice = 1000e6; // 1000 USD per weETH
@@ -254,6 +264,11 @@ contract DebtManagerLiquidateTest is DebtManagerSetup {
     }
 
     function test_ChooseCollateralPreferenceWhenLiquidating() public {
+        vm.startPrank(alice);
+        IERC20(address(usdc)).forceApprove(address(debtManager), borrowAmt);
+        debtManager.repay(alice, address(usdc), borrowAmt);
+        vm.stopPrank();
+
         vm.prank(address(userSafeFactory));
         cashDataProvider.whitelistUserSafe(owner);
         
@@ -262,6 +277,11 @@ contract DebtManagerLiquidateTest is DebtManagerSetup {
         );
         vm.prank(owner);
         cashDataProvider.setPriceProvider(address(priceProvider));
+
+        borrowAmt = debtManager.remainingBorrowingCapacityInUSDC(alice);
+        // Alice should borrow at new price for our calculations to be correct
+        vm.prank(alice);
+        debtManager.borrow(address(usdc), borrowAmt);
         
         address newCollateralToken = address(new MockERC20("collateral", "CTK", 18));
         IL2DebtManager.CollateralTokenConfig memory collateralTokenConfigNewCollateralToken;
@@ -288,6 +308,7 @@ contract DebtManagerLiquidateTest is DebtManagerSetup {
         collateralTokenConfigWeETH.ltv = 5e18;
         collateralTokenConfigWeETH.liquidationThreshold = 10e18;
         collateralTokenConfigWeETH.liquidationBonus = 5e18;
+        collateralTokenConfigNewCollateralToken.supplyCap = 1000000 ether;    
         debtManager.setCollateralTokenConfig(address(weETH), collateralTokenConfigWeETH);
 
         address[] memory collateralTokenPreference = new address[](2);

@@ -1217,7 +1217,7 @@ contract L2DebtManager is
         address borrowToken
     ) internal view returns (uint256) {
         return
-            totalBorrowingAmount(borrowToken) +
+            _convertFromSixDecimals(borrowToken, totalBorrowingAmount(borrowToken)) +
             IERC20(borrowToken).balanceOf(address(this));
     }
 

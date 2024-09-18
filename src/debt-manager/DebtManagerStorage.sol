@@ -24,6 +24,7 @@ contract DebtManagerStorage is
     AccessControlDefaultAdminRulesUpgradeable,
     ReentrancyGuardTransientUpgradeable
 {
+    using Math for uint256;
     bytes32 public constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
     uint256 public constant HUNDRED_PERCENT = 100e18;
     uint256 public constant PRECISION = 1e18;
@@ -245,7 +246,7 @@ contract DebtManagerStorage is
         address borrowToken
     ) internal view returns (uint256) {
         return
-            totalBorrowingAmount(borrowToken) +
+            _convertFromSixDecimals(borrowToken, totalBorrowingAmount(borrowToken)) +
             IERC20(borrowToken).balanceOf(address(this));
     }
 
@@ -376,5 +377,32 @@ contract DebtManagerStorage is
 
     function isBorrowToken(address token) public view returns (bool) {
         return _borrowTokenIndexPlusOne[token] != 0;
+    }
+
+    function _convertToSixDecimals(
+        address token,
+        uint256 amount
+    ) internal view returns (uint256) {
+        uint8 tokenDecimals = _getDecimals(token);
+        return
+            tokenDecimals == 6
+                ? amount
+                : amount.mulDiv(SIX_DECIMALS, 10 ** tokenDecimals, Math.Rounding.Ceil);
+    }
+
+    function _convertFromSixDecimals(
+        address token,
+        uint256 amount
+    ) internal view returns (uint256) {
+        uint8 tokenDecimals = _getDecimals(token);
+        return
+            tokenDecimals == 6
+                ? amount
+                : amount.mulDiv(10 ** tokenDecimals, SIX_DECIMALS, Math.Rounding.Floor);
+    }
+
+
+    function _getDecimals(address token) internal view returns (uint8) {
+        return IERC20Metadata(token).decimals();
     }
 }
