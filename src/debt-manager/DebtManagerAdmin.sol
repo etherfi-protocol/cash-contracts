@@ -48,10 +48,10 @@ contract DebtManagerAdmin is DebtManagerStorage {
     function supportBorrowToken(
         address token,
         uint64 borrowApy,
-        uint128 minSharesToMint
+        uint128 minShares
     ) external onlyRole(ADMIN_ROLE) {
         _supportBorrowToken(token);
-        _setBorrowTokenConfig(token, borrowApy, minSharesToMint);
+        _setBorrowTokenConfig(token, borrowApy, minShares);
     }
 
     function unsupportBorrowToken(address token) external onlyRole(ADMIN_ROLE) {
@@ -95,11 +95,11 @@ contract DebtManagerAdmin is DebtManagerStorage {
         _setBorrowApy(token, apy);
     }
 
-    function setMinBorrowTokenSharesToMint(
+    function setMinBorrowTokenShares(
         address token,
         uint128 shares
     ) external onlyRole(ADMIN_ROLE) {
-        _setMinBorrowTokenSharesToMint(token, shares);
+        _setMinBorrowTokenShares(token, shares);
     }
 
     function _supportCollateralToken(address token) internal {
@@ -152,13 +152,13 @@ function _setCollateralTokenConfig(
     function _setBorrowTokenConfig(
         address borrowToken,
         uint64 borrowApy,
-        uint128 minSharesToMint
+        uint128 minShares
     ) internal {
         if (!isBorrowToken(borrowToken)) revert UnsupportedBorrowToken();
         if (_borrowTokenConfig[borrowToken].lastUpdateTimestamp != 0)
             revert BorrowTokenConfigAlreadySet();
 
-        if (borrowApy == 0 || minSharesToMint == 0) revert InvalidValue();
+        if (borrowApy == 0 || minShares == 0) revert InvalidValue();
 
         BorrowTokenConfig memory cfg = BorrowTokenConfig({
             interestIndexSnapshot: 0,
@@ -166,7 +166,7 @@ function _setCollateralTokenConfig(
             totalSharesOfBorrowTokens: 0,
             lastUpdateTimestamp: uint64(block.timestamp),
             borrowApy: borrowApy,
-            minSharesToMint: minSharesToMint
+            minShares: minShares
         });
 
         _borrowTokenConfig[borrowToken] = cfg;
@@ -206,7 +206,7 @@ function _setCollateralTokenConfig(
             _setBorrowTokenConfig(
                 __supportedBorrowTokens[i],
                 __borrowTokenConfig[i].borrowApy,
-                __borrowTokenConfig[i].minSharesToMint
+                __borrowTokenConfig[i].minShares
             );
             unchecked {
                 ++i;
@@ -223,7 +223,7 @@ function _setCollateralTokenConfig(
         _borrowTokenConfig[token].borrowApy = apy;
     }
 
-    function _setMinBorrowTokenSharesToMint(
+    function _setMinBorrowTokenShares(
         address token,
         uint128 shares
     ) internal {
@@ -231,11 +231,11 @@ function _setCollateralTokenConfig(
         if (!isBorrowToken(token)) revert UnsupportedBorrowToken();
 
         _updateBorrowings(address(0));
-        emit MinSharesOfBorrowTokenToMintSet(
+        emit MinSharesOfBorrowTokenSet(
             token,
-            _borrowTokenConfig[token].minSharesToMint,
+            _borrowTokenConfig[token].minShares,
             shares
         );
-        _borrowTokenConfig[token].minSharesToMint = shares;
+        _borrowTokenConfig[token].minShares = shares;
     }
 }

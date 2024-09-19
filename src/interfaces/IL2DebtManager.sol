@@ -12,7 +12,7 @@ interface IL2DebtManager {
 
     struct BorrowTokenConfigData {
         uint64 borrowApy;
-        uint128 minSharesToMint;
+        uint128 minShares;
     }
 
     struct BorrowTokenConfig {
@@ -21,7 +21,7 @@ interface IL2DebtManager {
         uint256 totalSharesOfBorrowTokens;
         uint64 lastUpdateTimestamp;
         uint64 borrowApy;
-        uint128 minSharesToMint;
+        uint128 minShares;
     }
 
     struct CollateralTokenConfig {
@@ -97,7 +97,7 @@ interface IL2DebtManager {
     event BorrowTokenAdded(address token);
     event BorrowTokenRemoved(address token);
     event BorrowApySet(address indexed token, uint256 oldApy, uint256 newApy);
-    event MinSharesOfBorrowTokenToMintSet(address indexed token, uint128 oldMinShares, uint128 newMinShares);
+    event MinSharesOfBorrowTokenSet(address indexed token, uint128 oldMinShares, uint128 newMinShares);
     event UserInterestAdded(
         address indexed user,
         uint256 borrowingAmtBeforeInterest,
@@ -159,7 +159,7 @@ interface IL2DebtManager {
     error OraclePriceZero();
     error BorrowAmountZero();
     error SharesCannotBeZero();
-    error SharesCannotBeLessThanMinSharesToMint();
+    error SharesCannotBeLessThanMinShares();
     error SupplyCapBreached();
     error OnlyUserSafe();
 
@@ -190,9 +190,9 @@ interface IL2DebtManager {
     /**
      * @notice Function to fetch the min shares of borrow token that can be minted by a supplier.
      * @param borrowToken Address of the borrow token.
-     * @return minSharesToMint
+     * @return minShares
      */
-    function borrowTokenMinSharesToMint(
+    function borrowTokenMinShares(
         address borrowToken
     ) external view returns (uint128);
 
@@ -245,7 +245,7 @@ interface IL2DebtManager {
      * @param token Address of the borrow token.
      * @param shares Min shares of that borrow token to mint. 
      */
-    function setMinBorrowTokenSharesToMint(
+    function setMinBorrowTokenShares(
         address token,
         uint128 shares
     ) external;
@@ -273,7 +273,7 @@ interface IL2DebtManager {
      * @param token Address of the token to be supported as borrow.
      * @param borrowApy Borrow APY per second in 18 decimals.
      */
-    function supportBorrowToken(address token, uint64 borrowApy, uint128 minBorrowTokenSharesToMint) external;
+    function supportBorrowToken(address token, uint64 borrowApy, uint128 minBorrowTokenShares) external;
 
     /**
      * @notice Function to remove support for a borrow token.

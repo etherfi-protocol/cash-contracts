@@ -25,6 +25,46 @@ contract DebtManagerStorage is
     ReentrancyGuardTransientUpgradeable
 {
     using Math for uint256;
+    enum MarketOperationType {
+        Supply,
+        Borrow,
+        Repay,
+        Withdraw,
+        SupplyAndBorrow
+    }
+
+    struct BorrowTokenConfigData {
+        uint64 borrowApy;
+        uint128 minShares;
+    }
+
+    struct BorrowTokenConfig {
+        uint256 interestIndexSnapshot;
+        uint256 totalBorrowingAmount;
+        uint256 totalSharesOfBorrowTokens;
+        uint64 lastUpdateTimestamp;
+        uint64 borrowApy;
+        uint128 minShares;
+    }
+
+    struct CollateralTokenConfig {
+        uint80 ltv;
+        uint80 liquidationThreshold;
+        uint96 liquidationBonus;
+        uint256 supplyCap;
+    }
+
+    struct TokenData {
+        address token;
+        uint256 amount;
+    }
+
+    struct LiquidationTokenData {
+        address token;
+        uint256 amount;
+        uint256 liquidationBonus;
+    }
+
     bytes32 public constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
     uint256 public constant HUNDRED_PERCENT = 100e18;
     uint256 public constant PRECISION = 1e18;
@@ -59,45 +99,6 @@ contract DebtManagerStorage is
     // Shares have 18 decimals
     mapping(address supplier => mapping(address borrowToken => uint256 shares)) internal _sharesOfBorrowTokens;
 
-    enum MarketOperationType {
-        Supply,
-        Borrow,
-        Repay,
-        Withdraw,
-        SupplyAndBorrow
-    }
-
-    struct BorrowTokenConfigData {
-        uint64 borrowApy;
-        uint128 minSharesToMint;
-    }
-
-    struct BorrowTokenConfig {
-        uint256 interestIndexSnapshot;
-        uint256 totalBorrowingAmount;
-        uint256 totalSharesOfBorrowTokens;
-        uint64 lastUpdateTimestamp;
-        uint64 borrowApy;
-        uint128 minSharesToMint;
-    }
-
-    struct CollateralTokenConfig {
-        uint80 ltv;
-        uint80 liquidationThreshold;
-        uint96 liquidationBonus;
-        uint256 supplyCap;
-    }
-
-    struct TokenData {
-        address token;
-        uint256 amount;
-    }
-
-    struct LiquidationTokenData {
-        address token;
-        uint256 amount;
-        uint256 liquidationBonus;
-    }
 
     event SuppliedUSDC(uint256 amount);
     event DepositedCollateral(
@@ -154,7 +155,7 @@ contract DebtManagerStorage is
     event BorrowTokenAdded(address token);
     event BorrowTokenRemoved(address token);
     event BorrowApySet(address indexed token, uint256 oldApy, uint256 newApy);
-    event MinSharesOfBorrowTokenToMintSet(address indexed token, uint128 oldMinShares, uint128 newMinShares);
+    event MinSharesOfBorrowTokenSet(address indexed token, uint128 oldMinShares, uint128 newMinShares);
     event UserInterestAdded(
         address indexed user,
         uint256 borrowingAmtBeforeInterest,
@@ -216,7 +217,7 @@ contract DebtManagerStorage is
     error OraclePriceZero();
     error BorrowAmountZero();
     error SharesCannotBeZero();
-    error SharesCannotBeLessThanMinSharesToMint();
+    error SharesCannotBeLessThanMinShares();
     error SupplyCapBreached();
     error OnlyUserSafe();
 

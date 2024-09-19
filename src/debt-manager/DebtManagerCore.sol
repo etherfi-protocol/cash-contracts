@@ -227,10 +227,10 @@ contract DebtManagerCore is DebtManagerStorage {
         return _borrowTokenConfig[borrowToken].borrowApy;
     }
 
-    function borrowTokenMinSharesToMint(
+    function borrowTokenMinShares(
         address borrowToken
     ) external view returns (uint128) {
-        return _borrowTokenConfig[borrowToken].minSharesToMint;
+        return _borrowTokenConfig[borrowToken].minShares;
     }
 
     function getCurrentState()
@@ -384,8 +384,8 @@ contract DebtManagerCore is DebtManagerStorage {
                 Math.Rounding.Floor
             );
 
-        if (shares < _borrowTokenConfig[borrowToken].minSharesToMint)
-            revert SharesCannotBeLessThanMinSharesToMint();
+        if (shares < _borrowTokenConfig[borrowToken].minShares)
+            revert SharesCannotBeLessThanMinShares();
 
         // Moving this before state update to prevent reentrancy
         IERC20(borrowToken).safeTransferFrom(msg.sender, address(this), amount);
@@ -407,6 +407,7 @@ contract DebtManagerCore is DebtManagerStorage {
         );
 
         if (shares == 0) revert SharesCannotBeZero();
+        if (shares < _borrowTokenConfig[borrowToken].minShares) revert SharesCannotBeLessThanMinShares();
 
         if (_sharesOfBorrowTokens[msg.sender][borrowToken] < shares)
             revert InsufficientBorrowShares();
@@ -417,6 +418,7 @@ contract DebtManagerCore is DebtManagerStorage {
         IERC20(borrowToken).safeTransfer(msg.sender, amount);
         emit WithdrawBorrowToken(msg.sender, borrowToken, amount);
     }
+    
     function depositCollateral(
         address token,
         address user,

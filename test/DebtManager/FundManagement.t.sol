@@ -35,7 +35,7 @@ contract DebtManagerFundManagementTest is DebtManagerSetup {
         vm.stopPrank();
     }
 
-    function test_Supply() public {
+    function test_SupplyAndWithdraw() public {
         uint256 principle = 0.01 ether;
 
         vm.startPrank(owner);
@@ -62,6 +62,27 @@ contract DebtManagerFundManagementTest is DebtManagerSetup {
         debtManager.withdrawBorrowToken(address(usdc), earnings + principle);
 
         assertEq(debtManager.withdrawableBorrowToken(owner, address(usdc)), 0);
+    }
+
+    function test_CannotWithdrawLessThanMinShares() public {
+        uint256 principle = debtManager.borrowTokenConfig(address(usdc)).minShares;
+
+        vm.startPrank(owner);
+        IERC20(address(usdc)).forceApprove(address(debtManager), principle);
+
+        vm.expectEmit(true, true, true, true);
+        emit IL2DebtManager.Supplied(owner, owner, address(usdc), principle);
+        debtManager.supply(owner, address(usdc), principle);
+        vm.stopPrank();
+
+        assertEq(
+            debtManager.withdrawableBorrowToken(owner, address(usdc)),
+            principle
+        );
+
+        vm.prank(owner);
+        vm.expectRevert(IL2DebtManager.SharesCannotBeLessThanMinShares.selector);
+        debtManager.withdrawBorrowToken(address(usdc), principle - 1);
     }
 
     function test_SupplyEighteenDecimalsTwice() public {

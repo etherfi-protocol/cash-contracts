@@ -125,7 +125,7 @@ contract L2DebtManager is
             _setBorrowTokenConfig(
                 __supportedBorrowTokens[i],
                 __borrowTokenConfig[i].borrowApy,
-                __borrowTokenConfig[i].minSharesToMint
+                __borrowTokenConfig[i].minShares
             );
             unchecked {
                 ++i;
@@ -457,10 +457,10 @@ contract L2DebtManager is
     /**
      * @inheritdoc IL2DebtManager
      */
-    function borrowTokenMinSharesToMint(
+    function borrowTokenMinShares(
         address borrowToken
     ) external view returns (uint128) {
-        return _borrowTokenConfig[borrowToken].minSharesToMint;
+        return _borrowTokenConfig[borrowToken].minShares;
     }
 
     /**
@@ -686,10 +686,10 @@ contract L2DebtManager is
     function supportBorrowToken(
         address token,
         uint64 borrowApy,
-        uint128 minSharesToMint
+        uint128 minShares
     ) external onlyRole(ADMIN_ROLE) {
         _supportBorrowToken(token);
-        _setBorrowTokenConfig(token, borrowApy, minSharesToMint);
+        _setBorrowTokenConfig(token, borrowApy, minShares);
     }
 
     /**
@@ -745,11 +745,11 @@ contract L2DebtManager is
     /**
      * @inheritdoc IL2DebtManager
      */
-    function setMinBorrowTokenSharesToMint(
+    function setMinBorrowTokenShares(
         address token,
         uint128 shares
     ) external onlyRole(ADMIN_ROLE) {
-        _setMinBorrowTokenSharesToMint(token, shares);
+        _setMinBorrowTokenShares(token, shares);
     }
 
     /**
@@ -770,8 +770,8 @@ contract L2DebtManager is
                 Math.Rounding.Floor
             );
 
-        if (shares < _borrowTokenConfig[borrowToken].minSharesToMint)
-            revert SharesCannotBeLessThanMinSharesToMint();
+        if (shares < _borrowTokenConfig[borrowToken].minShares)
+            revert SharesCannotBeLessThanMinShares();
 
         // Moving this before state update to prevent reentrancy
         IERC20(borrowToken).safeTransferFrom(msg.sender, address(this), amount);
@@ -796,6 +796,7 @@ contract L2DebtManager is
         );
 
         if (shares == 0) revert SharesCannotBeZero();
+        if (shares < _borrowTokenConfig[borrowToken].minShares) revert SharesCannotBeLessThanMinShares();
 
         if (_sharesOfBorrowTokens[msg.sender][borrowToken] < shares)
             revert InsufficientBorrowShares();
@@ -1040,13 +1041,13 @@ contract L2DebtManager is
     function _setBorrowTokenConfig(
         address borrowToken,
         uint64 borrowApy,
-        uint128 minSharesToMint
+        uint128 minShares
     ) internal {
         if (!isBorrowToken(borrowToken)) revert UnsupportedBorrowToken();
         if (_borrowTokenConfig[borrowToken].lastUpdateTimestamp != 0)
             revert BorrowTokenConfigAlreadySet();
 
-        if (borrowApy == 0 || minSharesToMint == 0) revert InvalidValue();
+        if (borrowApy == 0 || minShares == 0) revert InvalidValue();
 
         BorrowTokenConfig memory cfg = BorrowTokenConfig({
             interestIndexSnapshot: 0,
@@ -1054,7 +1055,7 @@ contract L2DebtManager is
             totalSharesOfBorrowTokens: 0,
             lastUpdateTimestamp: uint64(block.timestamp),
             borrowApy: borrowApy,
-            minSharesToMint: minSharesToMint
+            minShares: minShares
         });
 
         _borrowTokenConfig[borrowToken] = cfg;
@@ -1182,7 +1183,7 @@ contract L2DebtManager is
         _borrowTokenConfig[token].borrowApy = apy;
     }
 
-    function _setMinBorrowTokenSharesToMint(
+    function _setMinBorrowTokenShares(
         address token,
         uint128 shares
     ) internal {
@@ -1190,12 +1191,12 @@ contract L2DebtManager is
         if (!isBorrowToken(token)) revert UnsupportedBorrowToken();
 
         _updateBorrowings(address(0));
-        emit MinSharesOfBorrowTokenToMintSet(
+        emit MinSharesOfBorrowTokenSet(
             token,
-            _borrowTokenConfig[token].minSharesToMint,
+            _borrowTokenConfig[token].minShares,
             shares
         );
-        _borrowTokenConfig[token].minSharesToMint = shares;
+        _borrowTokenConfig[token].minShares = shares;
     }
 
     function _getAmountWithInterest(
