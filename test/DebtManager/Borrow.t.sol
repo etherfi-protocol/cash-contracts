@@ -34,10 +34,10 @@ contract DebtManagerBorrowTest is DebtManagerSetup {
     function test_CanAddOrRemoveSupportedBorrowTokens() public {
         address newBorrowToken = address(new MockERC20("abc", "ABC", 12));
         uint64 borrowApy = 1e18;
-        uint128 minSharesToMint = 1e12;
+        uint128 minShares = 1e12;
 
         vm.startPrank(owner);
-        debtManager.supportBorrowToken(newBorrowToken, borrowApy, minSharesToMint);
+        debtManager.supportBorrowToken(newBorrowToken, borrowApy, minShares);
 
         assertEq(debtManager.borrowApyPerSecond(newBorrowToken), borrowApy);
 

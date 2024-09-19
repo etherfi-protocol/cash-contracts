@@ -186,6 +186,7 @@ contract IntegrationTestSetup is Utils {
                 factoryImpl, 
                 abi.encodeWithSelector(
                     UserSafeFactory.initialize.selector, 
+                    uint48(delay),
                     address(impl), 
                     owner, 
                     address(cashDataProvider)

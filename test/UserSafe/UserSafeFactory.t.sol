@@ -40,6 +40,7 @@ contract UserSafeFactoryTest is UserSafeSetup {
             thirdPartyRecoverySigner
         );
 
+        vm.prank(owner);
         bobSafe = UserSafe(
             factory.createUserSafe(
                 saltData,
@@ -94,13 +95,73 @@ contract UserSafeFactoryTest is UserSafeSetup {
 
     function test_OnlyOwnerCanUpgradeUserSafeImpl() public {
         vm.prank(notOwner);
-        vm.expectRevert(abi.encodeWithSelector(OwnableUnauthorizedAccount.selector, notOwner));
+        vm.expectRevert(buildAccessControlRevertData(notOwner, DEFAULT_ADMIN_ROLE));
         factory.upgradeUserSafeImpl(address(implV2));
     }
 
     function test_OnlyOwnerCanUpgradeFactoryImpl() public {
         vm.prank(notOwner);
-        vm.expectRevert(abi.encodeWithSelector(OwnableUnauthorizedAccount.selector, notOwner));
+        vm.expectRevert(buildAccessControlRevertData(notOwner, DEFAULT_ADMIN_ROLE));
         factory.upgradeToAndCall(address(1), "");
+    }
+
+    function test_OnlyAdminCanCreateUserSafe() public {
+        vm.prank(notOwner);
+        vm.expectRevert(buildAccessControlRevertData(notOwner, ADMIN_ROLE));
+        factory.createUserSafe(
+            saltData,
+            abi.encodeWithSelector(
+                // initialize(bytes,uint256, uint256)
+                0x32b218ac,
+                hex"112345",
+                defaultSpendingLimit,
+                collateralLimit
+            )
+        );
+    }
+
+    function test_OnlyAdminCanSetBeacon() public {
+        vm.prank(notOwner);
+        vm.expectRevert(buildAccessControlRevertData(notOwner, ADMIN_ROLE));
+        factory.setBeacon(address(1));
+    }
+
+    function test_SetBeacon() public {
+        address newBeacon = address(1);
+
+        vm.startPrank(owner);
+        vm.expectEmit(true, true, true, true);
+        emit UserSafeFactory.BeaconSet(factory.beacon(), newBeacon);
+        factory.setBeacon(newBeacon);
+        assertEq(factory.beacon(), newBeacon);
+        vm.stopPrank();
+    }
+
+    function test_CannotSetBeaconToAddressZero() public {
+        vm.prank(owner);
+        vm.expectRevert(UserSafeFactory.InvalidValue.selector);
+        factory.setBeacon(address(0));
+    }
+
+    function test_OnlyAdminCanSetCashDataProvider() public {
+        vm.prank(notOwner);
+        vm.expectRevert(buildAccessControlRevertData(notOwner, ADMIN_ROLE));
+        factory.setCashDataProvider(address(1));
+    }
+
+    function test_SetCashDataProvider() public {
+        address newCashDataProvider = address(1);
+        vm.startPrank(owner);
+        vm.expectEmit(true, true, true, true);
+        emit UserSafeFactory.CashDataProviderSet(factory.cashDataProvider(), newCashDataProvider);
+        factory.setCashDataProvider(newCashDataProvider);
+        assertEq(factory.cashDataProvider(), newCashDataProvider);
+        vm.stopPrank();
+    }
+
+    function test_CannotSetCashDataProviderToAddressZero() public {
+        vm.prank(owner);
+        vm.expectRevert(UserSafeFactory.InvalidValue.selector);
+        factory.setCashDataProvider(address(0));
     }
 }

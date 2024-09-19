@@ -230,10 +230,10 @@ contract DebtManagerCore is DebtManagerStorage {
         return _borrowTokenConfig[borrowToken].borrowApy;
     }
 
-    function borrowTokenMinSharesToMint(
+    function borrowTokenMinShares(
         address borrowToken
     ) external view returns (uint128) {
-        return _borrowTokenConfig[borrowToken].minSharesToMint;
+        return _borrowTokenConfig[borrowToken].minShares;
     }
 
     function getCurrentState()
@@ -387,8 +387,8 @@ contract DebtManagerCore is DebtManagerStorage {
                 Math.Rounding.Floor
             );
 
-        if (shares < _borrowTokenConfig[borrowToken].minSharesToMint)
-            revert SharesCannotBeLessThanMinSharesToMint();
+        if (shares < _borrowTokenConfig[borrowToken].minShares)
+            revert SharesCannotBeLessThanMinShares();
 
         // Moving this before state update to prevent reentrancy
         IERC20(borrowToken).safeTransferFrom(msg.sender, address(this), amount);
@@ -398,17 +398,19 @@ contract DebtManagerCore is DebtManagerStorage {
 
         emit Supplied(msg.sender, user, borrowToken, amount);
     }
+    
     function withdrawBorrowToken(address borrowToken, uint256 amount) external {
         uint256 totalBorrowTokenAmt = _getTotalBorrowTokenAmount(borrowToken);
         if (totalBorrowTokenAmt == 0) revert ZeroTotalBorrowTokens();
 
         uint256 shares = amount.mulDiv(
             _borrowTokenConfig[borrowToken].totalSharesOfBorrowTokens,
-            totalBorrowTokenAmt,
+            _convertFromSixDecimals(borrowToken, totalBorrowTokenAmt),
             Math.Rounding.Ceil
         );
 
         if (shares == 0) revert SharesCannotBeZero();
+        if (shares < _borrowTokenConfig[borrowToken].minShares) revert SharesCannotBeLessThanMinShares();
 
         if (_sharesOfBorrowTokens[msg.sender][borrowToken] < shares)
             revert InsufficientBorrowShares();
@@ -419,6 +421,7 @@ contract DebtManagerCore is DebtManagerStorage {
         IERC20(borrowToken).safeTransfer(msg.sender, amount);
         emit WithdrawBorrowToken(msg.sender, borrowToken, amount);
     }
+    
     function depositCollateral(
         address token,
         address user,
@@ -730,32 +733,6 @@ contract DebtManagerCore is DebtManagerStorage {
 
     function _unwrapToken(address token, uint256 amount) internal {
         CashWrappedERC20(token).withdraw(address(this), amount);
-    }
-
-    function _getDecimals(address token) internal view returns (uint8) {
-        return IERC20Metadata(token).decimals();
-    }
-
-    function _convertToSixDecimals(
-        address token,
-        uint256 amount
-    ) internal view returns (uint256) {
-        uint8 tokenDecimals = _getDecimals(token);
-        return
-            tokenDecimals == 6
-                ? amount
-                : amount.mulDiv(SIX_DECIMALS, 10 ** tokenDecimals, Math.Rounding.Ceil);
-    }
-
-    function _convertFromSixDecimals(
-        address token,
-        uint256 amount
-    ) internal view returns (uint256) {
-        uint8 tokenDecimals = _getDecimals(token);
-        return
-            tokenDecimals == 6
-                ? amount
-                : amount.mulDiv(10 ** tokenDecimals, SIX_DECIMALS, Math.Rounding.Floor);
     }
 
     function _isUserSafe() internal view {

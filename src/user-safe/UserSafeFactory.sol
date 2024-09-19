@@ -6,14 +6,15 @@ import {UpgradeableBeacon} from "@openzeppelin/contracts/proxy/beacon/Upgradeabl
 import {CREATE3} from "solady/utils/CREATE3.sol";
 import {ICashDataProvider} from "../interfaces/ICashDataProvider.sol";
 import {UUPSUpgradeable, Initializable} from "openzeppelin-contracts-upgradeable/contracts/proxy/utils/UUPSUpgradeable.sol";
-import {OwnableUpgradeable} from "openzeppelin-contracts-upgradeable/contracts/access/OwnableUpgradeable.sol";
+import {AccessControlDefaultAdminRulesUpgradeable} from "openzeppelin-contracts-upgradeable/contracts/access/extensions/AccessControlDefaultAdminRulesUpgradeable.sol";
 
 /**
  * @title UserSafeFactory
  * @author ether.fi [shivam@ether.fi]
  * @notice Factory to deploy User Safe contracts
  */
-contract UserSafeFactory is Initializable, UUPSUpgradeable, OwnableUpgradeable {
+contract UserSafeFactory is Initializable, UUPSUpgradeable, AccessControlDefaultAdminRulesUpgradeable {
+    bytes32 public constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
     address public cashDataProvider;
     address public beacon;
 
@@ -21,26 +22,33 @@ contract UserSafeFactory is Initializable, UUPSUpgradeable, OwnableUpgradeable {
     event CashDataProviderSet(address oldProvider, address newProvider);
     event BeaconSet(address oldBeacon, address newBeacon);
 
+    error InvalidValue();
+
     constructor() {
         _disableInitializers();
     }
 
     function initialize(
+        uint48 _accessControlDelay,
         address _implementation,
         address _owner,
         address _cashDataProvider
     ) external initializer {
-        __Ownable_init(_owner);
+        __AccessControlDefaultAdminRules_init(_accessControlDelay, _owner);
+        _grantRole(ADMIN_ROLE, _owner);
         beacon = address(new UpgradeableBeacon(_implementation, address(this)));
         cashDataProvider = _cashDataProvider;
     }
 
-    function setCashDataProvider(address _cashDataProvider) external onlyOwner {
+    function setCashDataProvider(address _cashDataProvider) external onlyRole(ADMIN_ROLE) {
+        if (_cashDataProvider == address(0)) revert InvalidValue();
         emit CashDataProviderSet(cashDataProvider, _cashDataProvider);
         cashDataProvider = _cashDataProvider;
     }
 
-    function setBeacon(address _beacon) external onlyOwner {
+    function setBeacon(address _beacon) external onlyRole(ADMIN_ROLE) {
+        if (_beacon == address(0)) revert InvalidValue();
+        emit BeaconSet(beacon, _beacon);
         beacon = _beacon;
     }
 
@@ -53,7 +61,7 @@ contract UserSafeFactory is Initializable, UUPSUpgradeable, OwnableUpgradeable {
      * @param data Initialize function data to be passed while deploying a user safe.
      * @return Address of the user safe.
      */
-    function createUserSafe(bytes memory saltData, bytes memory data) external returns (address) {
+    function createUserSafe(bytes memory saltData, bytes memory data) external onlyRole(ADMIN_ROLE) returns (address) {
         address safe = address(
             CREATE3.deployDeterministic(
                 abi.encodePacked(
@@ -70,11 +78,11 @@ contract UserSafeFactory is Initializable, UUPSUpgradeable, OwnableUpgradeable {
         return safe;
     }
 
-    function upgradeUserSafeImpl(address newImplementation) external onlyOwner {
+    function upgradeUserSafeImpl(address newImplementation) external onlyRole(DEFAULT_ADMIN_ROLE) {
         UpgradeableBeacon(beacon).upgradeTo(newImplementation);
     }
 
     function _authorizeUpgrade(
         address newImplementation
-    ) internal override onlyOwner {}
+    ) internal override onlyRole(DEFAULT_ADMIN_ROLE)  {}
 }

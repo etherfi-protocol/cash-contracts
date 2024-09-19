@@ -141,7 +141,7 @@ contract DebtManagerSetup is Utils {
             );
         borrowTokenConfig[0] = IL2DebtManager.BorrowTokenConfigData({
            borrowApy: borrowApyPerSecond,
-           minSharesToMint: uint128(1 * 10 ** usdc.decimals())
+           minShares: uint128(1 * 10 ** usdc.decimals())
         });
 
         address debtManagerCoreImpl = address(new DebtManagerCore());
