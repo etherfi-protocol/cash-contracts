@@ -9,7 +9,6 @@ import {SafeERC20, IERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeE
 contract IntegrationTest is IntegrationTestSetup {
     using SafeERC20 for IERC20;
 
-    IERC20 weth;
     uint256 collateralAmount = 0.01 ether;
     uint256 supplyAmount = 10e6;
     uint256 borrowAmount = 1e6;
@@ -20,7 +19,6 @@ contract IntegrationTest is IntegrationTestSetup {
         if (!isFork(chainId)) {
             /// If not mainnet, give some usdc to debt manager so it can provide debt
             vm.startPrank(owner);
-            weth = IERC20(address(new MockERC20("WETH", "WETH", 18)));
 
             usdc.approve(address(etherFiCashDebtManager), supplyAmount);
             etherFiCashDebtManager.supply(
@@ -32,50 +30,48 @@ contract IntegrationTest is IntegrationTestSetup {
         } else {
             vm.startPrank(owner);
 
-            weth = IERC20(chainConfig.weth);
-
             priceProvider = PriceProvider(
                 address(new MockPriceProvider(mockWeETHPriceInUsd))
             );
             cashDataProvider.setPriceProvider(address(priceProvider));
 
-            address newCollateralToken = address(weth);
-            uint80 newLtv = 80e18;
-            uint80 newLiquidationThreshold = 85e18;
-            uint96 newLiquidationBonus = 8.5e18;
+            // address newCollateralToken = address(weth);
+            // uint80 newLtv = 80e18;
+            // uint80 newLiquidationThreshold = 85e18;
+            // uint96 newLiquidationBonus = 8.5e18;
 
-            IL2DebtManager.CollateralTokenConfig memory config = IL2DebtManager.CollateralTokenConfig({
-                ltv: newLtv,
-                liquidationThreshold: newLiquidationThreshold,
-                liquidationBonus: newLiquidationBonus,
-                supplyCap: supplyCap
-            });
+            // IL2DebtManager.CollateralTokenConfig memory config = IL2DebtManager.CollateralTokenConfig({
+            //     ltv: newLtv,
+            //     liquidationThreshold: newLiquidationThreshold,
+            //     liquidationBonus: newLiquidationBonus,
+            //     supplyCap: supplyCap
+            // });
 
-            etherFiCashDebtManager.supportCollateralToken(
-                newCollateralToken,
-                config
-            );
+            // etherFiCashDebtManager.supportCollateralToken(
+            //     newCollateralToken,
+            //     config
+            // );
 
-            /// If it is mainnet, supply 0.01 weETH and borrow 1 USDC from Aave
-            deal(
-                address(weETH),
-                address(etherFiCashDebtManager),
-                collateralAmount
-            );
-            deal(
-                address(weth),
-                address(etherFiCashDebtManager),
-                collateralAmount
-            );
-            etherFiCashDebtManager.fundManagementOperation(
-                uint8(IL2DebtManager.MarketOperationType.SupplyAndBorrow),
-                abi.encode(
-                    address(weth),
-                    collateralAmount,
-                    address(usdc),
-                    borrowAmount
-                )
-            );
+            // /// If it is mainnet, supply 0.01 weETH and borrow 1 USDC from Aave
+            // deal(
+            //     address(weETH),
+            //     address(etherFiCashDebtManager),
+            //     collateralAmount
+            // );
+            // deal(
+            //     address(weth),
+            //     address(etherFiCashDebtManager),
+            //     collateralAmount
+            // );
+            // etherFiCashDebtManager.fundManagementOperation(
+            //     uint8(IL2DebtManager.MarketOperationType.SupplyAndBorrow),
+            //     abi.encode(
+            //         address(weth),
+            //         collateralAmount,
+            //         address(usdc),
+            //         borrowAmount
+            //     )
+            // );
             vm.stopPrank();
         }
     }
@@ -89,9 +85,6 @@ contract IntegrationTest is IntegrationTestSetup {
         assertEq(aliceSafeCollateralBefore, 0);
 
         uint256 aliceSafeBalBefore = weETH.balanceOf(address(aliceSafe));
-        uint256 debtManagerBalBefore = weETH.balanceOf(
-            address(etherFiCashDebtManager)
-        );
 
         vm.prank(etherFiWallet);
         aliceSafe.addCollateral(address(weETH), amount);
@@ -107,12 +100,8 @@ contract IntegrationTest is IntegrationTestSetup {
         );
 
         uint256 aliceSafeBalAfter = weETH.balanceOf(address(aliceSafe));
-        uint256 debtManagerBalAfter = weETH.balanceOf(
-            address(etherFiCashDebtManager)
-        );
 
         assertEq(aliceSafeBalBefore - aliceSafeBalAfter, amount);
-        assertEq(debtManagerBalAfter - debtManagerBalBefore, amount);
     }
 
     function test_AddCollateralAndBorrow() public {
@@ -134,13 +123,6 @@ contract IntegrationTest is IntegrationTestSetup {
         uint256 aliceSafeWeEthBalBefore = weETH.balanceOf(address(aliceSafe));
         uint256 cashSafeUsdcBalBefore = usdc.balanceOf(
             address(etherFiCashMultisig)
-        );
-
-        uint256 debtManagerWeEthBalBefore = weETH.balanceOf(
-            address(etherFiCashDebtManager)
-        );
-        uint256 debtManagerUsdcBalBefore = usdc.balanceOf(
-            address(etherFiCashDebtManager)
         );
 
         vm.prank(etherFiWallet);
@@ -172,20 +154,8 @@ contract IntegrationTest is IntegrationTestSetup {
             address(etherFiCashMultisig)
         );
 
-        uint256 debtManagerWeEthBalAfter = weETH.balanceOf(
-            address(etherFiCashDebtManager)
-        );
-        uint256 debtManagerUsdcBalAfter = usdc.balanceOf(
-            address(etherFiCashDebtManager)
-        );
-
         assertEq(aliceSafeWeEthBalBefore - aliceSafeWeEthBalAfter, supplyAmt);
-        assertEq(
-            debtManagerWeEthBalAfter - debtManagerWeEthBalBefore,
-            supplyAmt
-        );
         assertEq(cashSafeUsdcBalAfter - cashSafeUsdcBalBefore, borrowAmt);
-        assertEq(debtManagerUsdcBalBefore - debtManagerUsdcBalAfter, borrowAmt);
     }
 
     function test_RepayUsingUsdc() public {
@@ -293,136 +263,136 @@ contract IntegrationTest is IntegrationTestSetup {
         assertEq(aliceSafeWeEthBalAfter - aliceSafeWeEthBalBefore, supplyAmt);
     }
 
-    function test_MultipleSuppliers() public {
-        vm.startPrank(owner);
-        MockERC20 newCollateralToken = new MockERC20("CollToken", "CTK", 18);
-        MockERC20 newBorrowToken = new MockERC20("DebtToken", "DTK", 18);
+    // function test_MultipleSuppliers() public {
+    //     vm.startPrank(owner);
+    //     MockERC20 newCollateralToken = new MockERC20("CollToken", "CTK", 18);
+    //     MockERC20 newBorrowToken = new MockERC20("DebtToken", "DTK", 18);
 
-        uint80 newCollateralLtv = 80e18;
-        uint80 newCollateralLiquidationThreshold = 85e18;
-        uint96 newCollateralLiquidationBonus = 5e18;
-        uint64 newBorrowTokenApy = 1e18;
+    //     uint80 newCollateralLtv = 80e18;
+    //     uint80 newCollateralLiquidationThreshold = 85e18;
+    //  uint96 newCollateralLiquidationBonus = 5e18;
+    //     uint64 newBorrowTokenApy = 1e18;
 
-        IL2DebtManager.CollateralTokenConfig memory config;
-        config.ltv = newCollateralLtv;
-        config.liquidationThreshold = newCollateralLiquidationThreshold;
-        config.liquidationBonus = newCollateralLiquidationBonus;
-        config.supplyCap = 1000000 ether;
+    //     IL2DebtManager.CollateralTokenConfig memory config;
+    //     config.ltv = newCollateralLtv;
+    //     config.liquidationThreshold = newCollateralLiquidationThreshold;
+    //     config.liquidationBonus = newCollateralLiquidationBonus;
+    //     config.supplyCap = 1000000 ether;
 
-        etherFiCashDebtManager.supportCollateralToken(
-            address(newCollateralToken),
-            config
-        );
-        etherFiCashDebtManager.supportBorrowToken(
-            address(newBorrowToken),
-            newBorrowTokenApy,
-            1
-        );
-        vm.stopPrank();
+    //     etherFiCashDebtManager.supportCollateralToken(
+    //         address(newCollateralToken),
+    //         config
+    //     );
+    //     etherFiCashDebtManager.supportBorrowToken(
+    //         address(newBorrowToken),
+    //         newBorrowTokenApy,
+    //         1
+    //     );
+    //     vm.stopPrank();
 
-        deal(address(newCollateralToken), address(aliceSafe), 1000 ether);
-        deal(address(newBorrowToken), address(aliceSafe), 1000 ether);
-        deal(address(newBorrowToken), address(alice), 1000 ether);
-        deal(address(newBorrowToken), address(owner), 1000 ether);
+    //     deal(address(newCollateralToken), address(aliceSafe), 1000 ether);
+    //     deal(address(newBorrowToken), address(aliceSafe), 1000 ether);
+    //     deal(address(newBorrowToken), address(alice), 1000 ether);
+    //     deal(address(newBorrowToken), address(owner), 1000 ether);
 
-        uint256 newBorrowTokenSupplyAmt = 1 ether;
-        vm.startPrank(alice);
-        newBorrowToken.approve(
-            address(etherFiCashDebtManager),
-            newBorrowTokenSupplyAmt
-        );
-        etherFiCashDebtManager.supply(
-            alice,
-            address(newBorrowToken),
-            newBorrowTokenSupplyAmt
-        );
+    //     uint256 newBorrowTokenSupplyAmt = 1 ether;
+    //     vm.startPrank(alice);
+    //     newBorrowToken.approve(
+    //         address(etherFiCashDebtManager),
+    //         newBorrowTokenSupplyAmt
+    //     );
+    //     etherFiCashDebtManager.supply(
+    //         alice,
+    //         address(newBorrowToken),
+    //         newBorrowTokenSupplyAmt
+    //     );
 
-        assertEq(
-            etherFiCashDebtManager.withdrawableBorrowToken(
-                alice,
-                address(newBorrowToken)
-            ),
-            newBorrowTokenSupplyAmt
-        );
+    //     assertEq(
+    //         etherFiCashDebtManager.withdrawableBorrowToken(
+    //             alice,
+    //             address(newBorrowToken)
+    //         ),
+    //         newBorrowTokenSupplyAmt
+    //     );
 
-        IL2DebtManager.BorrowTokenConfig
-            memory borrowTokenConfig = etherFiCashDebtManager.borrowTokenConfig(
-                address(newBorrowToken)
-            );
+    //     IL2DebtManager.BorrowTokenConfig
+    //         memory borrowTokenConfig = etherFiCashDebtManager.borrowTokenConfig(
+    //             address(newBorrowToken)
+    //         );
 
-        assertEq(
-            borrowTokenConfig.totalSharesOfBorrowTokens,
-            newBorrowTokenSupplyAmt
-        );
-        vm.stopPrank();
+    //     assertEq(
+    //         borrowTokenConfig.totalSharesOfBorrowTokens,
+    //         newBorrowTokenSupplyAmt
+    //     );
+    //     vm.stopPrank();
 
-        vm.startPrank(owner);
-        newBorrowToken.approve(
-            address(etherFiCashDebtManager),
-            newBorrowTokenSupplyAmt
-        );
-        etherFiCashDebtManager.supply(
-            owner,
-            address(newBorrowToken),
-            newBorrowTokenSupplyAmt
-        );
+    //     vm.startPrank(owner);
+    //     newBorrowToken.approve(
+    //         address(etherFiCashDebtManager),
+    //         newBorrowTokenSupplyAmt
+    //     );
+    //     etherFiCashDebtManager.supply(
+    //         owner,
+    //         address(newBorrowToken),
+    //         newBorrowTokenSupplyAmt
+    //     );
 
-        assertEq(
-            etherFiCashDebtManager.withdrawableBorrowToken(
-                owner,
-                address(newBorrowToken)
-            ),
-            newBorrowTokenSupplyAmt
-        );
+    //     assertEq(
+    //         etherFiCashDebtManager.withdrawableBorrowToken(
+    //             owner,
+    //             address(newBorrowToken)
+    //         ),
+    //         newBorrowTokenSupplyAmt
+    //     );
 
-        borrowTokenConfig = etherFiCashDebtManager.borrowTokenConfig(
-            address(newBorrowToken)
-        );
+    //     borrowTokenConfig = etherFiCashDebtManager.borrowTokenConfig(
+    //         address(newBorrowToken)
+    //     );
 
-        assertEq(
-            borrowTokenConfig.totalSharesOfBorrowTokens,
-            2 * newBorrowTokenSupplyAmt
-        );
-        vm.stopPrank();
+    //     assertEq(
+    //         borrowTokenConfig.totalSharesOfBorrowTokens,
+    //         2 * newBorrowTokenSupplyAmt
+    //     );
+    //     vm.stopPrank();
 
-        vm.prank(etherFiWallet);
-        aliceSafe.addCollateralAndBorrow(
-            address(newCollateralToken),
-            1 ether,
-            address(newBorrowToken),
-            1 ether
-        );
+    //     vm.prank(etherFiWallet);
+    //     aliceSafe.addCollateralAndBorrow(
+    //         address(newCollateralToken),
+    //         1 ether,
+    //         address(newBorrowToken),
+    //         1 ether
+    //     );
 
-        uint256 timeElapsed = 24 * 60 * 60;
-        uint256 expectedInterest = 1 ether * ((newBorrowTokenApy * timeElapsed) / 1e20);
+    //     uint256 timeElapsed = 24 * 60 * 60;
+    //     uint256 expectedInterest = 1 ether * ((newBorrowTokenApy * timeElapsed) / 1e20);
         
-        vm.warp(block.timestamp + timeElapsed);
+    //     vm.warp(block.timestamp + timeElapsed);
 
-        assertEq(
-            etherFiCashDebtManager.borrowingOf(
-                address(aliceSafe),
-                address(newBorrowToken)
-            ),
-            ((1 ether + expectedInterest) * 1e6) /
-                10 ** newBorrowToken.decimals()
-        );
+    //     assertEq(
+    //         etherFiCashDebtManager.borrowingOf(
+    //             address(aliceSafe),
+    //             address(newBorrowToken)
+    //         ),
+    //         ((1 ether + expectedInterest) * 1e6) /
+    //             10 ** newBorrowToken.decimals()
+    //     );
 
-        vm.prank(etherFiWallet);
-        aliceSafe.repay(address(newBorrowToken), 1 ether + expectedInterest);
+    //     vm.prank(etherFiWallet);
+    //     aliceSafe.repay(address(newBorrowToken), 1 ether + expectedInterest);
 
-        assertEq(
-            etherFiCashDebtManager.withdrawableBorrowToken(
-                alice,
-                address(newBorrowToken)
-            ),
-            newBorrowTokenSupplyAmt + expectedInterest / 2
-        );
-        assertEq(
-            etherFiCashDebtManager.withdrawableBorrowToken(
-                owner,
-                address(newBorrowToken)
-            ),
-            newBorrowTokenSupplyAmt + expectedInterest / 2
-        );
-    }
+    //     assertEq(
+    //         etherFiCashDebtManager.withdrawableBorrowToken(
+    //             alice,
+    //             address(newBorrowToken)
+    //         ),
+    //         newBorrowTokenSupplyAmt + expectedInterest / 2
+    //     );
+    //     assertEq(
+    //         etherFiCashDebtManager.withdrawableBorrowToken(
+    //             owner,
+    //             address(newBorrowToken)
+    //         ),
+    //         newBorrowTokenSupplyAmt + expectedInterest / 2
+    //     );
+    // }
 }

@@ -174,8 +174,9 @@ contract UserSafeTransfersTest is UserSafeSetup {
     function test_AddCollateralToDebtManager() public {
         uint256 amount = 1 ether;
 
-        uint256 debtManagerWeEthBalanceBefore = weETH.balanceOf(
-            etherFiCashDebtManager
+        (uint256 userCollateralBefore, ) = etherFiCashDebtManager.getUserCollateralForToken(
+            address(aliceSafe),
+            address(weETH)
         );
 
         vm.prank(etherFiWallet);
@@ -183,8 +184,9 @@ contract UserSafeTransfersTest is UserSafeSetup {
         emit IUserSafe.AddCollateralToDebtManager(address(weETH), amount);
         aliceSafe.addCollateral(address(weETH), amount);
 
-        uint256 debtManagerWeEthBalanceAfter = weETH.balanceOf(
-            etherFiCashDebtManager
+        (uint256 userCollateralAfter, ) = etherFiCashDebtManager.getUserCollateralForToken(
+            address(aliceSafe), 
+            address(weETH)
         );
 
         assertEq(
@@ -192,7 +194,7 @@ contract UserSafeTransfersTest is UserSafeSetup {
             amount
         );
         assertEq(
-            debtManagerWeEthBalanceAfter - debtManagerWeEthBalanceBefore,
+            userCollateralAfter - userCollateralBefore,
             amount
         );
     }

@@ -24,7 +24,8 @@ import {IEtherFiCashAaveV3Adapter, EtherFiCashAaveV3Adapter} from "../../src/ada
 import {MockAaveAdapter} from "../../src/mocks/MockAaveAdapter.sol";
 import {L2DebtManager} from "../../src/L2DebtManager.sol";
 import {UUPSProxy} from "../../src/UUPSProxy.sol";
-import {CashTokenWrapperFactory, CashWrappedERC20} from "../../src/cash-wrapper-token/CashTokenWrapperFactory.sol";
+import {MockCashTokenWrapperFactory} from "../../src/mocks/MockCashTokenWrapperFactory.sol";
+import {MockCashWrappedERC20} from "../../src/mocks/MockCashWrappedERC20.sol";
 
 contract IntegrationTestSetup is Utils {
     using OwnerLib for address;
@@ -45,6 +46,7 @@ contract IntegrationTestSetup is Utils {
 
     ERC20 usdc;
     ERC20 weETH;
+    ERC20 weth;
     SwapperOpenOcean swapper;
     PriceProvider priceProvider;
     CashDataProvider cashDataProvider;
@@ -82,7 +84,8 @@ contract IntegrationTestSetup is Utils {
     ChainConfig chainConfig;
     uint256 supplyCap = 10000 ether;
 
-    CashTokenWrapperFactory wrapperTokenFactory;
+    MockCashTokenWrapperFactory wrapperTokenFactory;
+    MockCashWrappedERC20 wweETH;
 
     function setUp() public virtual {
         chainId = vm.envString("TEST_CHAIN");
@@ -94,6 +97,7 @@ contract IntegrationTestSetup is Utils {
         if (!isFork(chainId)) {
             usdc = ERC20(address(new MockERC20("usdc", "usdc", 6)));
             weETH = ERC20(address(new MockERC20("weETH", "weETH", 18)));
+            weth = ERC20(address(new MockERC20("weth", "WETH", 18)));
 
             swapper = SwapperOpenOcean(address(new MockSwapper()));
             priceProvider = PriceProvider(
@@ -106,6 +110,7 @@ contract IntegrationTestSetup is Utils {
 
             usdc = ERC20(chainConfig.usdc);
             weETH = ERC20(chainConfig.weETH);
+            weth = ERC20(chainConfig.weth);
             weEthWethOracle = chainConfig.weEthWethOracle;
             ethUsdcOracle = chainConfig.ethUsdcOracle;
             swapRouterOpenOcean = chainConfig.swapRouterOpenOcean;
@@ -135,8 +140,8 @@ contract IntegrationTestSetup is Utils {
             );
         }
 
-        address cashWrappedERC20Impl = address(new CashWrappedERC20());
-        wrapperTokenFactory = new CashTokenWrapperFactory(address(cashWrappedERC20Impl), owner);
+        address cashWrappedERC20Impl = address(new MockCashWrappedERC20());
+        wrapperTokenFactory = new MockCashTokenWrapperFactory(address(cashWrappedERC20Impl), owner);
 
         address cashDataProviderImpl = address(new CashDataProvider());
         cashDataProvider = CashDataProvider(
@@ -243,6 +248,30 @@ contract IntegrationTestSetup is Utils {
         deal(address(weETH), alice, 1000 ether);
         deal(address(usdc), alice, 1 ether);
         deal(address(usdc), address(swapper), 1 ether);
+
+        // Set weth as cash wrapped ERC20 since it has a cap on Aave
+        wweETH = MockCashWrappedERC20(wrapperTokenFactory.deployWrapper(address(weETH)));
+        vm.etch(address(weth), address(wweETH).code);
+        wweETH = MockCashWrappedERC20(address(weth));
+        wrapperTokenFactory.setWrappedTokenAddress(address(weETH), address(wweETH));
+        wweETH.init(address(wrapperTokenFactory), address(weETH), "wweETH", "wweETH", 18);
+
+        address[] memory minters = new address[](1);
+        minters[0] = address(etherFiCashDebtManager);
+        bool[] memory mintersWhitelist = new bool[](1);
+        mintersWhitelist[0] = true;
+
+        address[] memory recipients = new address[](2);
+        
+        if (isScroll(chainId)) recipients[0] = 0xf301805bE1Df81102C957f6d4Ce29d2B8c056B2a; // aWeth token
+        else recipients[0] = address(MockAaveAdapter(address(aaveV3Adapter)).aave());
+        recipients[1] = address(etherFiCashDebtManager);
+        bool[] memory recipientsWhitelist = new bool[](2);
+        recipientsWhitelist[0] = true;
+        recipientsWhitelist[1] = true;
+
+        wrapperTokenFactory.whitelistMinters(address(weETH), minters, mintersWhitelist);
+        wrapperTokenFactory.whitelistRecipients(address(weETH), recipients, recipientsWhitelist);
 
         vm.stopPrank();
     }

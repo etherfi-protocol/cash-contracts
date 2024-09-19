@@ -1009,17 +1009,6 @@ contract L2DebtManager is
         );
     }
 
-    /**
-     * @inheritdoc IL2DebtManager
-     */
-    function fundManagementOperation(
-        uint8 marketOperationType,
-        bytes calldata data
-    ) external onlyRole(ADMIN_ROLE) {
-        address aaveV3Adapter = _cashDataProvider.aaveAdapter();
-        AaveLib.aaveOperation(aaveV3Adapter, marketOperationType, data);
-    }
-
     function _setCollateralTokenConfig(
         address collateralToken,
         CollateralTokenConfig memory config

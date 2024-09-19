@@ -630,15 +630,8 @@ contract DebtManagerCore is DebtManagerStorage {
             liquidatedAmt
         );
     }
-    function fundManagementOperation(
-        uint8 marketOperationType,
-        bytes calldata data
-    ) external onlyRole(ADMIN_ROLE) {
-        address aaveV3Adapter = _cashDataProvider.aaveAdapter();
-        AaveLib.aaveOperation(aaveV3Adapter, marketOperationType, data);
-    }
 
-        /// Users repay the borrowed USDC in USDC
+    /// Users repay the borrowed USDC in USDC
     function _repayWithBorrowToken(
         address token,
         address user,
