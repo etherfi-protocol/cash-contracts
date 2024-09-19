@@ -810,7 +810,7 @@ contract UserSafe is IUserSafe, Initializable, UserSafeRecovery {
     }
 
     function _onlyEtherFiWallet() private view {
-        if (msg.sender != _cashDataProvider.etherFiWallet())
+        if (!_cashDataProvider.isEtherFiWallet(msg.sender))
             revert UnauthorizedCall();
     }
 

@@ -99,6 +99,7 @@ contract DeployMockUserSafeSetup is Utils {
                 factoryImpl, 
                 abi.encodeWithSelector(
                     UserSafeFactory.initialize.selector, 
+                    delay,
                     address(userSafeImpl), 
                     owner, 
                     address(cashDataProvider)
