@@ -3,7 +3,6 @@ pragma solidity ^0.8.24;
 
 interface ICashDataProvider {
     event DelayUpdated(uint256 oldDelay, uint256 newDelay);
-    event EtherFiWalletUpdated(address oldWallet, address newWallet);
     event CashMultiSigUpdated(address oldMultiSig, address newMultiSig);
     event CashDebtManagerUpdated(
         address oldDebtManager,
@@ -18,9 +17,13 @@ interface ICashDataProvider {
     event AaveAdapterUpdated(address oldAdapter, address newAdapter);
     event UserSafeFactoryUpdated(address oldFactory, address newFactory);
     event UserSafeWhitelisted(address userSafe);
+    event EtherFiWalletAdded(address wallet);
+    event EtherFiWalletRemoved(address wallet);
 
     error InvalidValue();
     error OnlyUserSafeFactory();
+    error AlreadyAWhitelistedEtherFiWallet();
+    error NotAWhitelistedEtherFiWallet();
 
     /**
      * @notice Function to fetch the timelock delay for tokens from User Safe
@@ -29,11 +32,10 @@ interface ICashDataProvider {
     function delay() external view returns (uint64);
 
     /**
-     * @notice Function to fetch the address of the EtherFi Cash wallet
-     * @notice Only this wallet should be able to pull funds from User Safe
-     * @return EtherFi Cash wallet address
+     * @notice Function to check whether a wallet has the ETHER_FI_WALLET_ROLE
+     * @return bool suggesting whether it is an EtherFi Wallet
      */
-    function etherFiWallet() external view returns (address);
+    function isEtherFiWallet(address wallet) external view returns (bool);
 
     /**
      * @notice Function to fetch the address of the EtherFi Cash MultiSig wallet
@@ -82,49 +84,56 @@ interface ICashDataProvider {
 
     /**
      * @notice Function to set the timelock delay for tokens from User Safe
-     * @dev Can only be called by the owner of the contract
+     * @dev Can only be called by the admin of the contract
      * @param delay Timelock delay in seconds
      */
     function setDelay(uint64 delay) external;
 
     /**
-     * @notice Function to set the address of the EtherFi wallet
-     * @dev Can only be called by the owner of the contract
+     * @notice Function to grant ETHER_FI_WALLER_ROLE to an address
+     * @dev Can only be called by the admin of the contract
      * @param wallet EtherFi Cash wallet address
      */
-    function setEtherFiWallet(address wallet) external;
+    function grantEtherFiWalletRole(address wallet) external;
+    
+    /**
+     * @notice Function to revoke ETHER_FI_WALLER_ROLE to an address
+     * @dev Can only be called by the admin of the contract
+     * @param wallet EtherFi Cash wallet address
+     */
+    function revokeEtherFiWalletRole(address wallet) external;
 
     /**
      * @notice Function to set the address of the EtherFi Cash MultiSig wallet
-     * @dev Can only be called by the owner of the contract
+     * @dev Can only be called by the admin of the contract
      * @param cashMultiSig EtherFi Cash MultiSig wallet address
      */
     function setEtherFiCashMultiSig(address cashMultiSig) external;
 
     /**
      * @notice Function to set the address of the EtherFi Cash Debt Manager contract
-     * @dev Can only be called by the owner of the contract
+     * @dev Can only be called by the admin of the contract
      * @param cashDebtManager EtherFi Cash Debt Manager contract address
      */
     function setEtherFiCashDebtManager(address cashDebtManager) external;
 
     /**
      * @notice Function to set the address of PriceProvider contract
-     * @dev Can only be called by the owner of the contract
+     * @dev Can only be called by the admin of the contract
      * @param priceProvider PriceProvider contract address
      */
     function setPriceProvider(address priceProvider) external;
 
     /**
      * @notice Function to set the address of Swapper contract
-     * @dev Can only be called by the owner of the contract
+     * @dev Can only be called by the admin of the contract
      * @param swapper Swapper contract address
      */
     function setSwapper(address swapper) external;
 
     /**
      * @notice Function to set the address of the Aave adapter
-     * @dev Can only be called by the owner of the contract
+     * @dev Can only be called by the admin of the contract
      * @param adapter Aave adapter address
      */
     function setAaveAdapter(address adapter) external;

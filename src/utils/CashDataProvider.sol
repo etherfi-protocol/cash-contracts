@@ -3,7 +3,7 @@ pragma solidity ^0.8.24;
 
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {ICashDataProvider} from "../interfaces/ICashDataProvider.sol";
-import {OwnableUpgradeable} from "openzeppelin-contracts-upgradeable/contracts/access/OwnableUpgradeable.sol";
+import {AccessControlDefaultAdminRulesUpgradeable} from "openzeppelin-contracts-upgradeable/contracts/access/extensions/AccessControlDefaultAdminRulesUpgradeable.sol";
 import {UUPSUpgradeable, Initializable} from "openzeppelin-contracts-upgradeable/contracts/proxy/utils/UUPSUpgradeable.sol";
 
 /**
@@ -14,12 +14,13 @@ import {UUPSUpgradeable, Initializable} from "openzeppelin-contracts-upgradeable
 contract CashDataProvider is
     ICashDataProvider,
     UUPSUpgradeable,
-    OwnableUpgradeable
+    AccessControlDefaultAdminRulesUpgradeable
 {
+    bytes32 public constant ETHER_FI_WALLET_ROLE = keccak256("ETHER_FI_WALLET_ROLE");
+    bytes32 public constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
+
     // Delay for timelock
     uint64 private _delay;
-    // Address of the Cash Wallet
-    address private _etherFiWallet;
     // Address of the Cash MultiSig
     address private _etherFiCashMultiSig;
     // Address of the Cash Debt Manager
@@ -46,9 +47,11 @@ contract CashDataProvider is
         address __aaveAdapter,
         address __userSafeFactory
     ) external initializer {
-        __Ownable_init(__owner);
+        __AccessControlDefaultAdminRules_init(uint48(__delay), __owner);
+        _grantRole(ADMIN_ROLE, __owner);
+        _grantRole(ETHER_FI_WALLET_ROLE, __etherFiWallet);
+
         _delay = __delay;
-        _etherFiWallet = __etherFiWallet;
         _etherFiCashMultiSig = __etherFiCashMultiSig; 
         _etherFiCashDebtManager = __etherFiCashDebtManager;
         _priceProvider = __priceProvider;
@@ -59,7 +62,7 @@ contract CashDataProvider is
 
     function _authorizeUpgrade(
         address newImplementation
-    ) internal override onlyOwner {}
+    ) internal override onlyRole(DEFAULT_ADMIN_ROLE) {}
 
     /**
      * @inheritdoc ICashDataProvider
@@ -71,8 +74,8 @@ contract CashDataProvider is
     /**
      * @inheritdoc ICashDataProvider
      */
-    function etherFiWallet() external view returns (address) {
-        return _etherFiWallet;
+    function isEtherFiWallet(address wallet) external view returns (bool) {
+        return hasRole(ETHER_FI_WALLET_ROLE, wallet);
     }
 
     /**
@@ -127,7 +130,7 @@ contract CashDataProvider is
     /**
      * @inheritdoc ICashDataProvider
      */
-    function setDelay(uint64 __delay) external onlyOwner {
+    function setDelay(uint64 __delay) external onlyRole(ADMIN_ROLE) {
         if (__delay == 0) revert InvalidValue();
         emit DelayUpdated(_delay, __delay);
         _delay = __delay;
@@ -136,17 +139,27 @@ contract CashDataProvider is
     /**
      * @inheritdoc ICashDataProvider
      */
-    function setEtherFiWallet(address wallet) external onlyOwner {
+    function grantEtherFiWalletRole(address wallet) external onlyRole(ADMIN_ROLE) {
         if (wallet == address(0)) revert InvalidValue();
+        if (hasRole(ETHER_FI_WALLET_ROLE, wallet)) revert AlreadyAWhitelistedEtherFiWallet();
+        _grantRole(ETHER_FI_WALLET_ROLE, wallet);
 
-        emit EtherFiWalletUpdated(_etherFiWallet, wallet);
-        _etherFiWallet = wallet;
+        emit EtherFiWalletAdded(wallet);
     }
 
     /**
      * @inheritdoc ICashDataProvider
      */
-    function setEtherFiCashMultiSig(address cashMultiSig) external onlyOwner {
+    function revokeEtherFiWalletRole(address wallet) external onlyRole(ADMIN_ROLE) {
+        if (!hasRole(ETHER_FI_WALLET_ROLE, wallet)) revert NotAWhitelistedEtherFiWallet();
+        _revokeRole(ETHER_FI_WALLET_ROLE, wallet);
+        emit EtherFiWalletRemoved(wallet);
+    }
+
+    /**
+     * @inheritdoc ICashDataProvider
+     */
+    function setEtherFiCashMultiSig(address cashMultiSig) external onlyRole(ADMIN_ROLE) {
         if (cashMultiSig == address(0)) revert InvalidValue();
 
         emit CashMultiSigUpdated(_etherFiCashMultiSig, cashMultiSig);
@@ -158,7 +171,7 @@ contract CashDataProvider is
      */
     function setEtherFiCashDebtManager(
         address cashDebtManager
-    ) external onlyOwner {
+    ) external onlyRole(ADMIN_ROLE) {
         if (cashDebtManager == address(0)) revert InvalidValue();
 
         emit CashDebtManagerUpdated(_etherFiCashDebtManager, cashDebtManager);
@@ -168,8 +181,8 @@ contract CashDataProvider is
     /**
      * @inheritdoc ICashDataProvider
      */
-    function setPriceProvider(address priceProviderAddr) external onlyOwner {
-        if (_priceProvider == address(0)) revert InvalidValue();
+    function setPriceProvider(address priceProviderAddr) external onlyRole(ADMIN_ROLE) {
+        if (priceProviderAddr == address(0)) revert InvalidValue();
         emit PriceProviderUpdated(_priceProvider, priceProviderAddr);
         _priceProvider = priceProviderAddr;
     }
@@ -177,8 +190,8 @@ contract CashDataProvider is
     /**
      * @inheritdoc ICashDataProvider
      */
-    function setSwapper(address swapperAddr) external onlyOwner {
-        if (_swapper == address(0)) revert InvalidValue();
+    function setSwapper(address swapperAddr) external onlyRole(ADMIN_ROLE) {
+        if (swapperAddr == address(0)) revert InvalidValue();
         emit SwapperUpdated(_swapper, swapperAddr);
         _swapper = swapperAddr;
     }
@@ -186,7 +199,7 @@ contract CashDataProvider is
     /**
      * @inheritdoc ICashDataProvider
      */
-    function setAaveAdapter(address adapter) external onlyOwner {
+    function setAaveAdapter(address adapter) external onlyRole(ADMIN_ROLE) {
         if (adapter == address(0)) revert InvalidValue();
         emit AaveAdapterUpdated(_aaveAdapter, adapter);
         _aaveAdapter = adapter;
@@ -195,7 +208,8 @@ contract CashDataProvider is
     /**
      * @inheritdoc ICashDataProvider
      */
-    function setUserSafeFactory(address factory) external onlyOwner {
+    function setUserSafeFactory(address factory) external onlyRole(ADMIN_ROLE) {
+        if (factory == address(0)) revert InvalidValue();
         emit UserSafeFactoryUpdated(_userSafeFactory, factory);
         _userSafeFactory = factory;
     }

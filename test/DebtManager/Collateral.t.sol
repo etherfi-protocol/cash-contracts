@@ -34,10 +34,12 @@ contract DebtManagerCollateralTest is DebtManagerSetup {
     }
 
     function test_CanAddOrRemoveSupportedCollateralTokens() public {
+        vm.startPrank(owner);
+        
         priceProvider = PriceProvider(
             address(new MockPriceProvider(mockWeETHPriceInUsd))
         );
-        vm.prank(owner);
+
         cashDataProvider.setPriceProvider(address(priceProvider));
 
         address newCollateralToken = address(usdc);
@@ -46,7 +48,6 @@ contract DebtManagerCollateralTest is DebtManagerSetup {
         collateralTokenConfig.liquidationThreshold = newLiquidationThreshold;
         collateralTokenConfig.liquidationBonus = newLiquidationBonus;
 
-        vm.startPrank(owner);
         debtManager.supportCollateralToken(
             newCollateralToken,
             collateralTokenConfig
