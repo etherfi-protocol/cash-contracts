@@ -3,9 +3,7 @@ pragma solidity ^0.8.24;
 
 import {SafeERC20, IERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IEtherFiCashAaveV3Adapter} from "../interfaces/IEtherFiCashAaveV3Adapter.sol";
-
 library AaveLib {
-    error AaveAdapterNotSet();
     error InvalidMarketOperationType();
 
     enum MarketOperationType {
@@ -21,8 +19,6 @@ library AaveLib {
         uint8 marketOperationType,
         bytes calldata data
     ) internal {
-        if (aaveV3Adapter == address(0)) revert AaveAdapterNotSet();
-
         if (marketOperationType == uint8(MarketOperationType.Supply)) {
             (address token, uint256 amount) = abi.decode(
                 data,

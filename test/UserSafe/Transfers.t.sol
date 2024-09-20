@@ -65,9 +65,17 @@ contract UserSafeTransfersTest is UserSafeSetup {
     }
 
     function test_SwapAndTransferForSpending() public {
-        uint256 inputAmountWeETHToSwap = 1 ether;
-        uint256 outputMinUsdcAmount = 1500e6;
-        uint256 amountUsdcToSend = 100e6;
+        uint256 inputAmountToSwap = 100e6;
+        uint256 outputMinUsdcAmount = 90e6;
+        uint256 amountUsdcToSend = 50e6;
+        address usdt = chainConfig.usdt;
+
+        deal(usdt, address(aliceSafe), 1 ether);
+        address[] memory assets = new address[](1);
+        assets[0] = usdt;
+        swapper.approveAssets(assets);
+
+        uint256 aliceSafeUsdtBalBefore = ERC20(usdt).balanceOf(address(aliceSafe));
 
         bytes memory swapData;
         if (isFork(chainId))
@@ -75,9 +83,10 @@ contract UserSafeTransfersTest is UserSafeSetup {
                 chainId,
                 address(swapper),
                 address(aliceSafe),
-                address(weETH),
+                address(usdt),
                 address(usdc),
-                inputAmountWeETHToSwap
+                inputAmountToSwap,
+                ERC20(usdt).decimals()
             );
 
         uint256 cashMultiSigUsdcBalBefore = usdc.balanceOf(etherFiCashMultisig);
@@ -85,15 +94,15 @@ contract UserSafeTransfersTest is UserSafeSetup {
         vm.prank(etherFiWallet);
         vm.expectEmit(true, true, true, true);
         emit IUserSafe.SwapTransferForSpending(
-            address(weETH),
-            inputAmountWeETHToSwap,
+            address(usdt),
+            inputAmountToSwap,
             address(usdc),
             amountUsdcToSend
         );
         aliceSafe.swapAndTransfer(
-            address(weETH),
+            address(usdt),
             address(usdc),
-            inputAmountWeETHToSwap,
+            inputAmountToSwap,
             outputMinUsdcAmount,
             0,
             amountUsdcToSend,
@@ -107,8 +116,8 @@ contract UserSafeTransfersTest is UserSafeSetup {
             amountUsdcToSend
         );
         assertEq(
-            aliceSafeWeETHBalanceBefore - weETH.balanceOf(address(aliceSafe)),
-            inputAmountWeETHToSwap
+            aliceSafeUsdtBalBefore - ERC20(usdt).balanceOf(address(aliceSafe)),
+            inputAmountToSwap
         );
 
         // test_CannotSwapWeEthToUsdcAndTransferIfAmountReceivedIsLess
@@ -123,9 +132,9 @@ contract UserSafeTransfersTest is UserSafeSetup {
         vm.prank(etherFiWallet);
         vm.expectRevert(IUserSafe.TransferAmountGreaterThanReceived.selector);
         aliceSafe.swapAndTransfer(
-            address(weETH),
+            address(usdt),
             address(usdc),
-            inputAmountWeETHToSwap,
+            inputAmountToSwap,
             outputMinUsdcAmount,
             0,
             newAmountUsdcToSend,
@@ -139,14 +148,12 @@ contract UserSafeTransfersTest is UserSafeSetup {
         );
 
         vm.warp(block.timestamp + delay + 1);
-        uint256 newInputAmt = 5 ether;
-        newAmountUsdcToSend =
-            aliceSafe.applicableSpendingLimit().spendingLimit +
-            1;
+        uint256 newInputAmt = 2000e6;
+        newAmountUsdcToSend = aliceSafe.applicableSpendingLimit().spendingLimit + 1;
         vm.prank(etherFiWallet);
         vm.expectRevert(IUserSafe.ExceededSpendingLimit.selector);
         aliceSafe.swapAndTransfer(
-            address(weETH),
+            address(usdt),
             address(usdc),
             newInputAmt,
             outputMinUsdcAmount,

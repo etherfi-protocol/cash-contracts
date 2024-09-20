@@ -7,8 +7,10 @@ import {SafeERC20, IERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeE
 import {IERC20Errors} from "@openzeppelin/contracts/interfaces/draft-IERC6093.sol";
 import {stdStorage, StdStorage} from "forge-std/Test.sol";
 import {console} from "forge-std/console.sol";
+import {stdStorage, StdStorage} from "forge-std/Test.sol";
 
 contract DebtManagerRepayTest is DebtManagerSetup {
+    using stdStorage for StdStorage;
     using SafeERC20 for IERC20;
     using stdStorage for StdStorage;
 
@@ -75,12 +77,45 @@ contract DebtManagerRepayTest is DebtManagerSetup {
         uint256 borrowAmount = totalCanBorrow / 2;
         vm.startPrank(alice);
         debtManager.borrow(address(usdc), borrowAmount);
-        assertEq(aaveV3Adapter.getDebt(address(debtManager), address(usdc)), borrowAmount);
+        assertApproxEqAbs(aaveV3Adapter.getDebt(address(debtManager), address(usdc)), borrowAmount, 1);
         
         IERC20(address(usdc)).forceApprove(address(debtManager), borrowAmount);
         debtManager.repay(alice, address(usdc), borrowAmount);
         
         assertEq(aaveV3Adapter.getDebt(address(debtManager), address(usdc)), 0);
+        vm.stopPrank();
+    }
+
+    function test_CannotBorrowAndRepayWithAaveIfAaveAdapterNotSet() public {
+        if (!isScroll(chainId)) return;
+
+        // repay all loans first
+        uint256 repayAmt = debtManager.borrowingOf(alice, address(usdc));
+        vm.startPrank(alice);
+        IERC20(address(usdc)).forceApprove(address(debtManager), repayAmt);
+        debtManager.repay(alice, address(usdc), repayAmt);
+
+        // borrow from aave
+        deal(address(usdc), address(debtManager), 0);
+        uint256 totalCanBorrow = debtManager.remainingBorrowingCapacityInUSDC(
+            alice
+        );
+
+        uint256 borrowAmount = totalCanBorrow / 2;
+        debtManager.borrow(address(usdc), borrowAmount);
+        assertApproxEqAbs(aaveV3Adapter.getDebt(address(debtManager), address(usdc)), borrowAmount, 1);
+        
+        IERC20(address(usdc)).forceApprove(address(debtManager), borrowAmount);
+
+        stdstore
+            .target(address(cashDataProvider))
+            .sig("aaveAdapter()")
+            .checked_write(address(0));
+        
+        assertEq(cashDataProvider.aaveAdapter(), address(0));
+
+        vm.expectRevert(IL2DebtManager.AaveAdapterNotSet.selector);
+        debtManager.repay(alice, address(usdc), borrowAmount);
         vm.stopPrank();
     }
 

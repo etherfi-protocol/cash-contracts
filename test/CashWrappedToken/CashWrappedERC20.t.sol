@@ -8,7 +8,7 @@ import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IER
 
 error OwnableUnauthorizedAccount(address account);
 
-contract CashWrappedTokenTest is Test {
+contract CashWrappedERC20Test is Test {
     address owner = makeAddr("owner");
     address notOwner = makeAddr("notOwner");
 
@@ -171,6 +171,86 @@ contract CashWrappedTokenTest is Test {
 
         assertEq(wweETH.balanceOf(minters[0]), 0);
         assertEq(wweETH.balanceOf(recipients[0]), amount);
+    }
+
+    function test_TransferWrappedERC20() public {
+        address[] memory minters = new address[](1);
+        minters[0] = makeAddr("minter");
+        bool[] memory whitelists = new bool[](1);
+        whitelists[0] = true;
+
+        vm.startPrank(owner);
+        tokenFactory.whitelistMinters(address(weETH), minters, whitelists);
+        tokenFactory.whitelistRecipients(address(weETH), minters, whitelists);
+        vm.stopPrank();
+
+        uint256 amount = 10 ether;
+        deal(address(weETH), minters[0], amount);
+
+        vm.startPrank(minters[0]);
+        weETH.approve(address(wweETH), amount);
+        wweETH.mint(minters[0], amount);
+        
+        vm.expectRevert(CashWrappedERC20.NotAWhitelistedRecipient.selector);
+        wweETH.transfer(owner, amount);
+        vm.stopPrank();
+
+        address[] memory newMinter = new address[](1);
+        newMinter[0] = owner;
+        vm.prank(owner);
+        tokenFactory.whitelistRecipients(address(weETH), newMinter, whitelists);
+
+        uint256 ownerBalBefore = wweETH.balanceOf(owner);
+        uint256 minterBalBefore = wweETH.balanceOf(minters[0]);
+
+        vm.prank(minters[0]);
+        wweETH.transfer(owner, amount);
+
+        uint256 ownerBalAfter = wweETH.balanceOf(owner);
+        uint256 minterBalAfter = wweETH.balanceOf(minters[0]);
+
+        assertEq(ownerBalAfter - ownerBalBefore, amount);
+        assertEq(minterBalBefore - minterBalAfter, amount);
+    }
+
+    function test_TransferFromWrappedERC20() public {
+        address[] memory minters = new address[](1);
+        minters[0] = makeAddr("minter");
+        bool[] memory whitelists = new bool[](1);
+        whitelists[0] = true;
+
+        vm.startPrank(owner);
+        tokenFactory.whitelistMinters(address(weETH), minters, whitelists);
+        tokenFactory.whitelistRecipients(address(weETH), minters, whitelists);
+        vm.stopPrank();
+
+        uint256 amount = 10 ether;
+        deal(address(weETH), minters[0], amount);
+
+        vm.startPrank(minters[0]);
+        weETH.approve(address(wweETH), amount);
+        wweETH.mint(minters[0], amount);
+        wweETH.approve(owner, amount);
+        vm.stopPrank();
+
+        vm.startPrank(owner);
+        vm.expectRevert(CashWrappedERC20.NotAWhitelistedRecipient.selector);
+        wweETH.transferFrom(minters[0], owner, amount);
+
+        address[] memory newMinter = new address[](1);
+        newMinter[0] = owner;
+        tokenFactory.whitelistRecipients(address(weETH), newMinter, whitelists);
+        
+        uint256 ownerBalBefore = wweETH.balanceOf(owner);
+        uint256 minterBalBefore = wweETH.balanceOf(minters[0]);
+        wweETH.transferFrom(minters[0], owner, amount);
+
+        uint256 ownerBalAfter = wweETH.balanceOf(owner);
+        uint256 minterBalAfter = wweETH.balanceOf(minters[0]);
+
+        assertEq(ownerBalAfter - ownerBalBefore, amount);
+        assertEq(minterBalBefore - minterBalAfter, amount);
+        vm.stopPrank();
     }
 
     function test_WithdrawWrappedToken() public {

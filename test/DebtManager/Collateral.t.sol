@@ -5,8 +5,10 @@ import {DebtManagerSetup, PriceProvider, MockPriceProvider} from "./DebtManagerS
 import {IL2DebtManager} from "../../src/interfaces/IL2DebtManager.sol";
 import {SafeERC20, IERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IERC20Errors} from "@openzeppelin/contracts/interfaces/draft-IERC6093.sol";
+import {stdStorage, StdStorage} from "forge-std/Test.sol";
 
 contract DebtManagerCollateralTest is DebtManagerSetup {
+    using stdStorage for StdStorage;
     using SafeERC20 for IERC20;
 
     uint80 newLtv = 80e18;
@@ -24,10 +26,25 @@ contract DebtManagerCollateralTest is DebtManagerSetup {
         IL2DebtManager.CollateralTokenConfig memory collateralTokenConfig;
         collateralTokenConfig.ltv = 90e18;
         collateralTokenConfig.liquidationThreshold = 80e18;
+        collateralTokenConfig.liquidationBonus = 10e18;
 
         vm.startPrank(owner);
         vm.expectRevert(
             IL2DebtManager.LtvCannotBeGreaterThanLiquidationThreshold.selector
+        );
+        debtManager.setCollateralTokenConfig(address(weETH), collateralTokenConfig);
+        vm.stopPrank();
+    }
+
+    function test_LiquidationParamsCannotBeInvalid() public {
+        IL2DebtManager.CollateralTokenConfig memory collateralTokenConfig;
+        collateralTokenConfig.ltv = 80e18;
+        collateralTokenConfig.liquidationThreshold = 90e18;
+        collateralTokenConfig.liquidationBonus = 11e18;
+
+        vm.startPrank(owner);
+        vm.expectRevert(
+            IL2DebtManager.InvalidValue.selector
         );
         debtManager.setCollateralTokenConfig(address(weETH), collateralTokenConfig);
         vm.stopPrank();
@@ -48,6 +65,12 @@ contract DebtManagerCollateralTest is DebtManagerSetup {
         collateralTokenConfig.liquidationThreshold = newLiquidationThreshold;
         collateralTokenConfig.liquidationBonus = newLiquidationBonus;
 
+        IL2DebtManager.CollateralTokenConfig memory collateralTokenConfigBefore;
+
+        vm.expectEmit(true, true, true, true);
+        emit IL2DebtManager.CollateralTokenAdded(newCollateralToken);
+        vm.expectEmit(true, true, true, true);
+        emit IL2DebtManager.CollateralTokenConfigSet(newCollateralToken, collateralTokenConfigBefore, collateralTokenConfig);
         debtManager.supportCollateralToken(
             newCollateralToken,
             collateralTokenConfig
@@ -64,6 +87,12 @@ contract DebtManagerCollateralTest is DebtManagerSetup {
         assertEq(debtManager.getCollateralTokens()[0], address(weETH));
         assertEq(debtManager.getCollateralTokens()[1], newCollateralToken);
 
+        IL2DebtManager.CollateralTokenConfig memory collateralTokenConfigAfter = collateralTokenConfigBefore;
+        collateralTokenConfigBefore = debtManager.collateralTokenConfig(address(weETH));
+        vm.expectEmit(true, true, true, true);
+        emit IL2DebtManager.CollateralTokenConfigSet(address(weETH), collateralTokenConfigBefore, collateralTokenConfigAfter);
+        vm.expectEmit(true, true, true, true);
+        emit IL2DebtManager.CollateralTokenRemoved(address(weETH));
         debtManager.unsupportCollateralToken(address(weETH));
         assertEq(debtManager.getCollateralTokens().length, 1);
         assertEq(debtManager.getCollateralTokens()[0], newCollateralToken);
@@ -74,6 +103,52 @@ contract DebtManagerCollateralTest is DebtManagerSetup {
         assertEq(configWethFromContract.liquidationThreshold, 0);
         assertEq(configWethFromContract.liquidationBonus, 0);
 
+        vm.stopPrank();
+    }
+
+    function test_CannotAddCollateralTokenIfLtvGreaterThanLiquidationThreshold() public {
+        vm.startPrank(owner);
+        
+        priceProvider = PriceProvider(
+            address(new MockPriceProvider(mockWeETHPriceInUsd))
+        );
+
+        cashDataProvider.setPriceProvider(address(priceProvider));
+
+        address newCollateralToken = address(usdc);
+        IL2DebtManager.CollateralTokenConfig memory collateralTokenConfig;
+        collateralTokenConfig.ltv = 10;
+        collateralTokenConfig.liquidationThreshold = 5;
+        collateralTokenConfig.liquidationBonus = 5;
+
+        vm.expectRevert(IL2DebtManager.LtvCannotBeGreaterThanLiquidationThreshold.selector);
+        debtManager.supportCollateralToken(
+            newCollateralToken,
+            collateralTokenConfig
+        );
+        vm.stopPrank();
+    }
+
+    function test_CannotAddCollateralTokenIfLiquidationParamsAreInvalid() public {
+        vm.startPrank(owner);
+        
+        priceProvider = PriceProvider(
+            address(new MockPriceProvider(mockWeETHPriceInUsd))
+        );
+
+        cashDataProvider.setPriceProvider(address(priceProvider));
+
+        address newCollateralToken = address(usdc);
+        IL2DebtManager.CollateralTokenConfig memory collateralTokenConfig;
+        collateralTokenConfig.ltv = 80e18;
+        collateralTokenConfig.liquidationThreshold = 90e18;
+        collateralTokenConfig.liquidationBonus = 11e18;
+
+        vm.expectRevert(IL2DebtManager.InvalidValue.selector);
+        debtManager.supportCollateralToken(
+            newCollateralToken,
+            collateralTokenConfig
+        );
         vm.stopPrank();
     }
 
@@ -225,6 +300,24 @@ contract DebtManagerCollateralTest is DebtManagerSetup {
         assertEq(totalCollateralAmountAfter[0].amount, amount);
         assertEq(totalCollateralInUsdcAfter, collateralValueInUsdc);
 
+        vm.stopPrank();
+    }
+
+    function test_CannotDepositCollateralIfAaveAdapterNotSet() public {
+        stdstore
+            .target(address(cashDataProvider))
+            .sig("aaveAdapter()")
+            .checked_write(address(0));
+        
+        assertEq(cashDataProvider.aaveAdapter(), address(0));
+        
+        uint256 amount = 0.01 ether;
+
+        vm.startPrank(alice);
+        IERC20(address(weETH)).safeIncreaseAllowance(address(debtManager), amount);
+        
+        vm.expectRevert(IL2DebtManager.AaveAdapterNotSet.selector);
+        debtManager.depositCollateral(address(weETH), alice, amount);
         vm.stopPrank();
     }
 

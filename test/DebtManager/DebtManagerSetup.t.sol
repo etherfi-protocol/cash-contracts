@@ -12,7 +12,7 @@ import {IEtherFiCashAaveV3Adapter, EtherFiCashAaveV3Adapter} from "../../src/ada
 import {MockAaveAdapter} from "../../src/mocks/MockAaveAdapter.sol";
 import {MockPriceProvider} from "../../src/mocks/MockPriceProvider.sol";
 import {PriceProvider} from "../../src/oracle/PriceProvider.sol";
-import {IL2DebtManager, L2DebtManager} from "../../src/L2DebtManager.sol";
+import {IL2DebtManager} from "../../src/interfaces/IL2DebtManager.sol";
 import {UUPSProxy} from "../../src/UUPSProxy.sol";
 import {CashDataProvider} from "../../src/utils/CashDataProvider.sol";
 import {DebtManagerCore} from "../../src/debt-manager/DebtManagerCore.sol";
@@ -52,6 +52,7 @@ contract DebtManagerSetup is Utils {
     uint80 liquidationThreshold = 60e18; // 60%
     uint96 liquidationBonus = 5e18; // 5%
     uint64 borrowApyPerSecond = 1e16; // 0.01%
+    uint128 minShares;
 
     uint64 delay = 10;
     address etherFiWallet = makeAddr("etherFiWallet");
@@ -139,9 +140,11 @@ contract DebtManagerSetup is Utils {
             memory borrowTokenConfig = new IL2DebtManager.BorrowTokenConfigData[](
                 1
             );
+
+        minShares = uint128(1 * 10 ** usdc.decimals());
         borrowTokenConfig[0] = IL2DebtManager.BorrowTokenConfigData({
            borrowApy: borrowApyPerSecond,
-           minShares: uint128(1 * 10 ** usdc.decimals())
+           minShares: minShares
         });
 
         address debtManagerCoreImpl = address(new DebtManagerCore());

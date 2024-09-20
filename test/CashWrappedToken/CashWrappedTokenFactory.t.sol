@@ -46,6 +46,17 @@ contract CashWrappedTokenFactoryTest is Test {
         assertEq(wUsdc.decimals(), usdc.decimals());
     }
 
+    function test_CannotDeployWrapperIfAlreadyExists() public {
+        vm.prank(owner);
+        vm.expectRevert(CashTokenWrapperFactory.WrappedTokenAlreadyExists.selector);
+        tokenFactory.deployWrapper(address(weETH));
+    }
+
+    function test_CannotDeployWrapperIfInputTokenIsAddressZero() public {
+        vm.prank(owner);
+        vm.expectRevert(CashTokenWrapperFactory.InvalidValue.selector);
+        tokenFactory.deployWrapper(address(0));
+    }
 
     function test_Upgrade() public {
         CashWrappedERC20V2 implV2 = new CashWrappedERC20V2();
@@ -59,5 +70,71 @@ contract CashWrappedTokenFactoryTest is Test {
 
         assertEq(CashWrappedERC20V2(address(wUsdc)).version(), 2);
         assertEq(CashWrappedERC20V2(address(wweETH)).version(), 2);
+    }
+
+    function test_FactoryWhitelistMinters() public {
+        address minter = makeAddr("minter");
+        address[] memory minters = new address[](1);
+        minters[0] = minter;
+
+        bool[] memory whitelists = new bool[](1);
+        whitelists[0] = true;
+
+        vm.prank(notOwner);
+        vm.expectRevert(abi.encodeWithSelector(OwnableUnauthorizedAccount.selector, notOwner));
+        tokenFactory.whitelistMinters(address(weETH), minters, whitelists);
+
+        vm.prank(owner);
+        vm.expectEmit(true, true, true, true);
+        emit CashWrappedERC20.WhitelistMinters(minters, whitelists);
+        tokenFactory.whitelistMinters(address(weETH), minters, whitelists); 
+
+        assertEq(wweETH.isWhitelistedMinter(minter), true);
+    }
+
+    function test_CannotWhitelistMintersIfWrapperTokenDoesNotExist() public {
+        address minter = makeAddr("minter");
+        address[] memory minters = new address[](1);
+        minters[0] = minter;
+
+        bool[] memory whitelists = new bool[](1);
+        whitelists[0] = true;
+
+        vm.prank(owner);
+        vm.expectRevert(CashTokenWrapperFactory.WrappedTokenDoesntExists.selector);
+        tokenFactory.whitelistMinters(address(wweETH), minters, whitelists);
+    }
+
+    function test_FactoryWhitelistRecipients() public {
+        address recipient = makeAddr("recipient");
+        address[] memory recipients = new address[](1);
+        recipients[0] = recipient;
+
+        bool[] memory whitelists = new bool[](1);
+        whitelists[0] = true;
+
+        vm.prank(notOwner);
+        vm.expectRevert(abi.encodeWithSelector(OwnableUnauthorizedAccount.selector, notOwner));
+        tokenFactory.whitelistRecipients(address(weETH), recipients, whitelists);
+
+        vm.prank(owner);
+        vm.expectEmit(true, true, true, true);
+        emit CashWrappedERC20.WhitelistRecipients(recipients, whitelists);
+        tokenFactory.whitelistRecipients(address(weETH), recipients, whitelists); 
+
+        assertEq(wweETH.isWhitelistedRecipient(recipient), true);
+    }
+
+    function test_CannotWhitelistRecipientIfWrapperTokenDoesNotExist() public {
+        address recipient = makeAddr("recipient");
+        address[] memory recipients = new address[](1);
+        recipients[0] = recipient;
+
+        bool[] memory whitelists = new bool[](1);
+        whitelists[0] = true;
+
+        vm.prank(owner);
+        vm.expectRevert(CashTokenWrapperFactory.WrappedTokenDoesntExists.selector);
+        tokenFactory.whitelistRecipients(address(wweETH), recipients, whitelists);
     }
 }

@@ -91,7 +91,8 @@ export const getData = async () => {
   const toAddress = args[4];
   const fromAsset = args[5];
   const toAsset = args[6];
-  const fromAmount = args[7];
+  const fromAmount = args[7]; 
+  const fromAssetDecimals = args[8];
 
   const data = await getOpenOceanSwapData({
     chainId,
@@ -100,6 +101,7 @@ export const getData = async () => {
     fromAsset,
     toAsset,
     fromAmount,
+    fromAssetDecimals
   });
   
   console.log(recodeSwapData(data));
@@ -135,6 +137,7 @@ const getOpenOceanSwapData = async ({
   fromAsset,
   toAsset,
   fromAmount,
+  fromAssetDecimals
 }: {
   chainId: string;
   fromAddress: string;
@@ -142,11 +145,12 @@ const getOpenOceanSwapData = async ({
   fromAsset: string;
   toAsset: string;
   fromAmount: string;
+  fromAssetDecimals: string;
 }) => {
   const params = {
     inTokenAddress: fromAsset,
     outTokenAddress: toAsset,
-    amount: ethers.utils.formatEther(fromAmount.toString()).toString(),
+    amount: ethers.utils.formatUnits(fromAmount.toString(), fromAssetDecimals.toString()).toString(),
     sender: fromAddress,
     account: toAddress,
     slippage: 1,

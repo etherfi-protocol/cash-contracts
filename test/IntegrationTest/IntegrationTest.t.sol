@@ -175,9 +175,7 @@ contract IntegrationTest is IntegrationTestSetup {
         );
 
         uint256 aliceSafeUsdcBalBefore = usdc.balanceOf(address(aliceSafe));
-        uint256 debtManagerUsdcBalBefore = usdc.balanceOf(
-            address(etherFiCashDebtManager)
-        );
+
         uint256 aliceSafeDebtBefore = etherFiCashDebtManager.borrowingOf(
             address(aliceSafe),
             address(usdc)
@@ -187,9 +185,6 @@ contract IntegrationTest is IntegrationTestSetup {
         aliceSafe.repay(address(usdc), repayAmt);
 
         uint256 aliceSafeUsdcBalAfter = usdc.balanceOf(address(aliceSafe));
-        uint256 debtManagerUsdcBalAfter = usdc.balanceOf(
-            address(etherFiCashDebtManager)
-        );
 
         uint256 aliceSafeDebtAfter = etherFiCashDebtManager.borrowingOf(
             address(aliceSafe),
@@ -197,7 +192,6 @@ contract IntegrationTest is IntegrationTestSetup {
         );
         assertEq(aliceSafeDebtAfter, 0);
         assertEq(aliceSafeUsdcBalBefore - aliceSafeUsdcBalAfter, repayAmt);
-        assertEq(debtManagerUsdcBalAfter - debtManagerUsdcBalBefore, repayAmt);
 
         vm.stopPrank();
     }

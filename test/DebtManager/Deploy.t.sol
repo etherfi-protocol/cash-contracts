@@ -36,5 +36,20 @@ contract DebtManagerDeployTest is DebtManagerSetup {
 
         assertEq(debtManager.getBorrowTokens().length, 1);
         assertEq(debtManager.getBorrowTokens()[0], address(usdc));
+
+        IL2DebtManager.BorrowTokenConfig memory borrowTokenConfig = debtManager.borrowTokenConfig(address(usdc));
+        assertEq(borrowTokenConfig.interestIndexSnapshot, 0);
+        assertEq(borrowTokenConfig.totalBorrowingAmount, 0);
+        assertEq(borrowTokenConfig.totalSharesOfBorrowTokens, 0);
+        assertEq(borrowTokenConfig.lastUpdateTimestamp, block.timestamp);
+        assertEq(borrowTokenConfig.borrowApy, borrowApyPerSecond);
+        assertEq(borrowTokenConfig.minShares, minShares);
+        assertEq(debtManager.totalBorrowingAmount(address(usdc)), 0);
+        
+        (, uint256 totalBorrowings) = debtManager.totalBorrowingAmounts();
+        assertEq(totalBorrowings, 0);
+
+        (, uint256 totalCollateral) = debtManager.totalCollateralAmounts();
+        assertEq(totalCollateral, 0);
     }
 }

@@ -222,6 +222,7 @@ contract DebtManagerStorage is
     error SupplyCapBreached();
     error OnlyUserSafe();
     error TokenWrapperContractNotFound();
+    error AaveAdapterNotSet();
 
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {

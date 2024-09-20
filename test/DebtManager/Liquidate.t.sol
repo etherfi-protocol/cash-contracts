@@ -6,8 +6,10 @@ import {IL2DebtManager} from "../../src/interfaces/IL2DebtManager.sol";
 import {SafeERC20, IERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IERC20Errors} from "@openzeppelin/contracts/interfaces/draft-IERC6093.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
+import {stdStorage, StdStorage} from "forge-std/Test.sol";
 
 contract DebtManagerLiquidateTest is DebtManagerSetup {
+    using stdStorage for StdStorage;
     using Math for uint256;
     using SafeERC20 for IERC20;
 
@@ -117,6 +119,32 @@ contract DebtManagerLiquidateTest is DebtManagerSetup {
         );
         assertApproxEqAbs(aliceCollateralAfter, collateralValueInUsdc - borrowAmt - liquidationBonusInUsdc, 1);
         assertEq(aliceDebtAfter, 0);
+    }
+
+    function test_CannotLiquidateIfAaveAdapterNotSet() public {
+        vm.startPrank(owner);
+
+        IL2DebtManager.CollateralTokenConfig memory collateralTokenConfig;
+        collateralTokenConfig.ltv = 5e18;
+        collateralTokenConfig.liquidationThreshold = 10e18;
+        collateralTokenConfig.liquidationBonus = 5e18;
+ 
+        debtManager.setCollateralTokenConfig(address(weETH), collateralTokenConfig);
+        assertEq(debtManager.liquidatable(alice), true);
+
+        stdstore
+            .target(address(cashDataProvider))
+            .sig("aaveAdapter()")
+            .checked_write(address(0));
+        
+        assertEq(cashDataProvider.aaveAdapter(), address(0));
+
+        address[] memory collateralTokenPreference = debtManager.getCollateralTokens();
+
+        IERC20(address(usdc)).forceApprove(address(debtManager), borrowAmt);
+        vm.expectRevert(IL2DebtManager.AaveAdapterNotSet.selector);
+        debtManager.liquidate(alice, address(usdc), collateralTokenPreference);
+        vm.stopPrank();
     }
 
     function test_PartialLiquidate() public {

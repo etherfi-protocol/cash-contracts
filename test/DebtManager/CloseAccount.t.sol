@@ -5,8 +5,10 @@ import {DebtManagerSetup} from "./DebtManagerSetup.t.sol";
 import {IL2DebtManager} from "../../src/interfaces/IL2DebtManager.sol";
 import {SafeERC20, IERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IERC20Errors} from "@openzeppelin/contracts/interfaces/draft-IERC6093.sol";
+import {stdStorage, StdStorage} from "forge-std/Test.sol";
 
 contract DebtManagerCloseAccountTest is DebtManagerSetup {
+    using stdStorage for StdStorage;
     using SafeERC20 for IERC20;
 
     uint256 collateralAmount = 0.01 ether;
@@ -71,4 +73,18 @@ contract DebtManagerCloseAccountTest is DebtManagerSetup {
         vm.expectRevert(IL2DebtManager.OnlyUserSafe.selector);
         debtManager.closeAccount();
     }
+
+    function test_CannotCloseAccountIfAaveAdapterNotSet() public {
+        stdstore
+            .target(address(cashDataProvider))
+            .sig("aaveAdapter()")
+            .checked_write(address(0));
+        
+        assertEq(cashDataProvider.aaveAdapter(), address(0));
+        
+        vm.prank(alice);
+        vm.expectRevert(IL2DebtManager.AaveAdapterNotSet.selector);
+        debtManager.closeAccount();
+    }
+
 }

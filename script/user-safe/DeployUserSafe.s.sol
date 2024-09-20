@@ -11,11 +11,14 @@ contract DeployUserSafe is Utils {
     UserSafe ownerSafe;
     uint256 defaultSpendingLimit = 10000e6;
     uint256 collateralLimit = 10000e6;
+    address ownerEoa;
 
     function run() public {
         // Pulling deployer info from the environment
         uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
         address deployer = vm.addr(deployerPrivateKey);
+
+        if (ownerEoa == address(0)) ownerEoa = deployer;
 
         // Start broadcast with deployer as the signer
         vm.startBroadcast(deployerPrivateKey);
@@ -37,7 +40,7 @@ contract DeployUserSafe is Utils {
                 abi.encodeWithSelector(
                     // initialize(bytes,uint256,uint256)
                     0x32b218ac,
-                    abi.encode(deployer),
+                    abi.encode(ownerEoa),
                     defaultSpendingLimit,
                     collateralLimit
                 )
@@ -47,7 +50,7 @@ contract DeployUserSafe is Utils {
         string memory parentObject = "parent object";
         string memory deployedAddresses = "addresses";
 
-        vm.serializeAddress(deployedAddresses, "owner", deployer);
+        vm.serializeAddress(deployedAddresses, "owner", ownerEoa);
         string memory addressOutput = vm.serializeAddress(
             deployedAddresses,
             "safe",

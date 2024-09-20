@@ -70,9 +70,13 @@ contract SwapperOpenOcean is ISwapper {
     }
 
     function _approveAssets(address[] memory _assets) internal {
-        for (uint256 i = 0; i < _assets.length; ++i) {
+        for (uint256 i = 0; i < _assets.length; ) {
             // Give the 1Inch router approval to transfer unlimited assets
             IERC20(_assets[i]).forceApprove(swapRouter, type(uint256).max);
+
+            unchecked {
+                ++i;
+            }
         }
     }
 }
