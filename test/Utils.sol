@@ -25,6 +25,7 @@ contract Utils is Test {
     uint256 public constant HUNDRED_PERCENT = 100e18;
     uint256 public constant PRECISION = 1e18;
     uint256 public constant SIX_DECIMALS = 1e6;
+    address eth = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
 
     function getChainConfig(
         string memory chainId

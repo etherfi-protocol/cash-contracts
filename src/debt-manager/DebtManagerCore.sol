@@ -729,7 +729,7 @@ contract DebtManagerCore is DebtManagerStorage {
         CashWrappedERC20(token).withdraw(address(this), amount);
     }
 
-    function _aaveAdapter() internal returns (address) {
+    function _aaveAdapter() internal view returns (address) {
         address aaveAdapter = _cashDataProvider.aaveAdapter();
         if (aaveAdapter == address(0)) revert AaveAdapterNotSet();
 
