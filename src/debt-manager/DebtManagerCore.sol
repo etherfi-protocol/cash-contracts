@@ -407,13 +407,13 @@ contract DebtManagerCore is DebtManagerStorage {
         );
 
         if (shares == 0) revert SharesCannotBeZero();
-        if (shares < _borrowTokenConfig[borrowToken].minShares) revert SharesCannotBeLessThanMinShares();
+        if (_sharesOfBorrowTokens[msg.sender][borrowToken] < shares) revert InsufficientBorrowShares();
 
-        if (_sharesOfBorrowTokens[msg.sender][borrowToken] < shares)
-            revert InsufficientBorrowShares();
+        uint256 sharesLeft = _borrowTokenConfig[borrowToken].totalSharesOfBorrowTokens - shares;
+        if (sharesLeft != 0 && sharesLeft < _borrowTokenConfig[borrowToken].minShares) revert SharesCannotBeLessThanMinShares();
 
         _sharesOfBorrowTokens[msg.sender][borrowToken] -= shares;
-        _borrowTokenConfig[borrowToken].totalSharesOfBorrowTokens -= shares;
+        _borrowTokenConfig[borrowToken].totalSharesOfBorrowTokens = sharesLeft;
 
         IERC20(borrowToken).safeTransfer(msg.sender, amount);
         emit WithdrawBorrowToken(msg.sender, borrowToken, amount);
@@ -436,6 +436,7 @@ contract DebtManagerCore is DebtManagerStorage {
 
         emit DepositedCollateral(msg.sender, user, token, amount);
     }
+
     function borrow(address token, uint256 amount) external onlyUserSafe {
         if (!isBorrowToken(token)) revert UnsupportedBorrowToken();
         _updateBorrowings(msg.sender, token);
@@ -459,6 +460,7 @@ contract DebtManagerCore is DebtManagerStorage {
 
         emit Borrowed(msg.sender, token, amount);
     }
+
     function repay(
         address user,
         address token,
@@ -473,6 +475,7 @@ contract DebtManagerCore is DebtManagerStorage {
 
         _repayWithBorrowToken(token, user, repayDebtUsdcAmt);
     }
+
     function withdrawCollateral(address token, uint256 amount) external onlyUserSafe {
         _updateBorrowings(msg.sender);
         if (!isCollateralToken(token)) revert UnsupportedCollateralToken();
@@ -486,6 +489,7 @@ contract DebtManagerCore is DebtManagerStorage {
 
         emit WithdrawCollateral(msg.sender, token, amount);
     }
+
     function closeAccount() external onlyUserSafe {
         _updateBorrowings(msg.sender);
         (, uint256 userBorrowing) = borrowingOf(msg.sender);
