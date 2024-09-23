@@ -70,10 +70,6 @@ contract DebtManagerStorage is
     uint256 public constant PRECISION = 1e18;
     uint256 public constant SIX_DECIMALS = 1e6;
 
-    //keccak256("DebtManager.admin.impl");
-    bytes32 constant adminImplPosition =
-        0x49d4a010ddc5f453173525f0adf6cfb97318b551312f237c11fd9f432a1f5d21;
-
     ICashDataProvider internal _cashDataProvider;
 
     address[] internal _supportedCollateralTokens;
@@ -98,6 +94,11 @@ contract DebtManagerStorage is
 
     // Shares have 18 decimals
     mapping(address supplier => mapping(address borrowToken => uint256 shares)) internal _sharesOfBorrowTokens;
+    
+    //keccak256("DebtManager.admin.impl");
+    bytes32 constant adminImplPosition =
+        0x49d4a010ddc5f453173525f0adf6cfb97318b551312f237c11fd9f432a1f5d21;
+
     address internal _cashTokenWrapperFactory;
 
 
