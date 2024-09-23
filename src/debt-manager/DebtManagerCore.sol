@@ -373,7 +373,7 @@ contract DebtManagerCore is DebtManagerStorage {
         address user,
         address borrowToken,
         uint256 amount
-    ) external {
+    ) external nonReentrant {
         if (!isBorrowToken(borrowToken)) revert UnsupportedBorrowToken();
         uint256 shares = _borrowTokenConfig[borrowToken]
             .totalSharesOfBorrowTokens == 0
@@ -387,11 +387,11 @@ contract DebtManagerCore is DebtManagerStorage {
         if (shares < _borrowTokenConfig[borrowToken].minShares)
             revert SharesCannotBeLessThanMinShares();
 
-        // Moving this before state update to prevent reentrancy
-        IERC20(borrowToken).safeTransferFrom(msg.sender, address(this), amount);
-
         _sharesOfBorrowTokens[user][borrowToken] += shares;
         _borrowTokenConfig[borrowToken].totalSharesOfBorrowTokens += shares;
+
+        // Moving this before state update to prevent reentrancy
+        IERC20(borrowToken).safeTransferFrom(msg.sender, address(this), amount);
 
         emit Supplied(msg.sender, user, borrowToken, amount);
     }
@@ -465,7 +465,7 @@ contract DebtManagerCore is DebtManagerStorage {
         address user,
         address token,
         uint256 repayDebtUsdcAmt
-    ) external {
+    ) external nonReentrant {
         _updateBorrowings(user, token);
         if (_userBorrowings[user][token] < repayDebtUsdcAmt)
             repayDebtUsdcAmt = _userBorrowings[user][token];
@@ -504,15 +504,11 @@ contract DebtManagerCore is DebtManagerStorage {
                 tokenData[i].amount
             ) revert InsufficientLiquidityPleaseTryAgainLater();
 
-            _userCollateral[msg.sender][tokenData[i].token] -= tokenData[i]
-                .amount;
+            _userCollateral[msg.sender][tokenData[i].token] -= tokenData[i].amount;
             _totalCollateralAmounts[tokenData[i].token] -= tokenData[i].amount;
 
-            IERC20(tokenData[i].token).safeTransfer(
-                msg.sender,
-                tokenData[i].amount
-            );
-
+            IERC20(tokenData[i].token).safeTransfer(msg.sender, tokenData[i].amount);
+            
             unchecked {
                 ++i;
             }
@@ -615,14 +611,9 @@ contract DebtManagerCore is DebtManagerStorage {
         address user,
         uint256 repayDebtUsdcAmt
     ) internal {
-        IERC20(token).safeTransferFrom(
-            msg.sender,
-            address(this),
-            _convertFromSixDecimals(token, repayDebtUsdcAmt)
-        );
-
         _userBorrowings[user][token] -= repayDebtUsdcAmt;
         _borrowTokenConfig[token].totalBorrowingAmount -= repayDebtUsdcAmt;
+        IERC20(token).safeTransferFrom(msg.sender, address(this), _convertFromSixDecimals(token, repayDebtUsdcAmt));
 
         emit Repaid(user, msg.sender, token, repayDebtUsdcAmt);
     }
