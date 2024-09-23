@@ -17,6 +17,8 @@ struct ChainConfig {
 }
 
 contract Utils is Script {
+    address eth = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
+
     function getChainConfig(
         string memory chainId
     ) internal view returns (ChainConfig memory) {

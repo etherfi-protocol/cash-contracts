@@ -15,6 +15,9 @@ import {CashDataProvider} from "../../src/utils/CashDataProvider.sol";
 import {Utils, ChainConfig} from "./Utils.sol";
 import {EtherFiCashAaveV3Adapter} from "../../src/adapters/aave-v3/EtherFiCashAaveV3Adapter.sol";
 import {UUPSProxy} from "../../src/UUPSProxy.sol";
+import {IWeETH} from "../../src/interfaces/IWeETH.sol";
+import {IAggregatorV3} from "../../src/interfaces/IAggregatorV3.sol";
+
 
 contract DeployUserSafeSetup is Utils {
     ERC20 usdc;
@@ -65,10 +68,40 @@ contract DeployUserSafeSetup is Utils {
 
         usdc = ERC20(chainConfig.usdc);
         weETH = ERC20(chainConfig.weETH);
+
+        PriceProvider.Config memory weETHConfig = PriceProvider.Config({
+            oracle: chainConfig.weEthWethOracle,
+            priceFunctionCalldata: hex"",
+            isChainlinkType: true,
+            oraclePriceDecimals: IAggregatorV3(chainConfig.weEthWethOracle).decimals(),
+            maxStaleness: 1 days,
+            dataType: PriceProvider.ReturnType.Int256,
+            isBaseTokenEth: true
+        });
+
+        PriceProvider.Config memory ethConfig = PriceProvider.Config({
+            oracle: chainConfig.ethUsdcOracle,
+            priceFunctionCalldata: hex"",
+            isChainlinkType: true,
+            oraclePriceDecimals: IAggregatorV3(chainConfig.ethUsdcOracle).decimals(),
+            maxStaleness: 1 days,
+            dataType: PriceProvider.ReturnType.Int256,
+            isBaseTokenEth: false
+        });
+
+        address[] memory initialTokens = new address[](2);
+        initialTokens[0] = address(weETH);
+        initialTokens[1] = eth;
+
+        PriceProvider.Config[]
+            memory initialTokensConfig = new PriceProvider.Config[](2);
+        initialTokensConfig[0] = weETHConfig;
+        initialTokensConfig[1] = ethConfig;
+
         priceProvider = new PriceProvider(
-            chainConfig.weETH,
-            chainConfig.weEthWethOracle,
-            chainConfig.ethUsdcOracle
+            owner,
+            initialTokens,
+            initialTokensConfig
         );
         swapper = new SwapperOpenOcean(
             chainConfig.swapRouterOpenOcean,

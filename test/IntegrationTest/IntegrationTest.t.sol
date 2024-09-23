@@ -62,11 +62,13 @@ contract IntegrationTest is IntegrationTestSetup {
                 address(etherFiCashDebtManager),
                 collateralAmount
             );
+
             deal(
                 address(weth),
                 address(etherFiCashDebtManager),
                 collateralAmount
             );
+            
             etherFiCashDebtManager.fundManagementOperation(
                 uint8(IL2DebtManager.MarketOperationType.SupplyAndBorrow),
                 abi.encode(

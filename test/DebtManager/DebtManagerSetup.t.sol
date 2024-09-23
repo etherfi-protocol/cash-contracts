@@ -13,11 +13,12 @@ import {MockAaveAdapter} from "../../src/mocks/MockAaveAdapter.sol";
 import {MockPriceProvider} from "../../src/mocks/MockPriceProvider.sol";
 import {PriceProvider} from "../../src/oracle/PriceProvider.sol";
 import {IL2DebtManager, L2DebtManager} from "../../src/L2DebtManager.sol";
-import {UUPSProxy} from "../../src/UUPSProxy.sol";
 import {CashDataProvider} from "../../src/utils/CashDataProvider.sol";
 import {DebtManagerCore} from "../../src/debt-manager/DebtManagerCore.sol";
 import {DebtManagerAdmin} from "../../src/debt-manager/DebtManagerAdmin.sol";
-import {DebtManagerInitializer} from "../../src/debt-manager/DebtManagerInitializer.sol";
+import {DebtManagerInitializer} from "../../src/debt-manager/DebtManagerInitializer.sol";import {IWeETH} from "../../src/interfaces/IWeETH.sol";
+import {UUPSProxy} from "../../src/UUPSProxy.sol";
+import {IAggregatorV3} from "../../src/interfaces/IAggregatorV3.sol";
 
 contract DebtManagerSetup is Utils {
     using SafeERC20 for IERC20;
@@ -90,10 +91,39 @@ contract DebtManagerSetup is Utils {
             weEthWethOracle = chainConfig.weEthWethOracle;
             ethUsdcOracle = chainConfig.ethUsdcOracle;
 
+            PriceProvider.Config memory weETHConfig = PriceProvider.Config({
+                oracle: weEthWethOracle,
+                priceFunctionCalldata: hex"",
+                isChainlinkType: true,
+                oraclePriceDecimals: IAggregatorV3(weEthWethOracle).decimals(),
+                maxStaleness: 1 days,
+                dataType: PriceProvider.ReturnType.Int256,
+                isBaseTokenEth: true
+            });
+            
+            PriceProvider.Config memory ethConfig = PriceProvider.Config({
+                oracle: ethUsdcOracle,
+                priceFunctionCalldata: hex"",
+                isChainlinkType: true,
+                oraclePriceDecimals: IAggregatorV3(ethUsdcOracle).decimals(),
+                maxStaleness: 1 days,
+                dataType: PriceProvider.ReturnType.Int256,
+                isBaseTokenEth: false
+            });
+
+            address[] memory initialTokens = new address[](2);
+            initialTokens[0] = address(weETH);
+            initialTokens[1] = eth;
+
+            PriceProvider.Config[]
+                memory initialTokensConfig = new PriceProvider.Config[](2);
+            initialTokensConfig[0] = weETHConfig;
+            initialTokensConfig[1] = ethConfig;
+
             priceProvider = new PriceProvider(
-                address(weETH),
-                weEthWethOracle,
-                ethUsdcOracle
+                owner,
+                initialTokens,
+                initialTokensConfig
             );
 
             aaveV3Adapter = IEtherFiCashAaveV3Adapter(

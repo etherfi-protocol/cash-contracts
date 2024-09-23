@@ -23,7 +23,9 @@ import {IPoolDataProvider} from "@aave/interfaces/IPoolDataProvider.sol";
 import {IEtherFiCashAaveV3Adapter, EtherFiCashAaveV3Adapter} from "../../src/adapters/aave-v3/EtherFiCashAaveV3Adapter.sol";
 import {MockAaveAdapter} from "../../src/mocks/MockAaveAdapter.sol";
 import {L2DebtManager} from "../../src/L2DebtManager.sol";
+import {IWeETH} from "../../src/interfaces/IWeETH.sol";
 import {UUPSProxy} from "../../src/UUPSProxy.sol";
+import {IAggregatorV3} from "../../src/interfaces/IAggregatorV3.sol";
 
 contract IntegrationTestSetup is Utils {
     using OwnerLib for address;
@@ -111,10 +113,39 @@ contract IntegrationTestSetup is Utils {
             assets[0] = address(weETH);
 
             swapper = new SwapperOpenOcean(swapRouterOpenOcean, assets);
+            PriceProvider.Config memory weETHConfig = PriceProvider.Config({
+                oracle: weEthWethOracle,
+                priceFunctionCalldata: hex"",
+                isChainlinkType: true,
+                oraclePriceDecimals: IAggregatorV3(weEthWethOracle).decimals(),
+                maxStaleness: 1 days,
+                dataType: PriceProvider.ReturnType.Int256,
+                isBaseTokenEth: true
+            });
+            
+            PriceProvider.Config memory ethConfig = PriceProvider.Config({
+                oracle: ethUsdcOracle,
+                priceFunctionCalldata: hex"",
+                isChainlinkType: true,
+                oraclePriceDecimals: IAggregatorV3(ethUsdcOracle).decimals(),
+                maxStaleness: 1 days,
+                dataType: PriceProvider.ReturnType.Int256,
+                isBaseTokenEth: false
+            });
+
+            address[] memory initialTokens = new address[](2);
+            initialTokens[0] = address(weETH);
+            initialTokens[1] = eth;
+
+            PriceProvider.Config[]
+                memory initialTokensConfig = new PriceProvider.Config[](2);
+            initialTokensConfig[0] = weETHConfig;
+            initialTokensConfig[1] = ethConfig;
+
             priceProvider = new PriceProvider(
-                address(weETH),
-                weEthWethOracle,
-                ethUsdcOracle
+                owner,
+                initialTokens,
+                initialTokensConfig
             );
 
             aavePool = IPool(chainConfig.aaveV3Pool);
