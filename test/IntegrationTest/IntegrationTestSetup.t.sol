@@ -22,7 +22,6 @@ import {IPool} from "@aave/interfaces/IPool.sol";
 import {IPoolDataProvider} from "@aave/interfaces/IPoolDataProvider.sol";
 import {IEtherFiCashAaveV3Adapter, EtherFiCashAaveV3Adapter} from "../../src/adapters/aave-v3/EtherFiCashAaveV3Adapter.sol";
 import {MockAaveAdapter} from "../../src/mocks/MockAaveAdapter.sol";
-import {L2DebtManager} from "../../src/L2DebtManager.sol";
 import {IWeETH} from "../../src/interfaces/IWeETH.sol";
 import {UUPSProxy} from "../../src/UUPSProxy.sol";
 import {IAggregatorV3} from "../../src/interfaces/IAggregatorV3.sol";

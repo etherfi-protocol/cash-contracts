@@ -12,7 +12,7 @@ import {IEtherFiCashAaveV3Adapter, EtherFiCashAaveV3Adapter} from "../../src/ada
 import {MockAaveAdapter} from "../../src/mocks/MockAaveAdapter.sol";
 import {MockPriceProvider} from "../../src/mocks/MockPriceProvider.sol";
 import {PriceProvider} from "../../src/oracle/PriceProvider.sol";
-import {IL2DebtManager, L2DebtManager} from "../../src/L2DebtManager.sol";
+import {IL2DebtManager} from "../../src/interfaces/IL2DebtManager.sol";
 import {CashDataProvider} from "../../src/utils/CashDataProvider.sol";
 import {DebtManagerCore} from "../../src/debt-manager/DebtManagerCore.sol";
 import {DebtManagerAdmin} from "../../src/debt-manager/DebtManagerAdmin.sol";
