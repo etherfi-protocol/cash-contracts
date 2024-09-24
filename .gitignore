@@ -18,3 +18,5 @@ docs/
 .vscode/
 
 node_modules
+
+.certora_internal/
