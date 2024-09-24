@@ -583,40 +583,31 @@ contract DebtManagerCore is DebtManagerStorage {
         uint256 len = collateralTokensToSend.length;
         address aaveAdapter = _aaveAdapter();
 
-        for (uint256 i = 0; i < len; ) {
-            if (collateralTokensToSend[i].amount > 0) {
-                _userCollateral[user][collateralTokensToSend[i].token] -= collateralTokensToSend[i].amount;
-                _totalCollateralAmounts[collateralTokensToSend[i].token] -= collateralTokensToSend[i].amount;
-
-                address wrappedToken = CashTokenWrapperFactory(_cashTokenWrapperFactory).cashWrappedToken(collateralTokensToSend[i].token);
-                AaveLib.withdrawFromAave(
-                    aaveAdapter, 
-                    wrappedToken, 
-                    collateralTokensToSend[i].amount
-                );
-                _unwrapToken(wrappedToken, collateralTokensToSend[i].amount);
-                IERC20(collateralTokensToSend[i].token).safeTransfer(
-                    msg.sender,
-                    collateralTokensToSend[i].amount
-                );
-            }
-
-            unchecked {
-                ++i;
-            }
-        }
-
         uint256 liquidatedAmt = debtAmountToLiquidateInUsdc - remainingDebt;
         _userBorrowings[user][borrowToken] -= liquidatedAmt;
-        _borrowTokenConfig[borrowToken]
-            .totalBorrowingAmount -= liquidatedAmt;
-
+        _borrowTokenConfig[borrowToken].totalBorrowingAmount -= liquidatedAmt;
         IERC20(borrowToken).safeTransferFrom(msg.sender, address(this), liquidatedAmt);
 
         uint256 aaveRepayAmount = IEtherFiCashAaveV3Adapter(aaveAdapter).getDebt(address(this), borrowToken);
         if(aaveRepayAmount != 0) {
             if (aaveRepayAmount > liquidatedAmt) AaveLib.repayOnAave(aaveAdapter, borrowToken, liquidatedAmt);
             else AaveLib.repayOnAave(aaveAdapter, borrowToken, aaveRepayAmount);
+        }
+
+        for (uint256 i = 0; i < len; ) {
+            if (collateralTokensToSend[i].amount > 0) {
+                _userCollateral[user][collateralTokensToSend[i].token] -= collateralTokensToSend[i].amount;
+                _totalCollateralAmounts[collateralTokensToSend[i].token] -= collateralTokensToSend[i].amount;
+
+                address wrappedToken = CashTokenWrapperFactory(_cashTokenWrapperFactory).cashWrappedToken(collateralTokensToSend[i].token);
+                AaveLib.withdrawFromAave(aaveAdapter, wrappedToken, collateralTokensToSend[i].amount);
+                _unwrapToken(wrappedToken, collateralTokensToSend[i].amount);
+                IERC20(collateralTokensToSend[i].token).safeTransfer(msg.sender, collateralTokensToSend[i].amount);
+            }
+
+            unchecked {
+                ++i;
+            }
         }
 
         emit Liquidated(
