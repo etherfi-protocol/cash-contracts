@@ -458,6 +458,20 @@ interface IL2DebtManager {
     ) external view returns (TokenData[] memory, uint256);
 
     /**
+     * @notice Function to fetch the total supplies for a borrow token.
+     * @param borrowToken Address of the borrow token.
+     * @return Total amount supplied.
+     */
+    function totalSupplies(address borrowToken) external view returns (uint256);
+
+    /**
+     * @notice Function to fetch the total supplies for each borrow token.
+     * @return Total amount supplied for each borrow token.
+     * @return Total amount supplied in USD combined.
+     */
+    function totalSupplies() external view returns (TokenData[] memory, uint256);
+
+    /**
      * @notice Function to convert collateral token amount to equivalent USDC amount.
      * @param  collateralToken Address of collateral to convert.
      * @param  collateralAmount Amount of collateral token to convert.

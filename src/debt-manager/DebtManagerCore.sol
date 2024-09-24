@@ -340,7 +340,6 @@ contract DebtManagerCore is DebtManagerStorage {
             );
     }
 
-
     function withdrawableBorrowToken(
         address supplier
     ) public view returns (TokenData[] memory, uint256) {
@@ -355,6 +354,32 @@ contract DebtManagerCore is DebtManagerStorage {
             suppliesData[i] = TokenData({
                 token: borrowToken,
                 amount: amount
+            });
+            unchecked {
+                ++i;
+            }
+        }
+
+        return (suppliesData, amountInUsd);
+    }
+
+    function totalSupplies(address borrowToken) public view returns (uint256) {
+        return _getTotalBorrowTokenAmount(borrowToken);
+    }
+
+    function totalSupplies() external view returns (TokenData[] memory, uint256) {
+        uint256 len = _supportedBorrowTokens.length;
+        TokenData[] memory suppliesData = new TokenData[](len);
+        uint256 amountInUsd = 0;
+
+        for (uint256 i = 0; i < len; ) {
+            address borrowToken = _supportedBorrowTokens[i];
+            uint256 totalSupplied = totalSupplies(borrowToken);
+            amountInUsd += _convertToSixDecimals(borrowToken, totalSupplied);
+
+            suppliesData[i] = TokenData({
+                token: borrowToken,
+                amount: totalSupplied
             });
             unchecked {
                 ++i;
