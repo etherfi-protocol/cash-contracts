@@ -254,6 +254,20 @@ contract DebtManagerCore is DebtManagerStorage {
         totalLiquidStableAmounts = liquidStableAmount();
     }
 
+    function getUserCurrentState(address user)
+        external
+        view
+        returns (
+            TokenData[] memory totalCollaterals,
+            uint256 totalCollateralInUsdc,
+            TokenData[] memory borrowings,
+            uint256 totalBorrowings
+        )
+    {
+        (totalCollaterals, totalCollateralInUsdc) = collateralOf(user);
+        (borrowings, totalBorrowings) = borrowingOf(user);
+    }
+
     function liquidCollateralAmounts()
         public
         view
@@ -314,7 +328,7 @@ contract DebtManagerCore is DebtManagerStorage {
     function withdrawableBorrowToken(
         address supplier,
         address borrowToken
-    ) external view returns (uint256) {
+    ) public view returns (uint256) {
         if (_borrowTokenConfig[borrowToken].totalSharesOfBorrowTokens == 0)
             return 0;
 
@@ -324,6 +338,30 @@ contract DebtManagerCore is DebtManagerStorage {
                 _borrowTokenConfig[borrowToken].totalSharesOfBorrowTokens,
                 Math.Rounding.Floor
             );
+    }
+
+
+    function withdrawableBorrowToken(
+        address supplier
+    ) public view returns (TokenData[] memory, uint256) {
+        uint256 len = _supportedBorrowTokens.length;
+        TokenData[] memory suppliesData = new TokenData[](len);
+        uint256 amountInUsd = 0;
+
+        for (uint256 i = 0; i < len; ) {
+            address borrowToken = _supportedBorrowTokens[i];
+            uint256 amount = withdrawableBorrowToken(supplier, borrowToken);
+            amountInUsd += _convertToSixDecimals(borrowToken, amount);
+            suppliesData[i] = TokenData({
+                token: borrowToken,
+                amount: amount
+            });
+            unchecked {
+                ++i;
+            }
+        }
+
+        return (suppliesData, amountInUsd);
     }
 
     function convertUsdcToCollateralToken(

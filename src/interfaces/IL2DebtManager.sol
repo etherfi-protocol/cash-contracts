@@ -446,6 +446,17 @@ interface IL2DebtManager {
         address borrowToken
     ) external view returns (uint256);
 
+
+    /**
+     * @notice Function to get the withdrawable amount of borrow tokens for a supplier.
+     * @param  supplier Address of the supplier.
+     * @return Array of borrow tokens addresses and respective amounts.
+     * @return Total amount in USD.
+     */
+    function withdrawableBorrowToken(
+        address supplier
+    ) external view returns (TokenData[] memory, uint256);
+
     /**
      * @notice Function to convert collateral token amount to equivalent USDC amount.
      * @param  collateralToken Address of collateral to convert.
@@ -555,5 +566,22 @@ interface IL2DebtManager {
             uint256 totalBorrowings,
             TokenData[] memory totalLiquidCollateralAmounts,
             TokenData[] memory totalLiquidStableAmounts
+        );
+
+    /**
+     * @notice Function to fetch the current state of a user.
+     * @return totalCollaterals Array of collaterals in tuple(address token, uint256 amount) format.
+     * @return totalCollateralInUsdc Total collateral value in USDC.
+     * @return borrowings Array of borrowings in tuple(address token, uint256 amount) format.
+     * @return totalBorrowings Total borrowing value in USDC.
+     */
+    function getUserCurrentState(address user)
+        external
+        view
+        returns (
+            TokenData[] memory totalCollaterals,
+            uint256 totalCollateralInUsdc,
+            TokenData[] memory borrowings,
+            uint256 totalBorrowings
         );
 }
