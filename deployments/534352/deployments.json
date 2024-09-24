@@ -3,7 +3,7 @@
     "cashDataProviderImpl": "0x26950904DCF8EcF21af72eA78D32Da830626820c",
     "cashDataProviderProxy": "0x61D76fB1eb4645F30dE515d0483Bf3488F4a2B99",
     "debtManagerAdminImpl": "0xe417E386Ba5C9EceD30e7A5A028Fd0FF616341fc",
-    "debtManagerCore": "0xA0f3A57B96Fd6CA31Fe02d45cB18c137dB1DD7b6",
+    "debtManagerCore": "0xEC983F0324269D250ad58466a437ca05C53Cd578",
     "debtManagerInitializer": "0x15f3723655A1A3EC1C1c8fDd697262b82f5E8ED2",
     "debtManagerProxy": "0x90da1ABeea650e420bd14bD28418bD613D1786Bb",
     "etherFiCashMultisig": "0x7D829d50aAF400B8B29B3b311F4aD70aD819DC6E",
