@@ -364,17 +364,18 @@ contract DebtManagerCore is DebtManagerStorage {
     }
 
     function totalSupplies(address borrowToken) public view returns (uint256) {
-        return _getTotalBorrowTokenAmount(borrowToken);
+        return _totalSupplies(_aaveAdapter(), borrowToken);
     }
 
     function totalSupplies() external view returns (TokenData[] memory, uint256) {
         uint256 len = _supportedBorrowTokens.length;
         TokenData[] memory suppliesData = new TokenData[](len);
         uint256 amountInUsd = 0;
+        address aaveAdapter = _aaveAdapter();
 
         for (uint256 i = 0; i < len; ) {
             address borrowToken = _supportedBorrowTokens[i];
-            uint256 totalSupplied = totalSupplies(borrowToken);
+            uint256 totalSupplied = _totalSupplies(aaveAdapter, borrowToken);
             amountInUsd += _convertToSixDecimals(borrowToken, totalSupplied);
 
             suppliesData[i] = TokenData({
@@ -783,6 +784,10 @@ contract DebtManagerCore is DebtManagerStorage {
         return aaveAdapter;
     }
 
+    function _totalSupplies(address aaveAdapter, address borrowToken) internal view returns (uint256) {
+        return _getTotalBorrowTokenAmount(borrowToken) - IEtherFiCashAaveV3Adapter(aaveAdapter).getDebt(address(this), borrowToken);
+    }
+
     function _isUserSafe() internal view {
         if (!_cashDataProvider.isUserSafe(msg.sender)) revert OnlyUserSafe();
     }
@@ -830,4 +835,5 @@ contract DebtManagerCore is DebtManagerStorage {
             }
         }
     }
+    
 }
