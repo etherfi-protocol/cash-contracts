@@ -518,52 +518,94 @@ contract UserSafe is IUserSafe, Initializable, UserSafeRecovery {
     ) internal {
         _currentSpendingLimit();
 
-        uint256 startTime = block.timestamp + _cashDataProvider.delay();
-        _incomingSpendingLimitStartTime = startTime;
+        if (limitInUsd > _spendingLimit.spendingLimit) {
+            delete _incomingSpendingLimit;
+            delete _incomingSpendingLimitStartTime;
 
-        _incomingSpendingLimit = SpendingLimitData({
-            spendingLimitType: SpendingLimitTypes(spendingLimitType),
-            renewalTimestamp: _getSpendingLimitRenewalTimestamp(
-                uint64(startTime),
-                SpendingLimitTypes(spendingLimitType)
-            ),
-            spendingLimit: limitInUsd,
-            usedUpAmount: 0
-        });
+            _spendingLimit = SpendingLimitData({
+                spendingLimitType: SpendingLimitTypes(spendingLimitType),
+                renewalTimestamp: _getSpendingLimitRenewalTimestamp(
+                    uint64(block.timestamp),
+                    SpendingLimitTypes(spendingLimitType)
+                ),
+                spendingLimit: limitInUsd,
+                usedUpAmount: 0
+            });
 
-        emit ResetSpendingLimit(spendingLimitType, limitInUsd, startTime);
+            emit ResetSpendingLimit(spendingLimitType, limitInUsd, block.timestamp);
+        } else {
+            uint256 startTime = block.timestamp + _cashDataProvider.delay();
+            _incomingSpendingLimitStartTime = startTime;
+
+            _incomingSpendingLimit = SpendingLimitData({
+                spendingLimitType: SpendingLimitTypes(spendingLimitType),
+                renewalTimestamp: _getSpendingLimitRenewalTimestamp(
+                    uint64(startTime),
+                    SpendingLimitTypes(spendingLimitType)
+                ),
+                spendingLimit: limitInUsd,
+                usedUpAmount: 0
+            });
+            emit ResetSpendingLimit(spendingLimitType, limitInUsd, startTime);
+        }
     }
 
     function _updateSpendingLimit(uint256 limitInUsd) internal {
         _currentSpendingLimit();
 
-        _incomingSpendingLimit = _spendingLimit;
-        _incomingSpendingLimit.spendingLimit = limitInUsd;
+        if (limitInUsd > _spendingLimit.spendingLimit) {
+            delete _incomingSpendingLimit;
+            delete _incomingSpendingLimitStartTime;
+            
+            emit UpdateSpendingLimit(
+                _spendingLimit.spendingLimit,
+                limitInUsd,
+                block.timestamp
+            );
 
-        _incomingSpendingLimitStartTime =
-            block.timestamp +
-            _cashDataProvider.delay();
+            _spendingLimit.spendingLimit = limitInUsd;
+        } else {
+            _incomingSpendingLimit = _spendingLimit;
+            _incomingSpendingLimit.spendingLimit = limitInUsd;
 
-        emit UpdateSpendingLimit(
-            _spendingLimit.spendingLimit,
-            limitInUsd,
-            _incomingSpendingLimitStartTime
-        );
+            _incomingSpendingLimitStartTime =
+                block.timestamp +
+                _cashDataProvider.delay();
+
+            emit UpdateSpendingLimit(
+                _spendingLimit.spendingLimit,
+                limitInUsd,
+                _incomingSpendingLimitStartTime
+            );
+        }
     }
 
     function _setCollateralLimit(uint256 limitInUsd) internal {
         _currentCollateralLimit();
 
-        _incomingCollateralLimitStartTime =
-            block.timestamp +
-            _cashDataProvider.delay();
-        _incomingCollateralLimit = limitInUsd;
+        if (limitInUsd > _collateralLimit) {
+            delete _incomingCollateralLimitStartTime;
+            delete _incomingCollateralLimit;
 
-        emit SetCollateralLimit(
-            _collateralLimit,
-            limitInUsd,
-            _incomingCollateralLimitStartTime
-        );
+            emit SetCollateralLimit(
+                _collateralLimit,
+                limitInUsd,
+                block.timestamp
+            );
+            _collateralLimit = limitInUsd;
+        } else {
+            _incomingCollateralLimitStartTime =
+                block.timestamp +
+                _cashDataProvider.delay();
+            _incomingCollateralLimit = limitInUsd;
+
+            emit SetCollateralLimit(
+                _collateralLimit,
+                limitInUsd,
+                _incomingCollateralLimitStartTime
+            );
+        }
+
     }
 
     function _requestWithdrawal(
