@@ -267,6 +267,8 @@ contract UserSafe is IUserSafe, Initializable, UserSafeRecovery {
         address recipient,
         bytes calldata signature
     ) external incrementNonce currentOwner {
+        if (tokens.length > 1) _checkDuplicates(tokens);
+
         owner().verifyRequestWithdrawalSig(
             _nonce,
             tokens,
@@ -596,13 +598,15 @@ contract UserSafe is IUserSafe, Initializable, UserSafeRecovery {
     }
 
     function _cancelOldWithdrawal() internal {
-        emit WithdrawalCancelled(
-            _pendingWithdrawalRequest.tokens,
-            _pendingWithdrawalRequest.amounts,
-            _pendingWithdrawalRequest.recipient
-        );
+        if (_pendingWithdrawalRequest.tokens.length > 0) {
+            emit WithdrawalCancelled(
+                _pendingWithdrawalRequest.tokens,
+                _pendingWithdrawalRequest.amounts,
+                _pendingWithdrawalRequest.recipient
+            );
 
-        delete _pendingWithdrawalRequest;
+            delete _pendingWithdrawalRequest;
+        }
     }
 
     function _setOwner(bytes calldata __owner) internal {
@@ -812,6 +816,35 @@ contract UserSafe is IUserSafe, Initializable, UserSafeRecovery {
     function _onlyEtherFiWallet() private view {
         if (!_cashDataProvider.isEtherFiWallet(msg.sender))
             revert UnauthorizedCall();
+    }
+
+    function _checkDuplicates(address[] calldata tokens) internal {
+        bytes4 errorSelector = DuplicateTokenFound.selector;
+        // Use assembly to interact with transient storage
+        assembly {
+            // Iterate through the tokens array
+            for { let i := 0 } lt(i, tokens.length) { i := add(i, 1) }
+            {
+                // Load the current token address
+                let token := calldataload(add(tokens.offset, mul(i, 0x20)))
+                
+                // Check if the token has been seen before
+                if tload(token) {
+                    // If found, revert with custom error
+                    mstore(0x00, errorSelector) 
+                    revert(0x00, 0x04)
+                }
+                
+                // Mark the token as seen
+                tstore(token, 1)
+            }
+
+            for { let i := 0 } lt(i, tokens.length) { i := add(i, 1) }
+            {
+                let token := calldataload(add(tokens.offset, mul(i, 0x20)))
+                tstore(token, 0)
+            }
+        }
     }
 
     modifier onlyEtherFiWallet() {

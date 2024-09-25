@@ -61,9 +61,7 @@ contract UserSafeWithdrawalTest is UserSafeSetup {
 
         aliceSafe.requestWithdrawal(tokens, amounts, recipient, signature);
 
-        UserSafe.WithdrawalRequest
-            memory pendingWithdrawalRequestAfter = aliceSafe
-                .pendingWithdrawalRequest();
+        UserSafe.WithdrawalRequest memory pendingWithdrawalRequestAfter = aliceSafe.pendingWithdrawalRequest();
 
         assertEq(pendingWithdrawalRequestAfter.tokens.length, 2);
         assertEq(pendingWithdrawalRequestAfter.tokens[0], tokens[0]);
@@ -262,6 +260,43 @@ contract UserSafeWithdrawalTest is UserSafeSetup {
             .pendingWithdrawalRequest();
         assertEq(withdrawalData.tokens[0], address(usdc));
         assertEq(withdrawalData.amounts[0], amounts[0] - amountToTransfer);
+    }  
+
+    function test_CannotRequestWithdrawalIfArrayLengthMismatch() public {
+        address[] memory tokens = new address[](2);
+        tokens[0] = address(usdc);
+        tokens[1] = address(weETH);
+
+        uint256[] memory amounts = new uint256[](1);
+        amounts[0] = 100e6;
+
+        address recipient = notOwner;
+        
+        vm.startPrank(alice);
+        bytes memory signature = _requestWithdrawal(tokens, amounts, recipient);
+        vm.expectRevert(IUserSafe.ArrayLengthMismatch.selector);
+        aliceSafe.requestWithdrawal(tokens, amounts, recipient, signature);
+        vm.stopPrank();
+    }
+
+    function test_CannotRequestWithdrawalWithDuplicateTokens() public {
+        address[] memory tokens = new address[](3);
+        tokens[0] = address(usdc);
+        tokens[1] = address(weETH);
+        tokens[2] = address(usdc);
+
+        uint256[] memory amounts = new uint256[](3);
+        amounts[0] = 100e6;
+        amounts[1] = 100e6;
+        amounts[2] = 100e6;
+
+        address recipient = notOwner;
+
+        vm.startPrank(alice);
+        bytes memory signature = _requestWithdrawal(tokens, amounts, recipient);
+        vm.expectRevert(IUserSafe.DuplicateTokenFound.selector);
+        aliceSafe.requestWithdrawal(tokens, amounts, recipient, signature);
+        vm.stopPrank();
     }
 
     function _requestWithdrawal(
