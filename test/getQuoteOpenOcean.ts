@@ -10,7 +10,7 @@ function chainIdToChainName(chainId:string) : string {
 }
 
 const OPEN_OCEAN_API_ENDPOINT =
-  `https://open-api.openocean.finance/v3`;
+  `https://open-api.openocean.finance/v4`;
 const OPEN_OCEAN_ROUTER = "0x6352a56caadC4F1E25CD6c75970Fa768A3304e64";
 const SELECTOR = "0x90411a32"
 
@@ -159,7 +159,7 @@ const getOpenOceanSwapData = async ({
 
   let retries = 5;
 
-  const API_ENDPOINT = `${OPEN_OCEAN_API_ENDPOINT}/${chainIdToChainName(chainId)}/swap_quote`;
+  const API_ENDPOINT = `${OPEN_OCEAN_API_ENDPOINT}/${chainIdToChainName(chainId)}/swap`;
 
   while (retries > 0) {
     try {
