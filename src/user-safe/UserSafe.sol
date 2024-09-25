@@ -267,8 +267,7 @@ contract UserSafe is IUserSafe, Initializable, UserSafeRecovery {
         address recipient,
         bytes calldata signature
     ) external incrementNonce currentOwner {
-        // if (tokens.length > 1) 
-        _checkDuplicates(tokens);
+        if (tokens.length > 1) _checkDuplicates(tokens);
 
         owner().verifyRequestWithdrawalSig(
             _nonce,
