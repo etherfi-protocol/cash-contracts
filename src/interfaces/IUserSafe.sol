@@ -113,6 +113,7 @@ interface IUserSafe {
     error InvalidRecoverySignerAddress();
     error UserRecoverySignerIsUnsetCannotUseIndexZero();
     error IncorrectOutputAmount();
+    error DuplicateTokenFound();
 
     /**
      * @notice Function to fetch the address of the owner of the User Safe.

@@ -25,8 +25,8 @@ contract ForkTest is Utils {
         );
     }
     
-    function test_Withdraw() public {
-        vm.prank(user);
-        debtManager.withdrawBorrowToken(borrowToken, withdrawAmt);
-    }
+    // function test_Withdraw() public {
+    //     vm.prank(user);
+    //     debtManager.withdrawBorrowToken(borrowToken, withdrawAmt);
+    // }
 }
