@@ -17,7 +17,7 @@ import {EtherFiCashAaveV3Adapter} from "../../src/adapters/aave-v3/EtherFiCashAa
 import {UUPSProxy} from "../../src/UUPSProxy.sol";
 import {IWeETH} from "../../src/interfaces/IWeETH.sol";
 import {IAggregatorV3} from "../../src/interfaces/IAggregatorV3.sol";
-
+import {CashSafe} from "../../src/cash-safe/CashSafe.sol";
 
 contract DeployUserSafeSetup is Utils {
     ERC20 usdc;
@@ -29,7 +29,7 @@ contract DeployUserSafeSetup is Utils {
     IL2DebtManager debtManager;
     CashDataProvider cashDataProvider;
     EtherFiCashAaveV3Adapter aaveV3Adapter;
-    address etherFiCashMultisig;
+    CashSafe cashSafe;
     address etherFiWallet;
     address owner;
     uint256 delay = 300; // 5 min
@@ -47,6 +47,8 @@ contract DeployUserSafeSetup is Utils {
     uint16 aaveV3ReferralCode = 0;
     uint256 interestRateMode = 2; // variable
 
+    uint32 optimismDestEid = 30111;
+
     function run() public {
         // Pulling deployer info from the environment
         uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
@@ -63,7 +65,6 @@ contract DeployUserSafeSetup is Utils {
         supportedBorrowTokens[0] = chainConfig.usdc;
 
         etherFiWallet = deployerAddress;
-        etherFiCashMultisig = deployerAddress;
         owner = deployerAddress;
 
         usdc = ERC20(chainConfig.usdc);
@@ -112,6 +113,25 @@ contract DeployUserSafeSetup is Utils {
             chainConfig.aaveV3PoolDataProvider,
             aaveV3ReferralCode,
             interestRateMode
+        );
+
+        address cashSafeImpl = address(new CashSafe());
+        cashSafe = CashSafe(payable(address(new UUPSProxy(cashSafeImpl, ""))));
+
+        address[] memory tokens = new address[](1);
+        tokens[0] = address(usdc);
+        CashSafe.DestinationData[] memory destDatas = new CashSafe.DestinationData[](1);
+        destDatas[0] = CashSafe.DestinationData({
+            destEid: optimismDestEid,
+            destRecipient: deployerAddress,
+            stargate: chainConfig.stargateUsdcPool
+        });
+
+        cashSafe.initialize(
+            uint48(delay),
+            deployerAddress,
+            tokens,
+            destDatas
         );
 
         address cashDataProviderImpl = address(new CashDataProvider());
@@ -166,7 +186,7 @@ contract DeployUserSafeSetup is Utils {
             owner,
             uint64(delay),
             etherFiWallet,
-            etherFiCashMultisig,
+            address(cashSafe),
             address(debtManager),
             address(priceProvider),
             address(swapper),
@@ -200,6 +220,16 @@ contract DeployUserSafeSetup is Utils {
             deployedAddresses,
             "priceProvider",
             address(priceProvider)
+        );
+        vm.serializeAddress(
+            deployedAddresses,
+            "cashSafeProxy",
+            address(cashSafe)
+        );
+        vm.serializeAddress(
+            deployedAddresses,
+            "cashSafeImpl",
+            address(cashSafeImpl)
         );
         vm.serializeAddress(deployedAddresses, "swapper", address(swapper));
         vm.serializeAddress(
@@ -246,11 +276,6 @@ contract DeployUserSafeSetup is Utils {
             deployedAddresses,
             "cashDataProviderImpl",
             address(cashDataProviderImpl)
-        );
-        vm.serializeAddress(
-            deployedAddresses,
-            "etherFiCashMultisig",
-            address(etherFiCashMultisig)
         );
         vm.serializeAddress(
             deployedAddresses,

@@ -14,6 +14,7 @@ struct ChainConfig {
     address swapRouterOpenOcean;
     address aaveV3Pool;
     address aaveV3PoolDataProvider;
+    address stargateUsdcPool;
 }
 
 contract Utils is Script {
@@ -75,6 +76,11 @@ contract Utils is Script {
             string.concat(".", chainId, ".", "aaveV3PoolDataProvider")
         );
 
+        address stargateUsdcPool = stdJson.readAddress(
+            inputJson,
+            string.concat(".", chainId, ".", "stargateUsdcPool")
+        );
+
         return
             ChainConfig({
                 rpc: rpc,
@@ -85,7 +91,8 @@ contract Utils is Script {
                 swapRouter1InchV6: swapRouter1InchV6,
                 swapRouterOpenOcean: swapRouterOpenOcean,
                 aaveV3Pool: aaveV3Pool,
-                aaveV3PoolDataProvider: aaveV3PoolDataProvider
+                aaveV3PoolDataProvider: aaveV3PoolDataProvider,
+                stargateUsdcPool: stargateUsdcPool
             });
     }
 

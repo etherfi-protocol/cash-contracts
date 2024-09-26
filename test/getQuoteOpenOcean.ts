@@ -6,6 +6,7 @@ dotenv.config();
 function chainIdToChainName(chainId:string) : string {
   if (chainId === "534352") return "scroll";
   else if (chainId === "42161") return "arbitrum";
+  else if (chainId === "1") return "eth";
   else throw new Error("Chain ID unidentified");
 }
 
