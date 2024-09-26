@@ -711,18 +711,11 @@ contract UserSafe is IUserSafe, Initializable, ReentrancyGuardTransientUpgradeab
     ) internal {
         _currentCollateralLimit();
 
-        uint256 currentCollateral = IL2DebtManager(debtManager)
-            .getCollateralValueInUsdc(address(this));
-
-        uint256 price = IPriceProvider(_cashDataProvider.priceProvider()).price(
-            token
-        );
-
+        uint256 currentCollateral = IL2DebtManager(debtManager).getCollateralValueInUsd(address(this));
+        uint256 price = IPriceProvider(_cashDataProvider.priceProvider()).price(token);
         // amount * price with 6 decimals / 10 ** tokenDecimals will convert the collateral amount to USD amount with 6 decimals
         amountToAdd = (amountToAdd * price) / 10 ** _getDecimals(token);
-
-        if (currentCollateral + amountToAdd > _collateralLimit)
-            revert ExceededCollateralLimit();
+        if (currentCollateral + amountToAdd > _collateralLimit) revert ExceededCollateralLimit();
     }
 
     function _addCollateral(

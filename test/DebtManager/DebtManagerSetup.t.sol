@@ -60,6 +60,8 @@ contract DebtManagerSetup is Utils {
     DebtManagerCore debtManagerCore;
     DebtManagerAdmin debtManagerAdmin;
 
+    uint128 minShares;
+
     function setUp() public virtual {
         chainId = vm.envString("TEST_CHAIN");
 
@@ -159,9 +161,11 @@ contract DebtManagerSetup is Utils {
             memory borrowTokenConfig = new IL2DebtManager.BorrowTokenConfigData[](
                 1
             );
+
+        minShares = uint128(1 * 10 ** usdc.decimals());
         borrowTokenConfig[0] = IL2DebtManager.BorrowTokenConfigData({
            borrowApy: borrowApyPerSecond,
-           minShares: uint128(1 * 10 ** usdc.decimals())
+           minShares: minShares
         });
 
         address debtManagerCoreImpl = address(new DebtManagerCore());

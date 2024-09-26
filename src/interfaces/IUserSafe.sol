@@ -346,9 +346,9 @@ interface IUserSafe {
      * @notice Function to repay funds to EtherFiCash Debt Manager.
      * @dev Can only be called by the EtherFi Cash Wallet.
      * @param token Address of token to use for repayment. Can be USDC or the collateral tokens.
-     * @param debtAmountInUsdc Amount of debt to be repaid in USDC.
+     * @param debtAmountInUsd Amount of debt to be repaid in USDC.
      */
-    function repay(address token, uint256 debtAmountInUsdc) external;
+    function repay(address token, uint256 debtAmountInUsd) external;
 
     /**
      * @notice Function to withdraw collateral from the Debt Manager.

@@ -15,7 +15,7 @@ contract DebtManagerBorrowTest is DebtManagerSetup {
     function setUp() public override {
         super.setUp();
 
-        collateralValueInUsdc = debtManager.convertCollateralTokenToUsdc(
+        collateralValueInUsdc = debtManager.convertCollateralTokenToUsd(
             address(weETH),
             collateralAmount
         );
@@ -34,10 +34,10 @@ contract DebtManagerBorrowTest is DebtManagerSetup {
     function test_CanAddOrRemoveSupportedBorrowTokens() public {
         address newBorrowToken = address(new MockERC20("abc", "ABC", 12));
         uint64 borrowApy = 1e18;
-        uint128 minShares = 1e12;
+        uint128 _minShares = 1e12;
 
         vm.startPrank(owner);
-        debtManager.supportBorrowToken(newBorrowToken, borrowApy, minShares);
+        debtManager.supportBorrowToken(newBorrowToken, borrowApy, _minShares);
 
         assertEq(debtManager.borrowApyPerSecond(newBorrowToken), borrowApy);
 
@@ -106,8 +106,74 @@ contract DebtManagerBorrowTest is DebtManagerSetup {
         vm.stopPrank();
     }
 
+    function test_CanSetBorrowApy() public {
+        uint64 apy = 1;
+        vm.startPrank(owner);
+        vm.expectEmit(true, true, true, true);
+        emit IL2DebtManager.BorrowApySet(address(usdc), borrowApyPerSecond, apy);
+        debtManager.setBorrowApy(address(usdc), apy);
+
+        IL2DebtManager.BorrowTokenConfig memory config = debtManager.borrowTokenConfig(address(usdc));
+        assertEq(config.borrowApy, apy);
+        vm.stopPrank();
+    }
+
+    function test_OnlyAdminCanSetBorrowApy() public {
+        vm.startPrank(notOwner);
+        vm.expectRevert(buildAccessControlRevertData(notOwner, ADMIN_ROLE));
+        debtManager.setBorrowApy(address(usdc), 1);
+        vm.stopPrank();
+    }
+
+    function test_BorrowApyCannotBeZero() public {
+        vm.startPrank(owner);
+        vm.expectRevert(IL2DebtManager.InvalidValue.selector);
+        debtManager.setBorrowApy(address(usdc), 0);
+        vm.stopPrank();
+    }
+
+    function test_CannotSetBorrowApyForUnsupportedToken() public {
+        vm.startPrank(owner);
+        vm.expectRevert(IL2DebtManager.UnsupportedBorrowToken.selector);
+        debtManager.setBorrowApy(address(weETH), 1);
+        vm.stopPrank();
+    }
+
+    function test_CanSetMinBorrowTokenShares() public {
+        uint128 shares = 100;
+        vm.prank(owner);
+        vm.expectEmit(true, true, true, true);
+        emit IL2DebtManager.MinSharesOfBorrowTokenSet(address(usdc), minShares, shares);
+        debtManager.setMinBorrowTokenShares(address(usdc), shares);
+
+        IL2DebtManager.BorrowTokenConfig memory config = debtManager.borrowTokenConfig(address(usdc));
+        assertEq(config.minShares, shares);
+    }
+
+    function test_OnlyAdminCanSetBorrowTokenMinShares() public {
+        vm.startPrank(notOwner);
+        vm.expectRevert(buildAccessControlRevertData(notOwner, ADMIN_ROLE));
+        debtManager.setMinBorrowTokenShares(address(usdc), 1);
+        vm.stopPrank();
+    }
+
+
+    function test_BorrowTokenMinSharesCannotBeZero() public {
+        vm.startPrank(owner);
+        vm.expectRevert(IL2DebtManager.InvalidValue.selector);
+        debtManager.setMinBorrowTokenShares(address(usdc), 0);
+        vm.stopPrank();
+    }
+
+    function test_CannotSetBorrowTokenMinSharesForUnsupportedToken() public {
+        vm.startPrank(owner);
+        vm.expectRevert(IL2DebtManager.UnsupportedBorrowToken.selector);
+        debtManager.setMinBorrowTokenShares(address(weETH), 1);
+        vm.stopPrank();
+    }
+
     function test_Borrow() public {
-        uint256 totalCanBorrow = debtManager.remainingBorrowingCapacityInUSDC(
+        uint256 totalCanBorrow = debtManager.remainingBorrowingCapacityInUSD(
             alice
         );
 
@@ -142,7 +208,7 @@ contract DebtManagerBorrowTest is DebtManagerSetup {
     }
 
     function test_BorrowIncursInterestWithTime() public {
-        uint256 borrowAmt = debtManager.remainingBorrowingCapacityInUSDC(
+        uint256 borrowAmt = debtManager.remainingBorrowingCapacityInUSD(
             alice
         ) / 2;
 
@@ -174,7 +240,7 @@ contract DebtManagerBorrowTest is DebtManagerSetup {
         debtManager.supportBorrowToken(address(newToken), borrowApy, 1);
 
         uint256 remainingBorrowCapacityInUsdc = debtManager
-            .remainingBorrowingCapacityInUSDC(alice);
+            .remainingBorrowingCapacityInUSD(alice);
 
         (, uint256 totalBorrowingsOfAlice) = debtManager.borrowingOf(alice);
         assertEq(totalBorrowingsOfAlice, 0);
@@ -192,7 +258,7 @@ contract DebtManagerBorrowTest is DebtManagerSetup {
     function test_NextBorrowAutomaticallyAddsInterestToThePreviousBorrows()
         public
     {
-        uint256 borrowAmt = debtManager.remainingBorrowingCapacityInUSDC(
+        uint256 borrowAmt = debtManager.remainingBorrowingCapacityInUSD(
             alice
         ) / 4;
 
@@ -235,7 +301,7 @@ contract DebtManagerBorrowTest is DebtManagerSetup {
     }
 
     function test_CannotBorrowIfDebtRatioGreaterThanThreshold() public {
-        uint256 totalCanBorrow = debtManager.remainingBorrowingCapacityInUSDC(
+        uint256 totalCanBorrow = debtManager.remainingBorrowingCapacityInUSD(
             alice
         );
         vm.startPrank(alice);
