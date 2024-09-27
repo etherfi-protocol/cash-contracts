@@ -438,6 +438,8 @@ contract DebtManagerCore is DebtManagerStorage {
         uint256 amount
     ) external nonReentrant {
         if (!isBorrowToken(borrowToken)) revert UnsupportedBorrowToken();
+        if (_cashDataProvider.isUserSafe(user)) revert UserSafeCannotSupplyDebtTokens();
+        
         uint256 shares = _borrowTokenConfig[borrowToken]
             .totalSharesOfBorrowTokens == 0
             ? amount

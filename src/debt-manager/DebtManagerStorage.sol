@@ -220,8 +220,8 @@ contract DebtManagerStorage is
     error SharesCannotBeLessThanMinShares();
     error SupplyCapBreached();
     error OnlyUserSafe();
-
-
+    error UserSafeCannotSupplyDebtTokens();
+    
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
         _disableInitializers();

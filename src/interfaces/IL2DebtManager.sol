@@ -162,6 +162,7 @@ interface IL2DebtManager {
     error SharesCannotBeLessThanMinShares();
     error SupplyCapBreached();
     error OnlyUserSafe();
+    error UserSafeCannotSupplyDebtTokens();
 
     /**
      * @notice Function to fetch the address of the Cash Data Provider.
