@@ -147,6 +147,7 @@ interface IL2DebtManager {
     error InsufficientLiquidityPleaseTryAgainLater();
     error LiquidAmountLesserThanRequired();
     error ZeroTotalBorrowTokens();
+    error ZeroTotalBorrowTokensExcludingAave();
     error InsufficientBorrowShares();
     error UserStillLiquidatable();
     error TotalBorrowingsForUserNotZero();
@@ -163,6 +164,7 @@ interface IL2DebtManager {
     error SupplyCapBreached();
     error OnlyUserSafe();
     error AaveAdapterNotSet();
+    error UserSafeCannotSupplyDebtTokens();
 
     /**
      * @notice Function to fetch the address of the Cash Data Provider.

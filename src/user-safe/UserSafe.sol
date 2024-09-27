@@ -15,13 +15,14 @@ import {UserSafeRecovery} from "./UserSafeRecovery.sol";
 import {WebAuthn} from "../libraries/WebAuthn.sol";
 import {OwnerLib} from "../libraries/OwnerLib.sol";
 import {UserSafeLib} from "../libraries/UserSafeLib.sol";
+import {ReentrancyGuardTransientUpgradeable} from "../utils/ReentrancyGuardTransientUpgradeable.sol";
 
 /**
  * @title UserSafe
  * @author ether.fi [shivam@ether.fi]
  * @notice User safe account for interactions with the EtherFi Cash contracts
  */
-contract UserSafe is IUserSafe, Initializable, UserSafeRecovery {
+contract UserSafe is IUserSafe, Initializable, ReentrancyGuardTransientUpgradeable, UserSafeRecovery {
     using SafeERC20 for IERC20;
     using SignatureUtils for bytes32;
     using OwnerLib for bytes;
@@ -71,6 +72,7 @@ contract UserSafe is IUserSafe, Initializable, UserSafeRecovery {
         uint256 __spendingLimit,
         uint256 __collateralLimit
     ) external initializer {
+        __ReentrancyGuardTransient_init();
         _ownerBytes = __owner;
 
         _spendingLimit = SpendingLimitData({
@@ -280,7 +282,7 @@ contract UserSafe is IUserSafe, Initializable, UserSafeRecovery {
     /**
      * @inheritdoc IUserSafe
      */
-    function processWithdrawal() external {
+    function processWithdrawal() external nonReentrant {
         if (_pendingWithdrawalRequest.finalizeTime > block.timestamp)
             revert CannotWithdrawYet();
         address recipient = _pendingWithdrawalRequest.recipient;

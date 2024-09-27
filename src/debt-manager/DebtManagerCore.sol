@@ -317,10 +317,13 @@ contract DebtManagerCore is DebtManagerStorage {
     ) external view returns (uint256) {
         if (_borrowTokenConfig[borrowToken].totalSharesOfBorrowTokens == 0)
             return 0;
+        
+        uint256 totalBorrowAmountExcludingAave = 
+            _getTotalBorrowTokenAmount(borrowToken) - IEtherFiCashAaveV3Adapter(_aaveAdapter()).getDebt(address(this), borrowToken);
 
         return
             _sharesOfBorrowTokens[supplier][borrowToken].mulDiv(
-                _getTotalBorrowTokenAmount(borrowToken),
+                totalBorrowAmountExcludingAave,
                 _borrowTokenConfig[borrowToken].totalSharesOfBorrowTokens,
                 Math.Rounding.Floor
             );
@@ -378,17 +381,20 @@ contract DebtManagerCore is DebtManagerStorage {
         uint256 amount
     ) external nonReentrant {
         if (!isBorrowToken(borrowToken)) revert UnsupportedBorrowToken();
-        uint256 shares = _borrowTokenConfig[borrowToken]
-            .totalSharesOfBorrowTokens == 0
-            ? amount
-            : amount.mulDiv(
-                _borrowTokenConfig[borrowToken].totalSharesOfBorrowTokens,
-                _getTotalBorrowTokenAmount(borrowToken),
-                Math.Rounding.Floor
-            );
+        if (_cashDataProvider.isUserSafe(user)) revert UserSafeCannotSupplyDebtTokens();
+        uint256 totalBorrowAmountExcludingAave = 
+            _getTotalBorrowTokenAmount(borrowToken) - IEtherFiCashAaveV3Adapter(_aaveAdapter()).getDebt(address(this), borrowToken);
+        uint256 shares;
+        if (totalBorrowAmountExcludingAave == 0) shares = amount; 
+        else shares = _borrowTokenConfig[borrowToken].totalSharesOfBorrowTokens == 0
+                ? amount
+                : amount.mulDiv(
+                    _borrowTokenConfig[borrowToken].totalSharesOfBorrowTokens,
+                    totalBorrowAmountExcludingAave,
+                    Math.Rounding.Floor
+                );
 
-        if (shares < _borrowTokenConfig[borrowToken].minShares)
-            revert SharesCannotBeLessThanMinShares();
+        if (shares < _borrowTokenConfig[borrowToken].minShares) revert SharesCannotBeLessThanMinShares();
 
         _sharesOfBorrowTokens[user][borrowToken] += shares;
         _borrowTokenConfig[borrowToken].totalSharesOfBorrowTokens += shares;
@@ -400,12 +406,13 @@ contract DebtManagerCore is DebtManagerStorage {
     }
     
     function withdrawBorrowToken(address borrowToken, uint256 amount) external {
-        uint256 totalBorrowTokenAmt = _getTotalBorrowTokenAmount(borrowToken);
-        if (totalBorrowTokenAmt == 0) revert ZeroTotalBorrowTokens();
-
+        uint256 totalBorrowAmountExcludingAave = 
+            _getTotalBorrowTokenAmount(borrowToken) - IEtherFiCashAaveV3Adapter(_aaveAdapter()).getDebt(address(this), borrowToken);
+        if (totalBorrowAmountExcludingAave == 0) revert ZeroTotalBorrowTokensExcludingAave();
+        
         uint256 shares = amount.mulDiv(
             _borrowTokenConfig[borrowToken].totalSharesOfBorrowTokens,
-            _convertFromSixDecimals(borrowToken, totalBorrowTokenAmt),
+            _convertFromSixDecimals(borrowToken, totalBorrowAmountExcludingAave),
             Math.Rounding.Ceil
         );
 

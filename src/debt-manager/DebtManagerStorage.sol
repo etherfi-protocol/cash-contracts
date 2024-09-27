@@ -207,6 +207,7 @@ contract DebtManagerStorage is
     error InsufficientLiquidityPleaseTryAgainLater();
     error LiquidAmountLesserThanRequired();
     error ZeroTotalBorrowTokens();
+    error ZeroTotalBorrowTokensExcludingAave();
     error InsufficientBorrowShares();
     error UserStillLiquidatable();
     error TotalBorrowingsForUserNotZero();
@@ -224,6 +225,7 @@ contract DebtManagerStorage is
     error OnlyUserSafe();
     error TokenWrapperContractNotFound();
     error AaveAdapterNotSet();
+    error UserSafeCannotSupplyDebtTokens();
 
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {

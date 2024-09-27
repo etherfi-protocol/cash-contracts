@@ -10,7 +10,7 @@ import {IERC20Errors} from "@openzeppelin/contracts/interfaces/draft-IERC6093.so
 import {stdStorage, StdStorage} from "forge-std/Test.sol";
 import {IAccessControl} from "@openzeppelin/contracts/access/IAccessControl.sol";
 
-contract DebtManagerFundManagementTest is DebtManagerSetup {
+contract DebtManagerSupplyAndWithdrawTest is DebtManagerSetup {
     using SafeERC20 for IERC20;
 
     uint256 collateralAmt = 0.01 ether;
@@ -32,72 +32,113 @@ contract DebtManagerFundManagementTest is DebtManagerSetup {
 
     function test_SupplyAndWithdraw() public {
         uint256 principle = 0.01 ether;
-
-        vm.startPrank(owner);
+        deal(address(usdc), notOwner, 1 ether);
+        vm.startPrank(notOwner);
         IERC20(address(usdc)).forceApprove(address(debtManager), principle);
 
         vm.expectEmit(true, true, true, true);
-        emit IL2DebtManager.Supplied(owner, owner, address(usdc), principle);
-        debtManager.supply(owner, address(usdc), principle);
+        emit IL2DebtManager.Supplied(notOwner, notOwner, address(usdc), principle);
+        debtManager.supply(notOwner, address(usdc), principle);
         vm.stopPrank();
 
         assertEq(
-            debtManager.withdrawableBorrowToken(owner, address(usdc)),
+            debtManager.withdrawableBorrowToken(notOwner, address(usdc)),
             principle
         );
 
         uint256 earnings = _borrowAndRepay(principle);
 
         assertEq(
-            debtManager.withdrawableBorrowToken(owner, address(usdc)),
+            debtManager.withdrawableBorrowToken(notOwner, address(usdc)),
             principle + earnings
         );
 
-        vm.prank(owner);
+        vm.prank(notOwner);
         debtManager.withdrawBorrowToken(address(usdc), earnings + principle);
 
-        assertEq(debtManager.withdrawableBorrowToken(owner, address(usdc)), 0);
+        assertEq(debtManager.withdrawableBorrowToken(notOwner, address(usdc)), 0);
+    }
+
+    function test_IssuesCorrectNumberOfSharesIfBorrowingFromAave() public {
+        deal(address(usdc), alice, 1 ether);
+        deal(address(usdc), notOwner, 1 ether);
+        deal(address(weETH), alice, 1000 ether);
+
+        uint256 collateralAmount = 0.01 ether;
+        
+        vm.startPrank(alice);
+        IERC20(address(weETH)).safeIncreaseAllowance(address(debtManager), collateralAmount);
+        debtManager.depositCollateral(address(weETH), alice, collateralAmount);
+
+        // All this is being borrowed from Aave since there is no supply in the contract
+        uint256 borrowAmt = debtManager.remainingBorrowingCapacityInUSDC(alice) / 2;
+        debtManager.borrow(address(usdc), borrowAmt);
+
+        uint256 supplyAmt = 1000e6;
+        vm.startPrank(notOwner);
+        usdc.approve(address(debtManager), supplyAmt);
+        vm.expectEmit(true, true, true, true);
+        emit IL2DebtManager.Supplied(notOwner, notOwner, address(usdc), supplyAmt);
+        debtManager.supply(notOwner, address(usdc), supplyAmt);
+        vm.stopPrank();
+
+        address newSupplier = makeAddr("newSupplier");
+        deal(address(usdc), newSupplier, 1 ether);
+
+        uint256 newSupplyAmt = 10000e6;
+        vm.startPrank(newSupplier);
+        usdc.approve(address(debtManager), newSupplyAmt);
+        vm.expectEmit(true, true, true, true);
+        emit IL2DebtManager.Supplied(newSupplier, newSupplier, address(usdc), newSupplyAmt);
+        debtManager.supply(newSupplier, address(usdc), newSupplyAmt);
+        vm.stopPrank();
     }
 
     function test_CannotWithdrawLessThanMinShares() public {
         uint256 principle = debtManager.borrowTokenConfig(address(usdc)).minShares;
 
-        vm.startPrank(owner);
+        deal(address(usdc), notOwner, 1 ether);
+
+        vm.startPrank(notOwner);
         IERC20(address(usdc)).forceApprove(address(debtManager), principle);
 
         vm.expectEmit(true, true, true, true);
-        emit IL2DebtManager.Supplied(owner, owner, address(usdc), principle);
-        debtManager.supply(owner, address(usdc), principle);
+        emit IL2DebtManager.Supplied(notOwner, notOwner, address(usdc), principle);
+        debtManager.supply(notOwner, address(usdc), principle);
         vm.stopPrank();
 
         assertEq(
-            debtManager.withdrawableBorrowToken(owner, address(usdc)),
+            debtManager.withdrawableBorrowToken(notOwner, address(usdc)),
             principle
         );
 
-        vm.prank(owner);
+        vm.prank(notOwner);
         vm.expectRevert(IL2DebtManager.SharesCannotBeLessThanMinShares.selector);
         debtManager.withdrawBorrowToken(address(usdc), principle - 1);
     }
 
     function test_SupplyTwice() public {
         uint256 principle = 0.01 ether;
-        vm.startPrank(owner);
+        deal(address(usdc), notOwner, 1 ether);
+
+        vm.startPrank(notOwner);
         IERC20(address(usdc)).forceApprove(address(debtManager), principle);
 
         vm.expectEmit(true, true, true, true);
-        emit IL2DebtManager.Supplied(owner, owner, address(usdc), principle);
-        debtManager.supply(owner, address(usdc), principle);
+        emit IL2DebtManager.Supplied(notOwner, notOwner, address(usdc), principle);
+        debtManager.supply(notOwner, address(usdc), principle);
         vm.stopPrank();
 
-        deal(address(usdc), alice, principle);
+        address newSupplier = makeAddr("newSupplier");
+
+        deal(address(usdc), newSupplier, principle);
         
-        vm.startPrank(alice);
+        vm.startPrank(newSupplier);
         IERC20(address(usdc)).forceApprove(address(debtManager), principle);
 
         vm.expectEmit(true, true, true, true);
-        emit IL2DebtManager.Supplied(alice, alice, address(usdc), principle);
-        debtManager.supply(alice, address(usdc), principle);
+        emit IL2DebtManager.Supplied(newSupplier, newSupplier, address(usdc), principle);
+        debtManager.supply(newSupplier, address(usdc), principle);
         vm.stopPrank();
     }
 
@@ -107,9 +148,19 @@ contract DebtManagerFundManagementTest is DebtManagerSetup {
         debtManager.supply(owner, address(weETH), 1);
     }
 
+    function test_UserSafeCannotSupply() public {
+        address safe = makeAddr("safe");
+        vm.prank(address(userSafeFactory));
+        cashDataProvider.whitelistUserSafe(safe);
+
+        vm.prank(alice);
+        vm.expectRevert(IL2DebtManager.UserSafeCannotSupplyDebtTokens.selector);
+        debtManager.supply(owner, address(usdc), 1);
+    }
+
     function test_CannotWithdrawTokenThatWasNotSupplied() public {
         vm.prank(owner);
-        vm.expectRevert(IL2DebtManager.ZeroTotalBorrowTokens.selector);
+        vm.expectRevert(IL2DebtManager.ZeroTotalBorrowTokensExcludingAave.selector);
         debtManager.withdrawBorrowToken(address(weETH), 1 ether);
     }
 
