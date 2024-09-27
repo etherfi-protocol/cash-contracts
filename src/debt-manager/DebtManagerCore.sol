@@ -576,6 +576,7 @@ contract DebtManagerCore is DebtManagerStorage {
         address[] memory collateralTokensPreference,
         uint256 debtAmountToLiquidateInUsdc
     ) internal {    
+        address aaveAdapter = _aaveAdapter();
         uint256 beforeDebtAmount = _userBorrowings[user][borrowToken];
         if (debtAmountToLiquidateInUsdc == 0) revert LiquidatableAmountIsZero();
 
@@ -585,10 +586,22 @@ contract DebtManagerCore is DebtManagerStorage {
             collateralTokensPreference
         );
 
+        uint256 liquidatedAmt = debtAmountToLiquidateInUsdc - remainingDebt;
+        _userBorrowings[user][borrowToken] -= liquidatedAmt;
+        _borrowTokenConfig[borrowToken]
+            .totalBorrowingAmount -= liquidatedAmt;
+
+        IERC20(borrowToken).safeTransferFrom(msg.sender, address(this), liquidatedAmt);
+
+        uint256 aaveRepayAmount = IEtherFiCashAaveV3Adapter(aaveAdapter).getDebt(address(this), borrowToken);
+        if(aaveRepayAmount != 0) {
+            if (aaveRepayAmount > liquidatedAmt) AaveLib.repayOnAave(aaveAdapter, borrowToken, liquidatedAmt);
+            else AaveLib.repayOnAave(aaveAdapter, borrowToken, aaveRepayAmount);
+        }
+
         (TokenData[] memory beforeCollateralAmounts, ) = collateralOf(user);
 
         uint256 len = collateralTokensToSend.length;
-        address aaveAdapter = _aaveAdapter();
 
         for (uint256 i = 0; i < len; ) {
             if (collateralTokensToSend[i].amount > 0) {
@@ -611,19 +624,6 @@ contract DebtManagerCore is DebtManagerStorage {
             unchecked {
                 ++i;
             }
-        }
-
-        uint256 liquidatedAmt = debtAmountToLiquidateInUsdc - remainingDebt;
-        _userBorrowings[user][borrowToken] -= liquidatedAmt;
-        _borrowTokenConfig[borrowToken]
-            .totalBorrowingAmount -= liquidatedAmt;
-
-        IERC20(borrowToken).safeTransferFrom(msg.sender, address(this), liquidatedAmt);
-
-        uint256 aaveRepayAmount = IEtherFiCashAaveV3Adapter(aaveAdapter).getDebt(address(this), borrowToken);
-        if(aaveRepayAmount != 0) {
-            if (aaveRepayAmount > liquidatedAmt) AaveLib.repayOnAave(aaveAdapter, borrowToken, liquidatedAmt);
-            else AaveLib.repayOnAave(aaveAdapter, borrowToken, aaveRepayAmount);
         }
 
         emit Liquidated(
