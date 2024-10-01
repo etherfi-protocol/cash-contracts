@@ -493,8 +493,9 @@ contract DebtManagerCore is DebtManagerStorage {
         address aaveAdapter = _aaveAdapter();
         uint256 aaveRepayAmount = IEtherFiCashAaveV3Adapter(aaveAdapter).getDebt(address(this), token);
         
+        uint256 repayAmt = _convertFromSixDecimals(token, repayDebtUsdcAmt);
         if (aaveRepayAmount != 0) {
-            if (aaveRepayAmount > repayDebtUsdcAmt) AaveLib.repayOnAave(aaveAdapter, token, repayDebtUsdcAmt);
+            if (aaveRepayAmount > repayAmt) AaveLib.repayOnAave(aaveAdapter, token, repayAmt);
             else AaveLib.repayOnAave(aaveAdapter, token, aaveRepayAmount);
         }
     }
@@ -587,16 +588,18 @@ contract DebtManagerCore is DebtManagerStorage {
         );
 
         uint256 liquidatedAmt = debtAmountToLiquidateInUsdc - remainingDebt;
-        _userBorrowings[user][borrowToken] -= liquidatedAmt;
-        _borrowTokenConfig[borrowToken]
-            .totalBorrowingAmount -= liquidatedAmt;
 
-        IERC20(borrowToken).safeTransferFrom(msg.sender, address(this), liquidatedAmt);
+        {
+            _userBorrowings[user][borrowToken] -= liquidatedAmt;
+            _borrowTokenConfig[borrowToken].totalBorrowingAmount -= liquidatedAmt;
+            uint256 repayAmount = _convertFromSixDecimals(borrowToken, liquidatedAmt);
+            IERC20(borrowToken).safeTransferFrom(msg.sender, address(this), repayAmount);
 
-        uint256 aaveRepayAmount = IEtherFiCashAaveV3Adapter(aaveAdapter).getDebt(address(this), borrowToken);
-        if(aaveRepayAmount != 0) {
-            if (aaveRepayAmount > liquidatedAmt) AaveLib.repayOnAave(aaveAdapter, borrowToken, liquidatedAmt);
-            else AaveLib.repayOnAave(aaveAdapter, borrowToken, aaveRepayAmount);
+            uint256 aaveRepayAmount = IEtherFiCashAaveV3Adapter(aaveAdapter).getDebt(address(this), borrowToken);
+            if(aaveRepayAmount != 0) {
+                if (aaveRepayAmount > repayAmount) AaveLib.repayOnAave(aaveAdapter, borrowToken, repayAmount);
+                else AaveLib.repayOnAave(aaveAdapter, borrowToken, aaveRepayAmount);
+            }
         }
 
         (TokenData[] memory beforeCollateralAmounts, ) = collateralOf(user);
