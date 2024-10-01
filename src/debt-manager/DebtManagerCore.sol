@@ -650,7 +650,7 @@ contract DebtManagerCore is DebtManagerStorage {
         _borrowTokenConfig[borrowToken]
             .totalBorrowingAmount -= liquidatedAmt;
 
-        IERC20(borrowToken).safeTransferFrom(msg.sender, address(this), liquidatedAmt);
+        IERC20(borrowToken).safeTransferFrom(msg.sender, address(this), _convertFromSixDecimals(borrowToken, liquidatedAmt));
 
         emit Liquidated(
             msg.sender,
