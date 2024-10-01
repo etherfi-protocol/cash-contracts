@@ -190,12 +190,7 @@ contract DebtManagerStorage is
     error UnsupportedCollateralToken();
     error UnsupportedRepayToken();
     error UnsupportedBorrowToken();
-    error InsufficientCollateral();
-    error InsufficientCollateralToRepay();
-    error InsufficientLiquidity();
     error CannotLiquidateYet();
-    error ZeroCollateralValue();
-    error OnlyUserCanRepayWithCollateral();
     error InvalidValue();
     error AlreadyCollateralToken();
     error AlreadyBorrowToken();
@@ -205,14 +200,10 @@ contract DebtManagerStorage is
     error NoBorrowTokenLeft();
     error ArrayLengthMismatch();
     error TotalCollateralAmountNotZero();
-    error InsufficientLiquidityPleaseTryAgainLater();
-    error LiquidAmountLesserThanRequired();
     error ZeroTotalBorrowTokens();
     error ZeroTotalBorrowTokensExcludingAave();
     error InsufficientBorrowShares();
-    error UserStillLiquidatable();
     error TotalBorrowingsForUserNotZero();
-    error BorrowTokenConfigAlreadySet();
     error AccountUnhealthy();
     error BorrowTokenStillInTheSystem();
     error RepaymentAmountIsZero();

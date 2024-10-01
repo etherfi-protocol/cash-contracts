@@ -130,12 +130,7 @@ interface IL2DebtManager {
     error UnsupportedCollateralToken();
     error UnsupportedRepayToken();
     error UnsupportedBorrowToken();
-    error InsufficientCollateral();
-    error InsufficientCollateralToRepay();
-    error InsufficientLiquidity();
     error CannotLiquidateYet();
-    error ZeroCollateralValue();
-    error OnlyUserCanRepayWithCollateral();
     error InvalidValue();
     error AlreadyCollateralToken();
     error AlreadyBorrowToken();
@@ -145,14 +140,10 @@ interface IL2DebtManager {
     error NoBorrowTokenLeft();
     error ArrayLengthMismatch();
     error TotalCollateralAmountNotZero();
-    error InsufficientLiquidityPleaseTryAgainLater();
-    error LiquidAmountLesserThanRequired();
     error ZeroTotalBorrowTokens();
     error ZeroTotalBorrowTokensExcludingAave();
     error InsufficientBorrowShares();
-    error UserStillLiquidatable();
     error TotalBorrowingsForUserNotZero();
-    error BorrowTokenConfigAlreadySet();
     error AccountUnhealthy();
     error BorrowTokenStillInTheSystem();
     error RepaymentAmountIsZero();
