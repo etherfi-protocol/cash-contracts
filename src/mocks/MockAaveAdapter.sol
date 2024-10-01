@@ -112,6 +112,8 @@ contract MockAaveAdapter is IEtherFiCashAaveV3Adapter {
         aave.withdraw(asset, amount);
     }
 
+    function setEModeCategory(uint8 categoryId) external {}
+
     function getAccountData(
         address user
     ) external view returns (AaveAccountData memory) {

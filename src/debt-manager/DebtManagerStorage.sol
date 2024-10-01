@@ -185,6 +185,7 @@ contract DebtManagerStorage is
         address indexed borrowToken,
         uint256 amount
     );
+    event EModeCategorySetOnAave(uint8 categoryId);
 
     error UnsupportedCollateralToken();
     error UnsupportedRepayToken();
@@ -410,5 +411,12 @@ contract DebtManagerStorage is
 
     function _getDecimals(address token) internal view returns (uint8) {
         return IERC20Metadata(token).decimals();
+    }
+
+    function _aaveAdapter() internal view returns (address) {
+        address aaveAdapter = _cashDataProvider.aaveAdapter();
+        if (aaveAdapter == address(0)) revert AaveAdapterNotSet();
+
+        return aaveAdapter;
     }
 }

@@ -63,6 +63,12 @@ interface IEtherFiCashAaveV3Adapter {
     function withdraw(address asset, uint256 amount) external;
 
     /**
+     * @notice Function to set e-mode category on Aave V3.
+     * @param categoryId CategoryId of the e-mode.
+     */
+    function setEModeCategory(uint8 categoryId) external;
+
+    /**
      * @notice Function to get the account data for a user.
      * @param user Address of the user.
      * @return AaveAccountData struct.

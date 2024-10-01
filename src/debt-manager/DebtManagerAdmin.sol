@@ -3,6 +3,7 @@ pragma solidity ^0.8.24;
 
 import {DebtManagerStorage} from "./DebtManagerStorage.sol";
 import {IPriceProvider} from "../interfaces/IPriceProvider.sol";
+import {AaveLib} from "../libraries/AaveLib.sol";
 
 contract DebtManagerAdmin is DebtManagerStorage {
     function supportCollateralToken(
@@ -101,6 +102,11 @@ contract DebtManagerAdmin is DebtManagerStorage {
         _setMinBorrowTokenShares(token, shares);
     }
 
+    function setEModeCategoryOnAave(uint8 categoryId) external onlyRole(ADMIN_ROLE) {
+        AaveLib.setUserEModeCategory(_aaveAdapter(), categoryId);
+        emit EModeCategorySetOnAave(categoryId);
+    }
+
     function _supportCollateralToken(address token) internal {
         if (token == address(0)) revert InvalidValue();
 
@@ -130,7 +136,7 @@ contract DebtManagerAdmin is DebtManagerStorage {
     }
 
 
-function _setCollateralTokenConfig(
+    function _setCollateralTokenConfig(
         address collateralToken,
         CollateralTokenConfig memory config
     ) internal {

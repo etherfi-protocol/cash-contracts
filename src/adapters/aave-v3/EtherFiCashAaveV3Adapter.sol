@@ -92,6 +92,13 @@ contract EtherFiCashAaveV3Adapter is IEtherFiCashAaveV3Adapter {
     /**
      * @inheritdoc IEtherFiCashAaveV3Adapter
      */
+    function setEModeCategory(uint8 categoryId) external {
+        aaveV3Pool.setUserEMode(categoryId);
+    }
+
+    /**
+     * @inheritdoc IEtherFiCashAaveV3Adapter
+     */
     function getAccountData(
         address user
     ) public view returns (AaveAccountData memory) {

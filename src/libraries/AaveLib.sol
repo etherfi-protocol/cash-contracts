@@ -141,6 +141,16 @@ library AaveLib {
         );
     }
 
+    function setUserEModeCategory(address aaveV3Adapter, uint8 categoryId) internal {
+        delegateCall(
+            aaveV3Adapter,
+            abi.encodeWithSelector(
+                IEtherFiCashAaveV3Adapter.setEModeCategory.selector,
+                categoryId
+            )
+        );
+    }
+
     function delegateCall(
         address target,
         bytes memory data

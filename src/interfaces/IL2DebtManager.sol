@@ -125,6 +125,7 @@ interface IL2DebtManager {
         address indexed borrowToken,
         uint256 amount
     );
+    event EModeCategorySetOnAave(uint8 categoryId);
 
     error UnsupportedCollateralToken();
     error UnsupportedRepayToken();
@@ -222,6 +223,12 @@ interface IL2DebtManager {
      * @return Boolean value suggesting if token is a borrow token.
      */
     function isBorrowToken(address token) external view returns (bool);
+
+    /**
+     * @notice Function to set the e-mode category on Aave.
+     * @param categoryId Category Id of the e-mode.
+     */
+    function setEModeCategoryOnAave(uint8 categoryId) external;
 
     /**
      * @notice Function to add support for a new collateral token.
