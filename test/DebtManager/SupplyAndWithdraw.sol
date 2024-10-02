@@ -42,21 +42,21 @@ contract DebtManagerSupplyAndWithdrawTest is DebtManagerSetup {
         vm.stopPrank();
 
         assertEq(
-            debtManager.withdrawableBorrowToken(notOwner, address(usdc)),
+            debtManager.supplierBalance(notOwner, address(usdc)),
             principle
         );
 
         uint256 earnings = _borrowAndRepay(principle);
 
         assertEq(
-            debtManager.withdrawableBorrowToken(notOwner, address(usdc)),
+            debtManager.supplierBalance(notOwner, address(usdc)),
             principle + earnings
         );
 
         vm.prank(notOwner);
         debtManager.withdrawBorrowToken(address(usdc), earnings + principle);
 
-        assertEq(debtManager.withdrawableBorrowToken(notOwner, address(usdc)), 0);
+        assertEq(debtManager.supplierBalance(notOwner, address(usdc)), 0);
     }
 
     function test_IssuesCorrectNumberOfSharesIfBorrowingFromAave() public {
@@ -71,7 +71,7 @@ contract DebtManagerSupplyAndWithdrawTest is DebtManagerSetup {
         debtManager.depositCollateral(address(weETH), alice, collateralAmount);
 
         // All this is being borrowed from Aave since there is no supply in the contract
-        uint256 borrowAmt = debtManager.remainingBorrowingCapacityInUSDC(alice) / 2;
+        uint256 borrowAmt = debtManager.remainingBorrowingCapacityInUSD(alice) / 2;
         debtManager.borrow(address(usdc), borrowAmt);
 
         uint256 supplyAmt = 1000e6;
@@ -108,7 +108,7 @@ contract DebtManagerSupplyAndWithdrawTest is DebtManagerSetup {
         vm.stopPrank();
 
         assertEq(
-            debtManager.withdrawableBorrowToken(notOwner, address(usdc)),
+            debtManager.supplierBalance(notOwner, address(usdc)),
             principle
         );
 
@@ -174,7 +174,7 @@ contract DebtManagerSupplyAndWithdrawTest is DebtManagerSetup {
         IERC20(address(weETH)).safeIncreaseAllowance(address(debtManager), collateralAmount);
         debtManager.depositCollateral(address(weETH), alice, collateralAmount);
 
-        uint256 borrowAmt = debtManager.remainingBorrowingCapacityInUSDC(
+        uint256 borrowAmt = debtManager.remainingBorrowingCapacityInUSD(
             alice
         ) / 2;
         debtManager.borrow(address(usdc), borrowAmt);

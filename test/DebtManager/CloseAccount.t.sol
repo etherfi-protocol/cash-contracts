@@ -18,7 +18,7 @@ contract DebtManagerCloseAccountTest is DebtManagerSetup {
     function setUp() public override {
         super.setUp();
 
-        collateralValueInUsdc = debtManager.convertCollateralTokenToUsdc(
+        collateralValueInUsdc = debtManager.convertCollateralTokenToUsd(
             address(weETH),
             collateralAmount
         );
@@ -42,7 +42,7 @@ contract DebtManagerCloseAccountTest is DebtManagerSetup {
             amount: collateralAmount
         });
 
-        uint256 aliceCollateralBefore = debtManager.getCollateralValueInUsdc(
+        uint256 aliceCollateralBefore = debtManager.getCollateralValueInUsd(
             alice
         );
 
@@ -56,12 +56,12 @@ contract DebtManagerCloseAccountTest is DebtManagerSetup {
 
         assertEq(aaveV3Adapter.getCollateralBalance(address(debtManager), address(wweETH)), 0);
 
-        uint256 aliceCollateralAfter = debtManager.getCollateralValueInUsdc(
+        uint256 aliceCollateralAfter = debtManager.getCollateralValueInUsd(
             alice
         );
         assertEq(
             aliceCollateralBefore,
-            debtManager.convertCollateralTokenToUsdc(
+            debtManager.convertCollateralTokenToUsd(
                 address(weETH),
                 collateralAmount
             )

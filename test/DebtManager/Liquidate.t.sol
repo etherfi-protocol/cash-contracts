@@ -20,7 +20,7 @@ contract DebtManagerLiquidateTest is DebtManagerSetup {
     function setUp() public override {
         super.setUp();
 
-        collateralValueInUsdc = debtManager.convertCollateralTokenToUsdc(
+        collateralValueInUsdc = debtManager.convertCollateralTokenToUsd(
             address(weETH),
             collateralAmount
         );
@@ -35,7 +35,7 @@ contract DebtManagerLiquidateTest is DebtManagerSetup {
         IERC20(address(weETH)).safeIncreaseAllowance(address(debtManager), collateralAmount);
         debtManager.depositCollateral(address(weETH), alice, collateralAmount);
 
-        borrowAmt = debtManager.remainingBorrowingCapacityInUSDC(alice);
+        borrowAmt = debtManager.remainingBorrowingCapacityInUSD(alice);
 
         debtManager.borrow(address(usdc), borrowAmt);
         vm.stopPrank();
@@ -97,20 +97,20 @@ contract DebtManagerLiquidateTest is DebtManagerSetup {
 
         vm.stopPrank();
 
-        uint256 aliceCollateralAfter = debtManager.getCollateralValueInUsdc(
+        uint256 aliceCollateralAfter = debtManager.getCollateralValueInUsd(
             alice
         );
         uint256 aliceDebtAfter = debtManager.borrowingOf(alice, address(usdc));
         uint256 liquidatorWeEthBalAfter = weETH.balanceOf(owner);
 
-        uint256 liquidatedUsdcCollateralAmt = debtManager.convertUsdcToCollateralToken(address(weETH), borrowAmt);
+        uint256 liquidatedUsdcCollateralAmt = debtManager.convertUsdToCollateralToken(address(weETH), borrowAmt);
         uint256 liquidationBonusReceived =  (
             liquidatedUsdcCollateralAmt * collateralTokenConfig.liquidationBonus
         ) / HUNDRED_PERCENT;
-        uint256 liquidationBonusInUsdc = debtManager.convertCollateralTokenToUsdc(address(weETH), liquidationBonusReceived);
+        uint256 liquidationBonusInUsdc = debtManager.convertCollateralTokenToUsd(address(weETH), liquidationBonusReceived);
 
         assertApproxEqAbs(
-            debtManager.convertCollateralTokenToUsdc(
+            debtManager.convertCollateralTokenToUsd(
                 address(weETH),
                 liquidatorWeEthBalAfter - liquidatorWeEthBalBefore - liquidationBonusReceived
             ),
@@ -173,21 +173,21 @@ contract DebtManagerLiquidateTest is DebtManagerSetup {
 
         vm.stopPrank();
 
-        uint256 aliceCollateralAfter = debtManager.getCollateralValueInUsdc(
+        uint256 aliceCollateralAfter = debtManager.getCollateralValueInUsd(
             alice
         );
         uint256 aliceDebtAfter = debtManager.borrowingOf(alice, address(usdc));
         uint256 liquidatorWeEthBalAfter = weETH.balanceOf(owner);
 
-        uint256 liquidatedUsdcCollateralAmt = debtManager.convertUsdcToCollateralToken(address(weETH), liquidationAmt);
+        uint256 liquidatedUsdcCollateralAmt = debtManager.convertUsdToCollateralToken(address(weETH), liquidationAmt);
         uint256 liquidationBonusReceived =  (
             liquidatedUsdcCollateralAmt * collateralTokenConfig.liquidationBonus
         ) / HUNDRED_PERCENT;
-        uint256 liquidationBonusInUsdc = debtManager.convertCollateralTokenToUsdc(address(weETH), liquidationBonusReceived);
+        uint256 liquidationBonusInUsdc = debtManager.convertCollateralTokenToUsd(address(weETH), liquidationBonusReceived);
 
 
         assertApproxEqAbs(
-            debtManager.convertCollateralTokenToUsdc(
+            debtManager.convertCollateralTokenToUsd(
                 address(weETH),
                 liquidatorWeEthBalAfter - liquidatorWeEthBalBefore - liquidationBonusReceived
             ),
@@ -226,7 +226,7 @@ contract DebtManagerLiquidateTest is DebtManagerSetup {
         vm.prank(owner);
         cashDataProvider.setPriceProvider(address(priceProvider));
 
-        borrowAmt = debtManager.remainingBorrowingCapacityInUSDC(alice);
+        borrowAmt = debtManager.remainingBorrowingCapacityInUSD(alice);
         // Alice should borrow at new price for our calculations to be correct
         vm.prank(alice);
         debtManager.borrow(address(usdc), borrowAmt);
@@ -270,7 +270,7 @@ contract DebtManagerLiquidateTest is DebtManagerSetup {
         uint256 ownerWeETHBalBefore = weETH.balanceOf(owner); // 0
         uint256 ownerUsdcBalBefore = IERC20(address(usdc)).balanceOf(owner); // 1000000000000000000
         uint256 aliceDebtBefore = debtManager.borrowingOf(alice, address(usdc)); // 12189840
-        uint256 aliceCollateralBefore = debtManager.getCollateralValueInUsdc(alice); // 10000000
+        uint256 aliceCollateralBefore = debtManager.getCollateralValueInUsd(alice); // 10000000
 
         IERC20(address(usdc)).forceApprove(address(debtManager), liquidationAmt);
         debtManager.liquidate(alice, address(usdc), collateralTokenPreference);
@@ -278,7 +278,7 @@ contract DebtManagerLiquidateTest is DebtManagerSetup {
         uint256 ownerWeETHBalAfter = weETH.balanceOf(owner); // 10000000000000000
         uint256 ownerUsdcBalAfter = IERC20(address(usdc)).balanceOf(owner); // 999999999990484763
         uint256 aliceDebtAfter = debtManager.borrowingOf(alice, address(usdc)); // 2674603
-        uint256 aliceCollateralAfter = debtManager.getCollateralValueInUsdc(alice); // 0
+        uint256 aliceCollateralAfter = debtManager.getCollateralValueInUsd(alice); // 0
 
         assertEq(ownerWeETHBalAfter - ownerWeETHBalBefore, collateralAmount);
         assertEq(ownerUsdcBalBefore - ownerUsdcBalAfter, liquidationAmt);
@@ -305,7 +305,7 @@ contract DebtManagerLiquidateTest is DebtManagerSetup {
     //     vm.prank(owner);
     //     cashDataProvider.setPriceProvider(address(priceProvider));
 
-    //     borrowAmt = debtManager.remainingBorrowingCapacityInUSDC(alice);
+    //     borrowAmt = debtManager.remainingBorrowingCapacityInUSD(alice);
     //     // Alice should borrow at new price for our calculations to be correct
     //     vm.prank(alice);
     //     debtManager.borrow(address(usdc), borrowAmt);
@@ -411,7 +411,7 @@ contract DebtManagerLiquidateTest is DebtManagerSetup {
     //     uint256 liquidationBonusWeETH = 0.00002375 ether;
 
     //     assertApproxEqAbs(
-    //         debtManager.convertCollateralTokenToUsdc(
+    //         debtManager.convertCollateralTokenToUsd(
     //             address(newCollateralToken),
     //             ownerNewTokenBalAfter - ownerNewTokenBalBefore - liquidationBonusNewToken
     //         ),
@@ -420,7 +420,7 @@ contract DebtManagerLiquidateTest is DebtManagerSetup {
     //     );
         
     //     assertApproxEqAbs(
-    //         debtManager.convertCollateralTokenToUsdc(
+    //         debtManager.convertCollateralTokenToUsd(
     //             address(weETH),
     //             ownerWeETHBalAfter - ownerWeETHBalBefore - liquidationBonusWeETH
     //         ),

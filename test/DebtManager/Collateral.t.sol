@@ -277,7 +277,7 @@ contract DebtManagerCollateralTest is DebtManagerSetup {
         ) = debtManager.collateralOf(alice);
 
         uint256 collateralValueInUsdc = debtManager
-            .convertCollateralTokenToUsdc(address(weETH), amount);
+            .convertCollateralTokenToUsd(address(weETH), amount);
 
         assertEq(collateralsAfter.length, 1);
         assertEq(collateralsAfter[0].token, address(weETH));

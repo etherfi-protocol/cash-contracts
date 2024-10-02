@@ -17,7 +17,7 @@ contract DebtManagerBorrowTest is DebtManagerSetup {
     function setUp() public override {
         super.setUp();
 
-        collateralValueInUsdc = debtManager.convertCollateralTokenToUsdc(
+        collateralValueInUsdc = debtManager.convertCollateralTokenToUsd(
             address(weETH),
             collateralAmount
         );
@@ -185,7 +185,7 @@ contract DebtManagerBorrowTest is DebtManagerSetup {
     }
 
     function test_Borrow() public {
-        uint256 totalCanBorrow = debtManager.remainingBorrowingCapacityInUSDC(
+        uint256 totalCanBorrow = debtManager.remainingBorrowingCapacityInUSD(
             alice
         );
 
@@ -226,7 +226,7 @@ contract DebtManagerBorrowTest is DebtManagerSetup {
 
         deal(address(usdc), address(debtManager), 0);
 
-        uint256 totalCanBorrow = debtManager.remainingBorrowingCapacityInUSDC(
+        uint256 totalCanBorrow = debtManager.remainingBorrowingCapacityInUSD(
             alice
         );
 
@@ -279,7 +279,7 @@ contract DebtManagerBorrowTest is DebtManagerSetup {
     }
 
     function test_BorrowIncursInterestWithTime() public {
-        uint256 borrowAmt = debtManager.remainingBorrowingCapacityInUSDC(
+        uint256 borrowAmt = debtManager.remainingBorrowingCapacityInUSD(
             alice
         ) / 2;
 
@@ -311,7 +311,7 @@ contract DebtManagerBorrowTest is DebtManagerSetup {
         debtManager.supportBorrowToken(address(newToken), borrowApy, 1);
 
         uint256 remainingBorrowCapacityInUsdc = debtManager
-            .remainingBorrowingCapacityInUSDC(alice);
+            .remainingBorrowingCapacityInUSD(alice);
 
         (, uint256 totalBorrowingsOfAlice) = debtManager.borrowingOf(alice);
         assertEq(totalBorrowingsOfAlice, 0);
@@ -329,7 +329,7 @@ contract DebtManagerBorrowTest is DebtManagerSetup {
     function test_NextBorrowAutomaticallyAddsInterestToThePreviousBorrows()
         public
     {
-        uint256 borrowAmt = debtManager.remainingBorrowingCapacityInUSDC(
+        uint256 borrowAmt = debtManager.remainingBorrowingCapacityInUSD(
             alice
         ) / 4;
 
@@ -372,7 +372,7 @@ contract DebtManagerBorrowTest is DebtManagerSetup {
     }
 
     function test_CannotBorrowIfDebtRatioGreaterThanThreshold() public {
-        uint256 totalCanBorrow = debtManager.remainingBorrowingCapacityInUSDC(
+        uint256 totalCanBorrow = debtManager.remainingBorrowingCapacityInUSD(
             alice
         );
         vm.startPrank(alice);
