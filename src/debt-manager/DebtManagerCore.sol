@@ -309,7 +309,8 @@ contract DebtManagerCore is DebtManagerStorage {
     }
 
     function totalSupplies(address borrowToken) public view returns (uint256) {
-        return _getTotalBorrowTokenAmount(borrowToken);
+        return  _getTotalBorrowTokenAmount(borrowToken) - 
+            IEtherFiCashAaveV3Adapter(_aaveAdapter()).getDebt(address(this), borrowToken);
     }
 
     function totalSupplies() external view returns (TokenData[] memory, uint256) {
