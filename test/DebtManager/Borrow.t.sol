@@ -124,7 +124,7 @@ contract DebtManagerBorrowTest is DebtManagerSetup {
         vm.stopPrank();
     }
 
-        function test_SetBorrowApy() public {
+    function test_SetBorrowApy() public {
         uint64 apy = 1e18;
 
         uint64 borrowApyBefore = debtManager.borrowApyPerSecond(address(usdc));
