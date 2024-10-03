@@ -450,10 +450,10 @@ contract UserSafe is IUserSafe, Initializable, ReentrancyGuardTransientUpgradeab
      */
     function repay(
         address token,
-        uint256 repayDebtUsdcAmt
+        uint256 amount
     ) external onlyEtherFiWallet {
         address debtManager = _cashDataProvider.etherFiCashDebtManager();
-        _repay(debtManager, token, repayDebtUsdcAmt);
+        _repay(debtManager, token, amount);
     }
 
     /**
@@ -761,17 +761,17 @@ contract UserSafe is IUserSafe, Initializable, ReentrancyGuardTransientUpgradeab
     function _repay(
         address debtManager,
         address token,
-        uint256 repayDebtUsdcAmt
+        uint256 amount
     ) internal {
         // Repay token can either be borrow token or collateral token
-        IERC20(token).forceApprove(debtManager, repayDebtUsdcAmt);
+        IERC20(token).forceApprove(debtManager, amount);
 
         IL2DebtManager(debtManager).repay(
             address(this),
             token,
-            repayDebtUsdcAmt
+            amount
         );
-        emit RepayDebtManager(token, repayDebtUsdcAmt);
+        emit RepayDebtManager(token, amount);
     }
 
     function _withdrawCollateralFromDebtManager(

@@ -529,16 +529,20 @@ contract DebtManagerCore is DebtManagerStorage {
     function repay(
         address user,
         address token,
-        uint256 repayDebtUsdcAmt
+        uint256 amount
     ) external nonReentrant {
         _updateBorrowings(user, token);
-        if (_userBorrowings[user][token] < repayDebtUsdcAmt)
-            repayDebtUsdcAmt = _userBorrowings[user][token];
+
+        uint256 repayDebtUsdcAmt = _convertToSixDecimals(token, amount);
+        if (_userBorrowings[user][token] < repayDebtUsdcAmt) {
+                repayDebtUsdcAmt = _userBorrowings[user][token];
+                amount = _convertFromSixDecimals(token, repayDebtUsdcAmt);
+        }
         if (repayDebtUsdcAmt == 0) revert RepaymentAmountIsZero();
 
         if (!isBorrowToken(token)) revert UnsupportedRepayToken();
 
-        _repayWithBorrowToken(token, user, repayDebtUsdcAmt);
+        _repayWithBorrowToken(token, user, amount, repayDebtUsdcAmt);
     }
 
     function withdrawCollateral(address token, uint256 amount) external onlyUserSafe {
@@ -670,15 +674,16 @@ contract DebtManagerCore is DebtManagerStorage {
         AaveLib.aaveOperation(aaveV3Adapter, marketOperationType, data);
     }
 
-        /// Users repay the borrowed USDC in USDC
+    /// Users repay the borrowed USDC in USDC
     function _repayWithBorrowToken(
         address token,
         address user,
+        uint256 amount,
         uint256 repayDebtUsdcAmt
     ) internal {
         _userBorrowings[user][token] -= repayDebtUsdcAmt;
         _borrowTokenConfig[token].totalBorrowingAmount -= repayDebtUsdcAmt;
-        IERC20(token).safeTransferFrom(msg.sender, address(this), _convertFromSixDecimals(token, repayDebtUsdcAmt));
+        IERC20(token).safeTransferFrom(msg.sender, address(this), amount);
 
         emit Repaid(user, msg.sender, token, repayDebtUsdcAmt);
     }

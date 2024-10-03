@@ -322,12 +322,12 @@ interface IL2DebtManager {
      * @notice Function for users to repay the borrowed funds back to the debt manager.
      * @param  user Address of the user safe for whom the payment is made.
      * @param  token Address of the token in which repayment is done.
-     * @param  repayDebtUsdcAmt Amount of debt to be repaid in USDC terms.
+     * @param  amount Amount of tokens to be repaid.
      */
     function repay(
         address user,
         address token,
-        uint256 repayDebtUsdcAmt
+        uint256 amount
     ) external;
 
     /**
