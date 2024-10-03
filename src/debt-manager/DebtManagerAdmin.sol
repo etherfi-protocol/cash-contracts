@@ -131,7 +131,7 @@ contract DebtManagerAdmin is DebtManagerStorage {
     }
 
 
-function _setCollateralTokenConfig(
+    function _setCollateralTokenConfig(
         address collateralToken,
         CollateralTokenConfig memory config
     ) internal {
@@ -154,10 +154,6 @@ function _setCollateralTokenConfig(
         uint64 borrowApy,
         uint128 minShares
     ) internal {
-        if (!isBorrowToken(borrowToken)) revert UnsupportedBorrowToken();
-        if (_borrowTokenConfig[borrowToken].lastUpdateTimestamp != 0)
-            revert BorrowTokenConfigAlreadySet();
-
         if (borrowApy == 0 || minShares == 0) revert InvalidValue();
 
         BorrowTokenConfig memory cfg = BorrowTokenConfig({
@@ -171,47 +167,6 @@ function _setCollateralTokenConfig(
 
         _borrowTokenConfig[borrowToken] = cfg;
         emit BorrowTokenConfigSet(borrowToken, cfg);
-    }
-
-        function _initCollateralTokens(
-        address[] calldata __supportedCollateralTokens,
-        CollateralTokenConfig[] calldata __collateralTokenConfigs
-    ) internal {
-        uint256 len = __supportedCollateralTokens.length;
-        if (len != __collateralTokenConfigs.length)
-            revert ArrayLengthMismatch();
-
-        for (uint256 i = 0; i < len; ) {
-            _supportCollateralToken(__supportedCollateralTokens[i]);
-            _setCollateralTokenConfig(
-                __supportedCollateralTokens[i],
-                __collateralTokenConfigs[i]
-            );
-
-            unchecked {
-                ++i;
-            }
-        }
-    }
-
-    function _initBorrowTokens(
-        address[] calldata __supportedBorrowTokens,
-        BorrowTokenConfigData[] calldata __borrowTokenConfig
-    ) internal {
-        uint256 len = __supportedBorrowTokens.length;
-        if (len != __borrowTokenConfig.length) revert ArrayLengthMismatch();
-
-        for (uint256 i = 0; i < len; ) {
-            _supportBorrowToken(__supportedBorrowTokens[i]);
-            _setBorrowTokenConfig(
-                __supportedBorrowTokens[i],
-                __borrowTokenConfig[i].borrowApy,
-                __borrowTokenConfig[i].minShares
-            );
-            unchecked {
-                ++i;
-            }
-        }
     }
 
     function _setBorrowApy(address token, uint64 apy) internal {

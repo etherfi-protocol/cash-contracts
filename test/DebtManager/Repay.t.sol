@@ -19,7 +19,7 @@ contract DebtManagerRepayTest is DebtManagerSetup {
     function setUp() public override {
         super.setUp();
 
-        collateralValueInUsdc = debtManager.convertCollateralTokenToUsdc(
+        collateralValueInUsdc = debtManager.convertCollateralTokenToUsd(
             address(weETH),
             collateralAmount
         );
@@ -33,7 +33,7 @@ contract DebtManagerRepayTest is DebtManagerSetup {
         IERC20(address(weETH)).safeIncreaseAllowance(address(debtManager), collateralAmount);
         debtManager.depositCollateral(address(weETH), alice, collateralAmount);
 
-        borrowAmt = debtManager.remainingBorrowingCapacityInUSDC(alice) / 2;
+        borrowAmt = debtManager.remainingBorrowingCapacityInUSD(alice) / 2;
 
         debtManager.borrow(address(usdc), borrowAmt);
         vm.stopPrank();

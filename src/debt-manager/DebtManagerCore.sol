@@ -6,6 +6,7 @@ import {IPriceProvider} from "../interfaces/IPriceProvider.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {SafeERC20, IERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IERC20Metadata} from "@openzeppelin/contracts/interfaces/IERC20Metadata.sol";
+import {IL2DebtManager} from "../interfaces/IL2DebtManager.sol";
 import {AaveLib} from "../libraries/AaveLib.sol";
 
 contract DebtManagerCore is DebtManagerStorage {
@@ -69,7 +70,7 @@ contract DebtManagerCore is DebtManagerStorage {
     ) external view returns (uint256, uint256) {
         if (!isCollateralToken(token)) revert UnsupportedCollateralToken();
         uint256 collateralTokenAmt = _userCollateral[user][token];
-        uint256 collateralAmtInUsd = convertCollateralTokenToUsdc(
+        uint256 collateralAmtInUsd = convertCollateralTokenToUsd(
             token,
             collateralTokenAmt
         );
@@ -121,7 +122,7 @@ contract DebtManagerCore is DebtManagerStorage {
                 amount: _totalCollateralAmounts[_supportedCollateralTokens[i]]
             });
 
-            totalCollateralInUsd += convertCollateralTokenToUsdc(
+            totalCollateralInUsd += convertCollateralTokenToUsd(
                 collaterals[i].token,
                 collaterals[i].amount
             );
@@ -148,7 +149,7 @@ contract DebtManagerCore is DebtManagerStorage {
         uint256 totalMaxBorrow = 0;
 
         for (uint256 i = 0; i < len; ) {
-            uint256 collateral = convertCollateralTokenToUsdc(
+            uint256 collateral = convertCollateralTokenToUsd(
                 _supportedCollateralTokens[i],
                 _userCollateral[user][_supportedCollateralTokens[i]]
             );
@@ -189,7 +190,7 @@ contract DebtManagerCore is DebtManagerStorage {
                 amount: _userCollateral[user][_supportedCollateralTokens[i]]
             });
 
-            totalCollateralInUsd += convertCollateralTokenToUsdc(
+            totalCollateralInUsd += convertCollateralTokenToUsd(
                 collaterals[i].token,
                 collaterals[i].amount
             );
@@ -209,7 +210,7 @@ contract DebtManagerCore is DebtManagerStorage {
             revert AccountUnhealthy();
     }
 
-    function remainingBorrowingCapacityInUSDC(
+    function remainingBorrowingCapacityInUSD(
         address user
     ) public view returns (uint256) {
         uint256 maxBorrowingAmount = getMaxBorrowAmount(user, true);
@@ -238,17 +239,17 @@ contract DebtManagerCore is DebtManagerStorage {
         view
         returns (
             TokenData[] memory totalCollaterals,
-            uint256 totalCollateralInUsdc,
+            uint256 totalCollateralInUsd,
             TokenData[] memory borrowings,
-            uint256 totalBorrowings,
+            uint256 totalBorrowingsInUsd,
             TokenData[] memory totalLiquidCollateralAmounts,
             TokenData[] memory totalLiquidStableAmounts
         )
     {
-        (totalCollaterals, totalCollateralInUsdc) = totalCollateralAmounts();
-        (borrowings, totalBorrowings) = totalBorrowingAmounts();
-        totalLiquidCollateralAmounts = liquidCollateralAmounts();
-        totalLiquidStableAmounts = liquidStableAmount();
+        (totalCollaterals, totalCollateralInUsd) = totalCollateralAmounts();
+        (borrowings, totalBorrowingsInUsd) = totalBorrowingAmounts();
+        totalLiquidCollateralAmounts = _liquidCollateralAmounts();
+        totalLiquidStableAmounts = _liquidStableAmounts();
     }
 
     function getUserCurrentState(address user)
@@ -256,73 +257,16 @@ contract DebtManagerCore is DebtManagerStorage {
         view
         returns (
             TokenData[] memory totalCollaterals,
-            uint256 totalCollateralInUsdc,
+            uint256 totalCollateralInUsd,
             TokenData[] memory borrowings,
             uint256 totalBorrowings
         )
     {
-        (totalCollaterals, totalCollateralInUsdc) = collateralOf(user);
+        (totalCollaterals, totalCollateralInUsd) = collateralOf(user);
         (borrowings, totalBorrowings) = borrowingOf(user);
     }
 
-    function liquidCollateralAmounts()
-        public
-        view
-        returns (TokenData[] memory)
-    {
-        uint256 len = _supportedCollateralTokens.length;
-        TokenData[] memory collaterals = new TokenData[](len);
-
-        for (uint256 i = 0; i < len; ) {
-            uint256 balance = IERC20(_supportedCollateralTokens[i]).balanceOf(
-                address(this)
-            );
-            if (
-                balance > _totalCollateralAmounts[_supportedCollateralTokens[i]]
-            )
-                collaterals[i] = TokenData({
-                    token: _supportedCollateralTokens[i],
-                    amount: balance -
-                        _totalCollateralAmounts[_supportedCollateralTokens[i]]
-                });
-            else
-                collaterals[i] = TokenData({
-                    token: _supportedCollateralTokens[i],
-                    amount: 0
-                });
-
-            unchecked {
-                ++i;
-            }
-        }
-
-        return collaterals;
-    }
-
-    function liquidStableAmount() public view returns (TokenData[] memory) {
-        uint256 len = _supportedBorrowTokens.length;
-        TokenData[] memory tokenData = new TokenData[](len);
-
-        uint256 totalStableBalances = 0;
-        for (uint256 i = 0; i < len; ) {
-            uint256 bal = IERC20(_supportedBorrowTokens[i]).balanceOf(
-                address(this)
-            );
-            tokenData[i] = TokenData({
-                token: _supportedBorrowTokens[i],
-                amount: bal
-            });
-            totalStableBalances += bal;
-
-            unchecked {
-                ++i;
-            }
-        }
-
-        return tokenData;
-    }
-
-    function withdrawableBorrowToken(
+    function supplierBalance(
         address supplier,
         address borrowToken
     ) public view returns (uint256) {
@@ -337,7 +281,7 @@ contract DebtManagerCore is DebtManagerStorage {
             );
     }
 
-    function withdrawableBorrowToken(
+    function supplierBalance(
         address supplier
     ) public view returns (TokenData[] memory, uint256) {
         uint256 len = _supportedBorrowTokens.length;
@@ -346,7 +290,7 @@ contract DebtManagerCore is DebtManagerStorage {
 
         for (uint256 i = 0; i < len; ) {
             address borrowToken = _supportedBorrowTokens[i];
-            uint256 amount = withdrawableBorrowToken(supplier, borrowToken);
+            uint256 amount = supplierBalance(supplier, borrowToken);
             amountInUsd += _convertToSixDecimals(borrowToken, amount);
             suppliesData[i] = TokenData({
                 token: borrowToken,
@@ -386,7 +330,7 @@ contract DebtManagerCore is DebtManagerStorage {
         return (suppliesData, amountInUsd);
     }
 
-    function convertUsdcToCollateralToken(
+    function convertUsdToCollateralToken(
         address collateralToken,
         uint256 debtUsdcAmount
     ) public view returns (uint256) {
@@ -399,7 +343,7 @@ contract DebtManagerCore is DebtManagerStorage {
             );
     }
 
-    function convertCollateralTokenToUsdc(
+    function convertCollateralTokenToUsd(
         address collateralToken,
         uint256 collateralAmount
     ) public view returns (uint256) {
@@ -413,14 +357,14 @@ contract DebtManagerCore is DebtManagerStorage {
                 )) / 10 ** _getDecimals(collateralToken);
     }
 
-    function getCollateralValueInUsdc(
+    function getCollateralValueInUsd(
         address user
     ) public view returns (uint256) {
         uint256 len = _supportedCollateralTokens.length;
         uint256 userCollateralInUsd = 0;
 
         for (uint256 i = 0; i < len; ) {
-            userCollateralInUsd += convertCollateralTokenToUsdc(
+            userCollateralInUsd += convertCollateralTokenToUsd(
                 _supportedCollateralTokens[i],
                 _userCollateral[user][_supportedCollateralTokens[i]]
             );
@@ -604,8 +548,8 @@ contract DebtManagerCore is DebtManagerStorage {
         address borrowToken,
         address[] memory collateralTokensPreference
     ) internal {
-        uint256 debtAmountToLiquidateInUsdc = _userBorrowings[user][borrowToken].ceilDiv(2);
-        _liquidate(user, borrowToken, collateralTokensPreference, debtAmountToLiquidateInUsdc);
+        uint256 debtAmountToLiquidateInUsd = _userBorrowings[user][borrowToken].ceilDiv(2);
+        _liquidate(user, borrowToken, collateralTokensPreference, debtAmountToLiquidateInUsd);
 
         if (liquidatable(user)) _liquidate(user, borrowToken, collateralTokensPreference, _userBorrowings[user][borrowToken]);
     }
@@ -614,14 +558,14 @@ contract DebtManagerCore is DebtManagerStorage {
         address user,
         address borrowToken,
         address[] memory collateralTokensPreference,
-        uint256 debtAmountToLiquidateInUsdc
+        uint256 debtAmountToLiquidateInUsd
     ) internal {    
         uint256 beforeDebtAmount = _userBorrowings[user][borrowToken];
-        if (debtAmountToLiquidateInUsdc == 0) revert LiquidatableAmountIsZero();
+        if (debtAmountToLiquidateInUsd == 0) revert LiquidatableAmountIsZero();
 
         (LiquidationTokenData[] memory collateralTokensToSend, uint256 remainingDebt) = _getCollateralTokensForDebtAmount(
             user,
-            debtAmountToLiquidateInUsdc,
+            debtAmountToLiquidateInUsd,
             collateralTokensPreference
         );
 
@@ -649,7 +593,7 @@ contract DebtManagerCore is DebtManagerStorage {
             }
         }
 
-        uint256 liquidatedAmt = debtAmountToLiquidateInUsdc - remainingDebt;
+        uint256 liquidatedAmt = debtAmountToLiquidateInUsd - remainingDebt;
         _userBorrowings[user][borrowToken] -= liquidatedAmt;
         _borrowTokenConfig[borrowToken]
             .totalBorrowingAmount -= liquidatedAmt;
@@ -698,7 +642,7 @@ contract DebtManagerCore is DebtManagerStorage {
 
         for (uint256 i = 0; i < len; ) {
             address collateralToken = collateralTokenPreference[i];
-            uint256 collateralAmountForDebt = convertUsdcToCollateralToken(
+            uint256 collateralAmountForDebt = convertUsdToCollateralToken(
                 collateralToken,
                 repayDebtUsdcAmt
             );
@@ -718,7 +662,7 @@ contract DebtManagerCore is DebtManagerStorage {
                     liquidationBonus: liquidationBonus
                 });
 
-                uint256 usdcValueOfCollateral = convertCollateralTokenToUsdc(
+                uint256 usdcValueOfCollateral = convertCollateralTokenToUsd(
                     collateralToken,
                     totalCollateral - liquidationBonus
                 );
@@ -754,6 +698,68 @@ contract DebtManagerCore is DebtManagerStorage {
         return (collateral, repayDebtUsdcAmt);
     }
 
+    /**
+     * @notice Function to fetch the liquid collateral amounts in the contract.
+     * @notice Calculated as the collateral balance of the contract minus the total collateral amount in a token.
+     * @return Liquid collateral amounts.
+     */
+    function _liquidCollateralAmounts() internal view returns (TokenData[] memory) {
+        uint256 len = _supportedCollateralTokens.length;
+        TokenData[] memory collaterals = new TokenData[](len);
+
+        for (uint256 i = 0; i < len; ) {
+            uint256 balance = IERC20(_supportedCollateralTokens[i]).balanceOf(
+                address(this)
+            );
+            if (
+                balance > _totalCollateralAmounts[_supportedCollateralTokens[i]]
+            )
+                collaterals[i] = TokenData({
+                    token: _supportedCollateralTokens[i],
+                    amount: balance -
+                        _totalCollateralAmounts[_supportedCollateralTokens[i]]
+                });
+            else
+                collaterals[i] = TokenData({
+                    token: _supportedCollateralTokens[i],
+                    amount: 0
+                });
+
+            unchecked {
+                ++i;
+            }
+        }
+
+        return collaterals;
+    }
+
+    /**
+     * @notice Function to fetch the liquid stable amounts in the contract.
+     * @notice Calculated as the stable balances of the contract.
+     * @return Liquid stable amounts in TokenData array format.
+     */
+    function _liquidStableAmounts() internal view returns (TokenData[] memory) {
+        uint256 len = _supportedBorrowTokens.length;
+        TokenData[] memory tokenData = new TokenData[](len);
+
+        uint256 totalStableBalances = 0;
+        for (uint256 i = 0; i < len; ) {
+            uint256 bal = IERC20(_supportedBorrowTokens[i]).balanceOf(
+                address(this)
+            );
+            tokenData[i] = TokenData({
+                token: _supportedBorrowTokens[i],
+                amount: bal
+            });
+            totalStableBalances += bal;
+
+            unchecked {
+                ++i;
+            }
+        }
+
+        return tokenData;
+    }
 
     function _isUserSafe() internal view {
         if (!_cashDataProvider.isUserSafe(msg.sender)) revert OnlyUserSafe();

@@ -16,7 +16,7 @@ contract DebtManagerWithdrawTest is DebtManagerSetup {
     function setUp() public override {
         super.setUp();
 
-        collateralValueInUsdc = debtManager.convertCollateralTokenToUsdc(
+        collateralValueInUsdc = debtManager.convertCollateralTokenToUsd(
             address(weETH),
             collateralAmount
         );
@@ -30,14 +30,14 @@ contract DebtManagerWithdrawTest is DebtManagerSetup {
         IERC20(address(weETH)).safeIncreaseAllowance(address(debtManager), collateralAmount);
         debtManager.depositCollateral(address(weETH), alice, collateralAmount);
 
-        borrowAmt = debtManager.remainingBorrowingCapacityInUSDC(alice) / 2;
+        borrowAmt = debtManager.remainingBorrowingCapacityInUSD(alice) / 2;
 
         debtManager.borrow(address(usdc), borrowAmt);
         vm.stopPrank();
     }
 
     function test_Withdraw() public {
-        uint256 usdcAmt = debtManager.remainingBorrowingCapacityInUSDC(alice);
+        uint256 usdcAmt = debtManager.remainingBorrowingCapacityInUSD(alice);
 
         uint256 withdrawAmt;
         if (!isFork(chainId)) {
@@ -49,7 +49,7 @@ contract DebtManagerWithdrawTest is DebtManagerSetup {
         }
 
         uint256 aliceBalBefore = weETH.balanceOf(alice);
-        uint256 aliceCollateralBefore = debtManager.getCollateralValueInUsdc(
+        uint256 aliceCollateralBefore = debtManager.getCollateralValueInUsd(
             alice
         );
 
@@ -64,7 +64,7 @@ contract DebtManagerWithdrawTest is DebtManagerSetup {
         debtManager.withdrawCollateral(address(weETH), withdrawAmt);
 
         uint256 aliceBalAfter = weETH.balanceOf(alice);
-        uint256 aliceCollateralAfter = debtManager.getCollateralValueInUsdc(
+        uint256 aliceCollateralAfter = debtManager.getCollateralValueInUsd(
             alice
         );
 

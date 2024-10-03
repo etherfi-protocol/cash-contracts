@@ -87,7 +87,7 @@ contract IntegrationTest is IntegrationTestSetup {
         deal(address(weETH), address(aliceSafe), amount);
 
         uint256 aliceSafeCollateralBefore = etherFiCashDebtManager
-            .getCollateralValueInUsdc(address(aliceSafe));
+            .getCollateralValueInUsd(address(aliceSafe));
         assertEq(aliceSafeCollateralBefore, 0);
 
         uint256 aliceSafeBalBefore = weETH.balanceOf(address(aliceSafe));
@@ -99,10 +99,10 @@ contract IntegrationTest is IntegrationTestSetup {
         aliceSafe.addCollateral(address(weETH), amount);
 
         uint256 aliceSafeCollateralAfter = etherFiCashDebtManager
-            .getCollateralValueInUsdc(address(aliceSafe));
+            .getCollateralValueInUsd(address(aliceSafe));
         assertEq(
             aliceSafeCollateralAfter,
-            etherFiCashDebtManager.convertCollateralTokenToUsdc(
+            etherFiCashDebtManager.convertCollateralTokenToUsd(
                 address(weETH),
                 amount
             )
@@ -124,7 +124,7 @@ contract IntegrationTest is IntegrationTestSetup {
         deal(address(weETH), address(aliceSafe), supplyAmt);
 
         uint256 aliceSafeCollateralBefore = etherFiCashDebtManager
-            .getCollateralValueInUsdc(address(aliceSafe));
+            .getCollateralValueInUsd(address(aliceSafe));
         assertEq(aliceSafeCollateralBefore, 0);
 
         uint256 aliceSafeDebtBefore = etherFiCashDebtManager.borrowingOf(
@@ -154,10 +154,10 @@ contract IntegrationTest is IntegrationTestSetup {
         );
 
         uint256 aliceSafeCollateralAfter = etherFiCashDebtManager
-            .getCollateralValueInUsdc(address(aliceSafe));
+            .getCollateralValueInUsd(address(aliceSafe));
         assertEq(
             aliceSafeCollateralAfter,
-            etherFiCashDebtManager.convertCollateralTokenToUsdc(
+            etherFiCashDebtManager.convertCollateralTokenToUsd(
                 address(weETH),
                 supplyAmt
             )
@@ -340,7 +340,7 @@ contract IntegrationTest is IntegrationTestSetup {
         );
 
         assertEq(
-            etherFiCashDebtManager.withdrawableBorrowToken(
+            etherFiCashDebtManager.supplierBalance(
                 alice,
                 address(newBorrowToken)
             ),
@@ -370,7 +370,7 @@ contract IntegrationTest is IntegrationTestSetup {
         );
 
         assertEq(
-            etherFiCashDebtManager.withdrawableBorrowToken(
+            etherFiCashDebtManager.supplierBalance(
                 owner,
                 address(newBorrowToken)
             ),
@@ -413,14 +413,14 @@ contract IntegrationTest is IntegrationTestSetup {
         aliceSafe.repay(address(newBorrowToken), 1 ether + expectedInterest);
 
         assertEq(
-            etherFiCashDebtManager.withdrawableBorrowToken(
+            etherFiCashDebtManager.supplierBalance(
                 alice,
                 address(newBorrowToken)
             ),
             newBorrowTokenSupplyAmt + expectedInterest / 2
         );
         assertEq(
-            etherFiCashDebtManager.withdrawableBorrowToken(
+            etherFiCashDebtManager.supplierBalance(
                 owner,
                 address(newBorrowToken)
             ),

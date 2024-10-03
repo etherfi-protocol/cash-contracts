@@ -48,21 +48,21 @@ contract DebtManagerSupplyAndWithdrawTest is DebtManagerSetup {
         vm.stopPrank();
 
         assertEq(
-            debtManager.withdrawableBorrowToken(notOwner, address(usdc)),
+            debtManager.supplierBalance(owner, address(usdc)),
             principle
         );
 
         uint256 earnings = _borrowAndRepay(principle);
 
         assertEq(
-            debtManager.withdrawableBorrowToken(notOwner, address(usdc)),
+            debtManager.supplierBalance(owner, address(usdc)),
             principle + earnings
         );
 
         vm.prank(notOwner);
         debtManager.withdrawBorrowToken(address(usdc), earnings + principle);
 
-        assertEq(debtManager.withdrawableBorrowToken(notOwner, address(usdc)), 0);
+        assertEq(debtManager.supplierBalance(owner, address(usdc)), 0);
     }
 
     function test_CannotWithdrawLessThanMinShares() public {
@@ -78,7 +78,7 @@ contract DebtManagerSupplyAndWithdrawTest is DebtManagerSetup {
         vm.stopPrank();
 
         assertEq(
-            debtManager.withdrawableBorrowToken(notOwner, address(usdc)),
+            debtManager.supplierBalance(owner, address(usdc)),
             principle
         );
 
@@ -314,7 +314,7 @@ contract DebtManagerSupplyAndWithdrawTest is DebtManagerSetup {
         IERC20(address(weETH)).safeIncreaseAllowance(address(debtManager), collateralAmount);
         debtManager.depositCollateral(address(weETH), alice, collateralAmount);
 
-        uint256 borrowAmt = debtManager.remainingBorrowingCapacityInUSDC(
+        uint256 borrowAmt = debtManager.remainingBorrowingCapacityInUSD(
             alice
         ) / 2;
         debtManager.borrow(address(usdc), borrowAmt);
