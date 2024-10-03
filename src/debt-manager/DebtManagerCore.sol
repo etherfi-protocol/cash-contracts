@@ -492,8 +492,10 @@ contract DebtManagerCore is DebtManagerStorage {
         _updateBorrowings(user, token);
 
         uint256 repayDebtUsdAmt = _convertToSixDecimals(token, amount);
-        if (_userBorrowings[user][token] < repayDebtUsdAmt)
+        if (_userBorrowings[user][token] < repayDebtUsdAmt) {
             repayDebtUsdAmt = _userBorrowings[user][token];
+            amount = _convertFromSixDecimals(token, repayDebtUsdAmt);
+        }
         if (repayDebtUsdAmt == 0) revert RepaymentAmountIsZero();
 
         if (!isBorrowToken(token)) revert UnsupportedRepayToken();
