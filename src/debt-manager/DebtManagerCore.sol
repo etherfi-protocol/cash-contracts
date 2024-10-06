@@ -411,7 +411,7 @@ contract DebtManagerCore is DebtManagerStorage {
 
         uint256 shares = amount.mulDiv(
             _borrowTokenConfig[borrowToken].totalSharesOfBorrowTokens,
-            _convertFromSixDecimals(borrowToken, totalBorrowTokenAmt),
+            totalBorrowTokenAmt,
             Math.Rounding.Ceil
         );
 

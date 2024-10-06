@@ -48,21 +48,21 @@ contract DebtManagerSupplyAndWithdrawTest is DebtManagerSetup {
         vm.stopPrank();
 
         assertEq(
-            debtManager.supplierBalance(owner, address(usdc)),
+            debtManager.supplierBalance(notOwner, address(usdc)),
             principle
         );
 
         uint256 earnings = _borrowAndRepay(principle);
 
         assertEq(
-            debtManager.supplierBalance(owner, address(usdc)),
+            debtManager.supplierBalance(notOwner, address(usdc)),
             principle + earnings
         );
 
         vm.prank(notOwner);
         debtManager.withdrawBorrowToken(address(usdc), earnings + principle);
 
-        assertEq(debtManager.supplierBalance(owner, address(usdc)), 0);
+        assertEq(debtManager.supplierBalance(notOwner, address(usdc)), 0);
     }
 
     function test_CannotWithdrawLessThanMinShares() public {
@@ -71,14 +71,14 @@ contract DebtManagerSupplyAndWithdrawTest is DebtManagerSetup {
 
         vm.startPrank(notOwner);
         IERC20(address(usdc)).forceApprove(address(debtManager), principle);
-
+ 
         vm.expectEmit(true, true, true, true);
         emit IL2DebtManager.Supplied(notOwner, notOwner, address(usdc), principle);
         debtManager.supply(notOwner, address(usdc), principle);
         vm.stopPrank();
 
         assertEq(
-            debtManager.supplierBalance(owner, address(usdc)),
+            debtManager.supplierBalance(notOwner, address(usdc)),
             principle
         );
 
