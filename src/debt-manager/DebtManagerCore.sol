@@ -274,8 +274,7 @@ contract DebtManagerCore is DebtManagerStorage {
     ) public view returns (uint256) {
         if (_borrowTokenConfig[borrowToken].totalSharesOfBorrowTokens == 0) return 0;
 
-        uint256 totalBorrowAmountExcludingAave = 
-            _getTotalBorrowTokenAmount(borrowToken) - IEtherFiCashAaveV3Adapter(_aaveAdapter()).getDebt(address(this), borrowToken);
+        uint256 totalBorrowAmountExcludingAave = totalSupplies(borrowToken);
 
         return
             _sharesOfBorrowTokens[supplier][borrowToken].mulDiv(
@@ -390,8 +389,7 @@ contract DebtManagerCore is DebtManagerStorage {
         if (!isBorrowToken(borrowToken)) revert UnsupportedBorrowToken();
         if (_cashDataProvider.isUserSafe(user)) revert UserSafeCannotSupplyDebtTokens();
         
-        uint256 totalBorrowAmountExcludingAave = 
-            _getTotalBorrowTokenAmount(borrowToken) - IEtherFiCashAaveV3Adapter(_aaveAdapter()).getDebt(address(this), borrowToken);
+        uint256 totalBorrowAmountExcludingAave = totalSupplies(borrowToken);
         uint256 shares;
         if (totalBorrowAmountExcludingAave == 0) shares = amount; 
         else shares = _borrowTokenConfig[borrowToken].totalSharesOfBorrowTokens == 0
@@ -414,13 +412,12 @@ contract DebtManagerCore is DebtManagerStorage {
     }
     
     function withdrawBorrowToken(address borrowToken, uint256 amount) external {
-        uint256 totalBorrowAmountExcludingAave = 
-            _getTotalBorrowTokenAmount(borrowToken) - IEtherFiCashAaveV3Adapter(_aaveAdapter()).getDebt(address(this), borrowToken);
+        uint256 totalBorrowAmountExcludingAave = totalSupplies(borrowToken);
         if (totalBorrowAmountExcludingAave == 0) revert ZeroTotalBorrowTokensExcludingAave();
         
         uint256 shares = amount.mulDiv(
             _borrowTokenConfig[borrowToken].totalSharesOfBorrowTokens,
-            _convertFromSixDecimals(borrowToken, totalBorrowAmountExcludingAave),
+            totalBorrowAmountExcludingAave,
             Math.Rounding.Ceil
         );
 

@@ -54,9 +54,42 @@ contract DebtManagerSupplyAndWithdrawTest is DebtManagerSetup {
         );
 
         vm.prank(notOwner);
+        vm.expectEmit(true, true, true, true);
+        emit IL2DebtManager.WithdrawBorrowToken(notOwner, address(usdc), earnings + principle);
         debtManager.withdrawBorrowToken(address(usdc), earnings + principle);
 
         assertEq(debtManager.supplierBalance(notOwner, address(usdc)), 0);
+    }
+
+    function test_PartialWithdraw() public {
+        uint256 principle = 0.01 ether;
+        deal(address(usdc), notOwner, 1 ether);
+        vm.startPrank(notOwner);
+        IERC20(address(usdc)).forceApprove(address(debtManager), principle);
+
+        vm.expectEmit(true, true, true, true);
+        emit IL2DebtManager.Supplied(notOwner, notOwner, address(usdc), principle);
+        debtManager.supply(notOwner, address(usdc), principle);
+        vm.stopPrank();
+
+        assertEq(
+            debtManager.supplierBalance(notOwner, address(usdc)),
+            principle
+        );
+
+        uint256 earnings = _borrowAndRepay(principle);
+
+        assertEq(
+            debtManager.supplierBalance(notOwner, address(usdc)),
+            principle + earnings
+        );
+
+        vm.prank(notOwner);
+        vm.expectEmit(true, true, true, true);
+        emit IL2DebtManager.WithdrawBorrowToken(notOwner, address(usdc), earnings);
+        debtManager.withdrawBorrowToken(address(usdc), earnings);
+
+        assertEq(debtManager.supplierBalance(notOwner, address(usdc)), principle);
     }
 
     function test_IssuesCorrectNumberOfSharesIfBorrowingFromAave() public {
