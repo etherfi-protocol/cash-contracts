@@ -359,7 +359,7 @@ contract UserSafeRecoveryTest is UserSafeSetup {
                 block.chainid,
                 address(aliceSafe),
                 nonce,
-                userRecoverySigner
+                signer
             )
         );
 
@@ -371,6 +371,6 @@ contract UserSafeRecoveryTest is UserSafeSetup {
         bytes memory signature = abi.encodePacked(r, s, v);
 
         if (errorSelector != bytes4(0)) vm.expectRevert(errorSelector);
-        aliceSafe.setUserRecoverySigner(userRecoverySigner, signature);
+        aliceSafe.setUserRecoverySigner(signer, signature);
     }
 }

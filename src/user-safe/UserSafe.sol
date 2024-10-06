@@ -17,6 +17,7 @@ import {OwnerLib} from "../libraries/OwnerLib.sol";
 import {UserSafeLib} from "../libraries/UserSafeLib.sol";
 import {ReentrancyGuardTransientUpgradeable} from "../utils/ReentrancyGuardTransientUpgradeable.sol";
 
+
 /**
  * @title UserSafe
  * @author ether.fi [shivam@ether.fi]
@@ -269,6 +270,8 @@ contract UserSafe is IUserSafe, Initializable, ReentrancyGuardTransientUpgradeab
         address recipient,
         bytes calldata signature
     ) external incrementNonce currentOwner {
+        if (tokens.length > 1) _checkDuplicates(tokens);
+
         owner().verifyRequestWithdrawalSig(
             _nonce,
             tokens,
@@ -518,52 +521,94 @@ contract UserSafe is IUserSafe, Initializable, ReentrancyGuardTransientUpgradeab
     ) internal {
         _currentSpendingLimit();
 
-        uint256 startTime = block.timestamp + _cashDataProvider.delay();
-        _incomingSpendingLimitStartTime = startTime;
+        if (limitInUsd > _spendingLimit.spendingLimit) {
+            delete _incomingSpendingLimit;
+            delete _incomingSpendingLimitStartTime;
 
-        _incomingSpendingLimit = SpendingLimitData({
-            spendingLimitType: SpendingLimitTypes(spendingLimitType),
-            renewalTimestamp: _getSpendingLimitRenewalTimestamp(
-                uint64(startTime),
-                SpendingLimitTypes(spendingLimitType)
-            ),
-            spendingLimit: limitInUsd,
-            usedUpAmount: 0
-        });
+            _spendingLimit = SpendingLimitData({
+                spendingLimitType: SpendingLimitTypes(spendingLimitType),
+                renewalTimestamp: _getSpendingLimitRenewalTimestamp(
+                    uint64(block.timestamp),
+                    SpendingLimitTypes(spendingLimitType)
+                ),
+                spendingLimit: limitInUsd,
+                usedUpAmount: 0
+            });
 
-        emit ResetSpendingLimit(spendingLimitType, limitInUsd, startTime);
+            emit ResetSpendingLimit(spendingLimitType, limitInUsd, block.timestamp);
+        } else {
+            uint256 startTime = block.timestamp + _cashDataProvider.delay();
+            _incomingSpendingLimitStartTime = startTime;
+
+            _incomingSpendingLimit = SpendingLimitData({
+                spendingLimitType: SpendingLimitTypes(spendingLimitType),
+                renewalTimestamp: _getSpendingLimitRenewalTimestamp(
+                    uint64(startTime),
+                    SpendingLimitTypes(spendingLimitType)
+                ),
+                spendingLimit: limitInUsd,
+                usedUpAmount: 0
+            });
+            emit ResetSpendingLimit(spendingLimitType, limitInUsd, startTime);
+        }
     }
 
     function _updateSpendingLimit(uint256 limitInUsd) internal {
         _currentSpendingLimit();
 
-        _incomingSpendingLimit = _spendingLimit;
-        _incomingSpendingLimit.spendingLimit = limitInUsd;
+        if (limitInUsd > _spendingLimit.spendingLimit) {
+            delete _incomingSpendingLimit;
+            delete _incomingSpendingLimitStartTime;
+            
+            emit UpdateSpendingLimit(
+                _spendingLimit.spendingLimit,
+                limitInUsd,
+                block.timestamp
+            );
 
-        _incomingSpendingLimitStartTime =
-            block.timestamp +
-            _cashDataProvider.delay();
+            _spendingLimit.spendingLimit = limitInUsd;
+        } else {
+            _incomingSpendingLimit = _spendingLimit;
+            _incomingSpendingLimit.spendingLimit = limitInUsd;
 
-        emit UpdateSpendingLimit(
-            _spendingLimit.spendingLimit,
-            limitInUsd,
-            _incomingSpendingLimitStartTime
-        );
+            _incomingSpendingLimitStartTime =
+                block.timestamp +
+                _cashDataProvider.delay();
+
+            emit UpdateSpendingLimit(
+                _spendingLimit.spendingLimit,
+                limitInUsd,
+                _incomingSpendingLimitStartTime
+            );
+        }
     }
 
     function _setCollateralLimit(uint256 limitInUsd) internal {
         _currentCollateralLimit();
 
-        _incomingCollateralLimitStartTime =
-            block.timestamp +
-            _cashDataProvider.delay();
-        _incomingCollateralLimit = limitInUsd;
+        if (limitInUsd > _collateralLimit) {
+            delete _incomingCollateralLimitStartTime;
+            delete _incomingCollateralLimit;
 
-        emit SetCollateralLimit(
-            _collateralLimit,
-            limitInUsd,
-            _incomingCollateralLimitStartTime
-        );
+            emit SetCollateralLimit(
+                _collateralLimit,
+                limitInUsd,
+                block.timestamp
+            );
+            _collateralLimit = limitInUsd;
+        } else {
+            _incomingCollateralLimitStartTime =
+                block.timestamp +
+                _cashDataProvider.delay();
+            _incomingCollateralLimit = limitInUsd;
+
+            emit SetCollateralLimit(
+                _collateralLimit,
+                limitInUsd,
+                _incomingCollateralLimitStartTime
+            );
+        }
+
     }
 
     function _requestWithdrawal(
@@ -598,13 +643,15 @@ contract UserSafe is IUserSafe, Initializable, ReentrancyGuardTransientUpgradeab
     }
 
     function _cancelOldWithdrawal() internal {
-        emit WithdrawalCancelled(
-            _pendingWithdrawalRequest.tokens,
-            _pendingWithdrawalRequest.amounts,
-            _pendingWithdrawalRequest.recipient
-        );
+        if (_pendingWithdrawalRequest.tokens.length > 0) {
+            emit WithdrawalCancelled(
+                _pendingWithdrawalRequest.tokens,
+                _pendingWithdrawalRequest.amounts,
+                _pendingWithdrawalRequest.recipient
+            );
 
-        delete _pendingWithdrawalRequest;
+            delete _pendingWithdrawalRequest;
+        }
     }
 
     function _setOwner(bytes calldata __owner) internal {
@@ -665,16 +712,10 @@ contract UserSafe is IUserSafe, Initializable, ReentrancyGuardTransientUpgradeab
         _currentCollateralLimit();
 
         uint256 currentCollateral = IL2DebtManager(debtManager).getCollateralValueInUsd(address(this));
-
-        uint256 price = IPriceProvider(_cashDataProvider.priceProvider()).price(
-            token
-        );
-
+        uint256 price = IPriceProvider(_cashDataProvider.priceProvider()).price(token);
         // amount * price with 6 decimals / 10 ** tokenDecimals will convert the collateral amount to USD amount with 6 decimals
         amountToAdd = (amountToAdd * price) / 10 ** _getDecimals(token);
-
-        if (currentCollateral + amountToAdd > _collateralLimit)
-            revert ExceededCollateralLimit();
+        if (currentCollateral + amountToAdd > _collateralLimit) revert ExceededCollateralLimit();
     }
 
     function _addCollateral(
@@ -715,6 +756,7 @@ contract UserSafe is IUserSafe, Initializable, ReentrancyGuardTransientUpgradeab
         address token,
         uint256 amount
     ) internal {
+        // Repay token can either be borrow token or collateral token
         IERC20(token).forceApprove(debtManager, amount);
 
         IL2DebtManager(debtManager).repay(
@@ -812,6 +854,35 @@ contract UserSafe is IUserSafe, Initializable, ReentrancyGuardTransientUpgradeab
     function _onlyEtherFiWallet() private view {
         if (!_cashDataProvider.isEtherFiWallet(msg.sender))
             revert UnauthorizedCall();
+    }
+
+    function _checkDuplicates(address[] calldata tokens) internal {
+        bytes4 errorSelector = DuplicateTokenFound.selector;
+        // Use assembly to interact with transient storage
+        assembly {
+            // Iterate through the tokens array
+            for { let i := 0 } lt(i, tokens.length) { i := add(i, 1) }
+            {
+                // Load the current token address
+                let token := calldataload(add(tokens.offset, mul(i, 0x20)))
+                
+                // Check if the token has been seen before
+                if tload(token) {
+                    // If found, revert with custom error
+                    mstore(0x00, errorSelector) 
+                    revert(0x00, 0x04)
+                }
+                
+                // Mark the token as seen
+                tstore(token, 1)
+            }
+
+            for { let i := 0 } lt(i, tokens.length) { i := add(i, 1) }
+            {
+                let token := calldataload(add(tokens.offset, mul(i, 0x20)))
+                tstore(token, 0)
+            }
+        }
     }
 
     modifier onlyEtherFiWallet() {

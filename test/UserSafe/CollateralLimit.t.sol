@@ -8,8 +8,8 @@ import {UserSafeSetup} from "./UserSafeSetup.t.sol";
 contract UserSafeCollateralLimitTest is UserSafeSetup {
     using MessageHashUtils for bytes32;
 
-    function test_SetCollateralLimit() public {
-        uint256 newCollateralLimit = 1 ether;
+    function test_SetCollateralLimitIncursDelayIfAmountIsLower() public {
+        uint256 newCollateralLimit = collateralLimit - 1;
         uint256 delayedTime = block.timestamp + delay + 1;
         uint256 nonce = aliceSafe.nonce() + 1;
 
@@ -48,6 +48,42 @@ contract UserSafeCollateralLimitTest is UserSafeSetup {
         uint256 collateralLimitAfterDelay = aliceSafe
             .applicableCollateralLimit();
         assertEq(newCollateralLimit, collateralLimitAfterDelay);
+    }
+
+    function test_SetCollateralLimitDoesNotDelayIfLimitIsGreater() public {
+        uint256 newCollateralLimit = collateralLimit + 1;
+        uint256 nonce = aliceSafe.nonce() + 1;
+
+        bytes32 msgHash = keccak256(
+            abi.encode(
+                UserSafeLib.SET_COLLATERAL_LIMIT_METHOD,
+                block.chainid,
+                address(aliceSafe),
+                nonce,
+                newCollateralLimit
+            )
+        );
+
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(
+            alicePk,
+            msgHash.toEthSignedMessageHash()
+        );
+        bytes memory signature = abi.encodePacked(r, s, v);
+
+        uint256 collateralLimitBefore = aliceSafe.applicableCollateralLimit();
+        assertEq(collateralLimitBefore, collateralLimit);
+
+        vm.prank(alice);
+        vm.expectEmit(true, true, true, true);
+        emit IUserSafe.SetCollateralLimit(
+            collateralLimitBefore,
+            newCollateralLimit,
+            block.timestamp
+        );
+        aliceSafe.setCollateralLimit(newCollateralLimit, signature);
+
+        uint256 collateralLimitAfterSet = aliceSafe.applicableCollateralLimit();
+        assertEq(newCollateralLimit, collateralLimitAfterSet);
     }
 
     function test_CannotAddMoreCollateralThanCollateralLimit() public {

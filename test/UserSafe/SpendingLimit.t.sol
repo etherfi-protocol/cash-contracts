@@ -8,11 +8,11 @@ import {UserSafeSetup} from "./UserSafeSetup.t.sol";
 contract UserSafeSpendingLimitTest is UserSafeSetup {
     using MessageHashUtils for bytes32;
 
-    function test_SetSpendingLimit() public {
+    function test_ResetSpendingLimit() public {
         uint256 dailySpendingLimit = 1000000;
-        uint256 weeklySpendingLimit = 10000000;
-        uint256 monthlySpendingLimit = 100000000;
-        uint256 yearlySpendingLimit = 100000000;
+        uint256 weeklySpendingLimit = 100000;
+        uint256 monthlySpendingLimit = 10000;
+        uint256 yearlySpendingLimit = 1000;
 
         _resetSpendingLimit(
             uint8(IUserSafe.SpendingLimitTypes.Daily),
@@ -89,6 +89,28 @@ contract UserSafeSpendingLimitTest is UserSafeSetup {
         assertEq(spendingLimitData.usedUpAmount, 0);
     }
 
+    function test_ResetSpendingLimitDoesNotDelayIfLimitIsGreater() public {
+        uint256 newLimit = defaultSpendingLimit + 1;
+        _resetSpendingLimit(
+            uint8(IUserSafe.SpendingLimitTypes.Monthly),
+            newLimit
+        );
+
+        UserSafe.SpendingLimitData memory spendingLimitData = aliceSafe
+            .applicableSpendingLimit();
+
+        assertEq(
+            spendingLimitData.renewalTimestamp,
+            block.timestamp + 30 * 24 * 60 * 60
+        );
+        assertEq(spendingLimitData.spendingLimit, newLimit);
+        assertEq(
+            uint8(spendingLimitData.spendingLimitType),
+            uint8(IUserSafe.SpendingLimitTypes.Monthly)
+        );
+        assertEq(spendingLimitData.usedUpAmount, 0);
+    }
+
     function test_UpdateSpendingLimitWithPermit() public {
         vm.prank(alice);
         usdc.transfer(address(aliceSafe), 1000e6);
@@ -142,6 +164,32 @@ contract UserSafeSpendingLimitTest is UserSafeSetup {
             .applicableSpendingLimit();
         assertEq(spendingLimitAfter.spendingLimit, spendingLimitInUsd);
         assertEq(spendingLimitAfter.usedUpAmount, transferAmount);
+    }
+
+    function test_UpdateSpendingLimitDoesNotDelayIfLimitIsGreater() public {
+        uint256 newLimit = defaultSpendingLimit + 1;
+        uint256 nonce = aliceSafe.nonce() + 1;
+
+        bytes32 msgHash = keccak256(
+            abi.encode(
+                UserSafeLib.UPDATE_SPENDING_LIMIT_METHOD,
+                block.chainid,
+                address(aliceSafe),
+                nonce,
+                newLimit
+            )
+        );
+
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(
+            alicePk,
+            msgHash.toEthSignedMessageHash()
+        );
+        bytes memory signature = abi.encodePacked(r, s, v);
+
+        vm.prank(notOwner);
+        aliceSafe.updateSpendingLimit(newLimit, signature);
+
+        assertEq(aliceSafe.applicableSpendingLimit().spendingLimit, newLimit);
     }
 
     function test_CannotSpendMoreThanSpendingLimit() public {

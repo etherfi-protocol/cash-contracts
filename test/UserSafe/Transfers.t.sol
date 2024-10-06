@@ -297,7 +297,6 @@ contract UserSafeTransfersTest is UserSafeSetup {
     }
 
     function _setCollateralLimit(uint256 newCollateralLimit) internal {
-        uint256 delayedTime = block.timestamp + delay + 1;
         uint256 nonce = aliceSafe.nonce() + 1;
 
         bytes32 msgHash = keccak256(
@@ -315,15 +314,6 @@ contract UserSafeTransfersTest is UserSafeSetup {
             msgHash.toEthSignedMessageHash()
         );
         bytes memory signature = abi.encodePacked(r, s, v);
-
-        uint256 collateralLimitBefore = aliceSafe.applicableCollateralLimit();
-
-        vm.expectEmit(true, true, true, true);
-        emit IUserSafe.SetCollateralLimit(
-            collateralLimitBefore,
-            newCollateralLimit,
-            delayedTime - 1
-        );
         aliceSafe.setCollateralLimit(newCollateralLimit, signature);
     }
 }
