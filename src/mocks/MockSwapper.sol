@@ -21,4 +21,6 @@ contract MockSwapper {
         IERC20(_toAsset).safeTransfer(msg.sender, _minToAssetAmount);
         return _minToAssetAmount;
     }
+
+    function approveAssets(address[] memory _assets) external {}
 }

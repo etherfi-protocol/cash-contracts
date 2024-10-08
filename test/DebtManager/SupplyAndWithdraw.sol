@@ -105,6 +105,7 @@ contract DebtManagerSupplyAndWithdrawTest is DebtManagerSetup {
 
         // All this is being borrowed from Aave since there is no supply in the contract
         uint256 borrowAmt = debtManager.remainingBorrowingCapacityInUSD(alice) / 2;
+        if (!isFork(chainId)) deal(address(usdc), address(debtManager), borrowAmt); 
         debtManager.borrow(address(usdc), borrowAmt);
 
         uint256 supplyAmt = 1000e6;
