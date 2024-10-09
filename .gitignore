@@ -21,3 +21,6 @@ report
 .vscode/
 
 node_modules
+
+# certora
+.certora_internal

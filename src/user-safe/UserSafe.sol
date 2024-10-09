@@ -349,6 +349,7 @@ contract UserSafe is IUserSafe, Initializable, ReentrancyGuardTransientUpgradeab
         uint256 amount
     ) external onlyEtherFiWallet {
         if (!_isBorrowToken(token)) revert UnsupportedToken();
+        if (amount == 0) revert InvalidValue();
 
         _checkSpendingLimit(token, amount);
         _updateWithdrawalRequestIfNecessary(token, amount);
@@ -372,6 +373,7 @@ contract UserSafe is IUserSafe, Initializable, ReentrancyGuardTransientUpgradeab
         uint256 outputAmountToTransfer,
         bytes calldata swapData
     ) external onlyEtherFiWallet {
+        if (outputAmountToTransfer == 0) revert InvalidValue();
         if (!_isBorrowToken(outputToken)) revert UnsupportedToken();
 
         _checkSpendingLimit(outputToken, outputAmountToTransfer);
@@ -685,11 +687,12 @@ contract UserSafe is IUserSafe, Initializable, ReentrancyGuardTransientUpgradeab
         }
 
         uint8 tokenDecimals = _getDecimals(token);
-
+        
         // in current case, token can be either collateral tokens or borrow tokens
         if (_isCollateralToken(token)) {
             uint256 price = IPriceProvider(_cashDataProvider.priceProvider())
                 .price(token);
+            if (price == 0) revert PriceCannotBeZero();
             // token amount * price with 6 decimals / 10**decimals will convert the collateral token amount to USD amount with 6 decimals
             amount = (amount * price) / 10 ** tokenDecimals;
         } else {
@@ -713,6 +716,7 @@ contract UserSafe is IUserSafe, Initializable, ReentrancyGuardTransientUpgradeab
 
         uint256 currentCollateral = IL2DebtManager(debtManager).getCollateralValueInUsd(address(this));
         uint256 price = IPriceProvider(_cashDataProvider.priceProvider()).price(token);
+        if (price == 0) revert PriceCannotBeZero();
         // amount * price with 6 decimals / 10 ** tokenDecimals will convert the collateral amount to USD amount with 6 decimals
         amountToAdd = (amountToAdd * price) / 10 ** _getDecimals(token);
         if (currentCollateral + amountToAdd > _collateralLimit) revert ExceededCollateralLimit();
@@ -724,6 +728,7 @@ contract UserSafe is IUserSafe, Initializable, ReentrancyGuardTransientUpgradeab
         uint256 amount
     ) internal {
         if (!_isCollateralToken(token)) revert UnsupportedToken();
+        if (amount == 0) revert InvalidValue();
 
         _checkCollateralLimit(debtManager, token, amount);
         _updateWithdrawalRequestIfNecessary(token, amount);
@@ -744,6 +749,7 @@ contract UserSafe is IUserSafe, Initializable, ReentrancyGuardTransientUpgradeab
         uint256 amount
     ) internal {
         if (!_isBorrowToken(token)) revert UnsupportedToken();
+        if (amount == 0) revert InvalidValue();
 
         _checkSpendingLimit(token, amount);
 

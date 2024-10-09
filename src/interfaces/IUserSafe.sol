@@ -114,6 +114,8 @@ interface IUserSafe {
     error UserRecoverySignerIsUnsetCannotUseIndexZero();
     error IncorrectOutputAmount();
     error DuplicateTokenFound();
+    error InvalidValue();
+    error PriceCannotBeZero();
 
     /**
      * @notice Function to fetch the address of the owner of the User Safe.
