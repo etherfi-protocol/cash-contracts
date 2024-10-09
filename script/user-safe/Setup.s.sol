@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.24;
 
-import {Script, console} from "forge-std/Script.sol";
+import {Script} from "forge-std/Script.sol";
 import {UserSafeFactory} from "../../src/user-safe/UserSafeFactory.sol";
 import {UserSafe} from "../../src/user-safe/UserSafe.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
@@ -18,7 +18,7 @@ import {UUPSProxy} from "../../src/UUPSProxy.sol";
 import {CashTokenWrapperFactory, CashWrappedERC20} from "../../src/cash-wrapper-token/CashTokenWrapperFactory.sol";
 import {IWeETH} from "../../src/interfaces/IWeETH.sol";
 import {IAggregatorV3} from "../../src/interfaces/IAggregatorV3.sol";
-
+import {CashSafe} from "../../src/cash-safe/CashSafe.sol";
 
 contract DeployUserSafeSetup is Utils {
     ERC20 usdc;
@@ -30,7 +30,7 @@ contract DeployUserSafeSetup is Utils {
     IL2DebtManager debtManager;
     CashDataProvider cashDataProvider;
     EtherFiCashAaveV3Adapter aaveV3Adapter;
-    address etherFiCashMultisig;
+    CashSafe cashSafe;
     address etherFiWallet;
     address owner;
     uint256 delay = 300; // 5 min
@@ -51,6 +51,15 @@ contract DeployUserSafeSetup is Utils {
     CashTokenWrapperFactory wrapperTokenFactory;
     CashWrappedERC20 wrappedERC20Impl;
 
+    uint32 optimismDestEid = 30111;
+
+    address factoryImpl;
+    address debtManagerCoreImpl;
+    address debtManagerAdminImpl;
+    address debtManagerInitializer;
+    address cashDataProviderImpl;
+    address cashSafeImpl;
+
     function run() public {
         // Pulling deployer info from the environment
         uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
@@ -67,11 +76,29 @@ contract DeployUserSafeSetup is Utils {
         supportedBorrowTokens[0] = chainConfig.usdc;
 
         etherFiWallet = deployerAddress;
-        etherFiCashMultisig = deployerAddress;
         owner = deployerAddress;
 
         usdc = ERC20(chainConfig.usdc);
         weETH = ERC20(chainConfig.weETH);
+
+        cashSafeImpl = address(new CashSafe());
+        cashSafe = CashSafe(payable(address(new UUPSProxy(cashSafeImpl, ""))));
+        address[] memory tokens = new address[](1);
+        tokens[0] = address(usdc);
+        
+        CashSafe.DestinationData[] memory destDatas = new CashSafe.DestinationData[](1);
+        destDatas[0] = CashSafe.DestinationData({
+            destEid: optimismDestEid,
+            destRecipient: deployerAddress,
+            stargate: chainConfig.stargateUsdcPool
+        });
+
+        cashSafe.initialize(
+            uint48(delay),
+            deployerAddress,
+            tokens,
+            destDatas
+        );
 
         PriceProvider.Config memory weETHConfig = PriceProvider.Config({
             oracle: chainConfig.weEthWethOracle,
@@ -121,7 +148,7 @@ contract DeployUserSafeSetup is Utils {
         address cashWrappedERC20Impl = address(new CashWrappedERC20());
         wrapperTokenFactory = new CashTokenWrapperFactory(address(cashWrappedERC20Impl), owner);
 
-        address cashDataProviderImpl = address(new CashDataProvider());
+        cashDataProviderImpl = address(new CashDataProvider());
         cashDataProvider = CashDataProvider(
             address(new UUPSProxy(cashDataProviderImpl, ""))
         );
@@ -141,9 +168,9 @@ contract DeployUserSafeSetup is Utils {
         collateralTokenConfig[0].liquidationBonus = liquidationBonus;
         collateralTokenConfig[0].supplyCap = supplyCap;
 
-        address debtManagerCoreImpl = address(new DebtManagerCore());
-        address debtManagerAdminImpl = address(new DebtManagerAdmin());
-        address debtManagerInitializer = address(new DebtManagerInitializer());
+        debtManagerCoreImpl = address(new DebtManagerCore());
+        debtManagerAdminImpl = address(new DebtManagerAdmin());
+        debtManagerInitializer = address(new DebtManagerInitializer());
         address debtManagerProxy = address(new UUPSProxy(debtManagerInitializer, ""));
 
         debtManager = IL2DebtManager(address(debtManagerProxy));
@@ -154,7 +181,7 @@ contract DeployUserSafeSetup is Utils {
             recoverySigner2
         );
 
-        address factoryImpl = address(new UserSafeFactory());
+        factoryImpl = address(new UserSafeFactory());
         
         userSafeFactory = UserSafeFactory(
             address(new UUPSProxy(
@@ -169,18 +196,31 @@ contract DeployUserSafeSetup is Utils {
             )
         );
 
+        initializeCashDataProvider();
+        initializeDebtManager(debtManagerProxy, collateralTokenConfig);
+        saveDeployments();
+
+        vm.stopBroadcast();
+    }
+
+    function initializeCashDataProvider() internal {
         CashDataProvider(address(cashDataProvider)).initialize(
             owner,
             uint64(delay),
             etherFiWallet,
-            etherFiCashMultisig,
+            address(cashSafe),
             address(debtManager),
             address(priceProvider),
             address(swapper),
             address(aaveV3Adapter),
             address(userSafeFactory)
         );
+    }
 
+    function initializeDebtManager(
+        address debtManagerProxy,  
+        DebtManagerCore.CollateralTokenConfig[] memory collateralTokenConfig
+    ) internal {
         DebtManagerInitializer(address(debtManager)).initialize(
             owner,
             uint48(delay),
@@ -188,15 +228,23 @@ contract DeployUserSafeSetup is Utils {
             address(wrapperTokenFactory)
         );
         DebtManagerCore(debtManagerProxy).upgradeToAndCall(debtManagerCoreImpl, "");
-        DebtManagerCore debtManagerCore = DebtManagerCore(debtManagerProxy);
+        configureDebtManager(DebtManagerCore(debtManagerProxy), collateralTokenConfig);
+    }
+
+    function configureDebtManager(
+        DebtManagerCore debtManagerCore, 
+        DebtManagerCore.CollateralTokenConfig[] memory collateralTokenConfig
+    ) internal {
         debtManagerCore.setAdminImpl(debtManagerAdminImpl);
         DebtManagerAdmin(address(debtManagerCore)).supportCollateralToken(address(weETH), collateralTokenConfig[0]);
         DebtManagerAdmin(address(debtManagerCore)).supportBorrowToken(
             address(usdc), 
             borrowApyPerSecond, 
             uint128(10 * 10 ** usdc.decimals())
-        );
+        );  
+    }
 
+    function saveDeployments() internal  {
         string memory parentObject = "parent object";
 
         string memory deployedAddresses = "addresses";
@@ -267,8 +315,13 @@ contract DeployUserSafeSetup is Utils {
         );
         vm.serializeAddress(
             deployedAddresses,
-            "etherFiCashMultisig",
-            address(etherFiCashMultisig)
+            "cashSafeProxy",
+            address(cashSafe)
+        );
+        vm.serializeAddress(
+            deployedAddresses,
+            "cashSafeImpl",
+            address(cashSafeImpl)
         );
         vm.serializeAddress(
             deployedAddresses,
@@ -296,7 +349,5 @@ contract DeployUserSafeSetup is Utils {
         );
 
         writeDeploymentFile(finalJson);
-
-        vm.stopBroadcast();
     }
 }
