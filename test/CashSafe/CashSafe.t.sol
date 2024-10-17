@@ -124,14 +124,14 @@ contract CashSafeTest is Test {
         deal(address(usdc), address(cashSafe), balBefore);
         
         uint256 amount = 10e6;
-        ( , uint256 valueToSend, , ) = cashSafe.prepareRideBus(address(usdc), amount);
+        ( , uint256 valueToSend, , , ) = cashSafe.prepareRideBus(address(usdc), amount);
 
         deal(address(cashSafe), valueToSend);
         
         uint256 stargateBalBefore = usdc.balanceOf(address(stargateUsdcPool));
 
         vm.prank(bridger);
-        cashSafe.bridge(address(usdc), amount);
+        cashSafe.bridge(address(usdc), amount, 1);
 
         uint256 stargateBalAfter = usdc.balanceOf(address(stargateUsdcPool));
 
@@ -142,16 +142,16 @@ contract CashSafeTest is Test {
     function test_OnlyBridgerCanBridgeFunds() public {
         vm.prank(alice);
         vm.expectRevert(buildAccessControlRevertData(alice, BRIDGER_ROLE));
-        cashSafe.bridge(address(usdc), 1);
+        cashSafe.bridge(address(usdc), 1, 1);
     }
 
     function test_CannotBridgeIfInvalidValuesArePassed() public {
         vm.startPrank(bridger);
         vm.expectRevert(CashSafe.InvalidValue.selector);
-        cashSafe.bridge(address(0), 1);
+        cashSafe.bridge(address(0), 1, 1);
         
         vm.expectRevert(CashSafe.InvalidValue.selector);
-        cashSafe.bridge(address(usdc), 0);
+        cashSafe.bridge(address(usdc), 0, 1);
         vm.stopPrank();
     }
 
@@ -159,7 +159,7 @@ contract CashSafeTest is Test {
         deal(address(weth), address(cashSafe), 1 ether);
         vm.prank(bridger);
         vm.expectRevert(CashSafe.DestinationDataNotSet.selector);
-        cashSafe.bridge(address(weth), 1);
+        cashSafe.bridge(address(weth), 1, 1);
     }
 
     function test_CannotBridgeFundsIfBalanceInsufficient() public {
@@ -167,7 +167,7 @@ contract CashSafeTest is Test {
 
         vm.prank(bridger);
         vm.expectRevert(CashSafe.InsufficientBalance.selector);
-        cashSafe.bridge(address(usdc), 1);
+        cashSafe.bridge(address(usdc), 1, 1);
     }
 
     function test_CannotBridgeFundsIfNoFee() public {
@@ -175,13 +175,25 @@ contract CashSafeTest is Test {
         deal(address(usdc), address(cashSafe), balBefore);
         
         uint256 amount = 10e6;
-        ( , uint256 valueToSend, , ) = cashSafe.prepareRideBus(address(usdc), amount);
+        ( , uint256 valueToSend, , , ) = cashSafe.prepareRideBus(address(usdc), amount);
 
         deal(address(cashSafe), valueToSend - 1);
         
         vm.prank(bridger);
         vm.expectRevert(CashSafe.InsufficientFeeToCoverCost.selector);
-        cashSafe.bridge(address(usdc), amount);
+        cashSafe.bridge(address(usdc), amount, 1);
+    }
+
+    function test_CannotBridgeIfMinReturnIsTooLow() public {
+        uint256 balBefore = 100e6;
+        deal(address(usdc), address(cashSafe), balBefore);
+        uint256 amount = 10e6;
+        ( , uint256 valueToSend, uint256 minReturnFromStargate, , ) = cashSafe.prepareRideBus(address(usdc), amount);
+        deal(address(cashSafe), valueToSend);
+        
+        vm.prank(bridger);
+        vm.expectRevert(CashSafe.InsufficientMinReturn.selector);
+        cashSafe.bridge(address(usdc), amount, minReturnFromStargate + 1);
     }
 
     function test_WithdrawErc20Funds() public {

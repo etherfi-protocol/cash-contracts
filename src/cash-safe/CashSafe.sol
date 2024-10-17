@@ -35,6 +35,7 @@ contract CashSafe is Initializable, UUPSUpgradeable, AccessControlDefaultAdminRu
     error WithdrawFundsFailed();
     error CannotWithdrawZeroAmount();
     error InsufficientFeeToCoverCost();
+    error InsufficientMinReturn();
 
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
@@ -78,10 +79,11 @@ contract CashSafe is Initializable, UUPSUpgradeable, AccessControlDefaultAdminRu
      * @param token Address of the token to bridge.
      * @param amount Amount of the token to bridge.
      */
-    function bridge(address token, uint256 amount) external payable onlyRole(BRIDGER_ROLE) {        
-        (address stargate, uint256 valueToSend, SendParam memory sendParam, MessagingFee memory messagingFee) = 
+    function bridge(address token, uint256 amount, uint256 minReturnLD) external payable onlyRole(BRIDGER_ROLE) {        
+        (address stargate, uint256 valueToSend, uint256 minReturnFromStargate, SendParam memory sendParam, MessagingFee memory messagingFee) = 
             prepareRideBus(token, amount);
-        
+
+        if (minReturnLD > minReturnFromStargate) revert InsufficientMinReturn();
         if (address(this).balance < valueToSend) revert InsufficientFeeToCoverCost();
 
         IERC20(token).forceApprove(stargate, amount);
@@ -93,7 +95,7 @@ contract CashSafe is Initializable, UUPSUpgradeable, AccessControlDefaultAdminRu
     function prepareRideBus(
         address token,
         uint256 amount
-    ) public view returns (address stargate, uint256 valueToSend, SendParam memory sendParam, MessagingFee memory messagingFee) {
+    ) public view returns (address stargate, uint256 valueToSend, uint256 minReturnFromStargate, SendParam memory sendParam, MessagingFee memory messagingFee) {
         if (token == address(0) || amount == 0) revert InvalidValue();
         if (IERC20(token).balanceOf(address(this)) < amount) revert InsufficientBalance();
 
@@ -113,6 +115,7 @@ contract CashSafe is Initializable, UUPSUpgradeable, AccessControlDefaultAdminRu
 
         (, , OFTReceipt memory receipt) = IStargate(stargate).quoteOFT(sendParam);
         sendParam.minAmountLD = receipt.amountReceivedLD;
+        minReturnFromStargate = receipt.amountReceivedLD;
 
         messagingFee = IStargate(stargate).quoteSend(sendParam, false);
         valueToSend = messagingFee.nativeFee;
