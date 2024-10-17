@@ -38,6 +38,10 @@ contract DebtManagerCore is DebtManagerStorage {
         return _collateralTokenConfig[collateralToken];
     }
 
+    function cashTokenWrapperFactory() external view returns (address) {
+        return _cashTokenWrapperFactory;
+    }
+
     function getCollateralTokens() public view returns (address[] memory) {
         uint256 len = _supportedCollateralTokens.length;
         address[] memory tokens = new address[](len);

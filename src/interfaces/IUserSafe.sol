@@ -116,6 +116,9 @@ interface IUserSafe {
     error DuplicateTokenFound();
     error InvalidValue();
     error PriceCannotBeZero();
+    error CollateralAmountToAddCannotBeZero();
+    error SpendingLimitToAddCannotBeZero();
+    error AmountZeroWithSixDecimals();
 
     /**
      * @notice Function to fetch the address of the owner of the User Safe.
@@ -175,6 +178,14 @@ interface IUserSafe {
      * @return Current applicable collateral limit
      */
     function applicableCollateralLimit() external view returns (uint256);
+
+    /**
+     * @notice Function to fetch if a user can spend. 
+     * @notice This is a utility function for the backend to put checks on spendings.
+     * @param token Address of the token to spend.
+     * @param amount Amount of the token to spend.
+     */
+    function canSpend(address token, uint256 amount) external view returns (bool, string memory);
 
     /**
      * @notice Function to set the owner of the contract.

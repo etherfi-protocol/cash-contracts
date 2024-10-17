@@ -52,7 +52,7 @@ contract UserSafe is IUserSafe, Initializable, ReentrancyGuardTransientUpgradeab
     // Incoming spending limit -> we want a delay between spending limit changes so we can deduct funds in between to settle account
     SpendingLimitData private _incomingSpendingLimit;
     // Incoming spending limit start timestamp
-    uint256 _incomingSpendingLimitStartTime;
+    uint256 private _incomingSpendingLimitStartTime;
     // Incoming collateral limit -> we want a delay between collateral limit changes so we can deduct funds in between to settle account
     uint256 private _incomingCollateralLimit;
     // Incoming collateral limit start timestamp
@@ -166,6 +166,60 @@ contract UserSafe is IUserSafe, Initializable, ReentrancyGuardTransientUpgradeab
         ) return _incomingCollateralLimit;
 
         return _collateralLimit;
+    }
+
+    /**
+     * @inheritdoc IUserSafe
+     */
+    function canSpend(address token, uint256 amount) external view returns (bool, string memory) {
+        amount = (amount * 10 ** 6) / 10 ** _getDecimals(token);
+        if (amount == 0) revert AmountZeroWithSixDecimals();
+
+        uint256 balance = IERC20(token).balanceOf(address(this));
+        if (balance < amount) return (false, "Balance too low");
+
+        uint256 len = _pendingWithdrawalRequest.tokens.length;
+        uint256 tokenIndex = len;
+        for (uint256 i = 0; i < len; ) {
+            if (_pendingWithdrawalRequest.tokens[i] == token) {
+                tokenIndex = i;
+                break;
+            }
+            unchecked {
+                ++i;
+            }
+        }
+
+        // If the token does not exist in withdrawal request
+        if (tokenIndex != len) balance = balance - _pendingWithdrawalRequest.amounts[tokenIndex];
+        if (balance < amount) return (false, "Tokens pending withdrawal");
+
+        IUserSafe.SpendingLimitData memory dummySpendingLimit;
+        IUserSafe.SpendingLimitData memory spendingLimit = _spendingLimit;
+        IUserSafe.SpendingLimitData memory incomingSpendingLimit = _incomingSpendingLimit;
+        uint256 incomingSpendingLimitStartTime = _incomingSpendingLimitStartTime;
+        
+        if (incomingSpendingLimitStartTime != 0 && block.timestamp > incomingSpendingLimitStartTime) {
+            spendingLimit = incomingSpendingLimit;
+            incomingSpendingLimit = dummySpendingLimit;
+            incomingSpendingLimitStartTime = 0;
+        }
+        
+        if (incomingSpendingLimitStartTime != 0) {
+            if (block.timestamp > incomingSpendingLimit.renewalTimestamp) 
+                incomingSpendingLimit.usedUpAmount = 0; 
+
+            if (amount + incomingSpendingLimit.usedUpAmount > incomingSpendingLimit.spendingLimit) 
+                return (false, "Incoming spending limit too low");
+        } else {
+            if (block.timestamp > spendingLimit.renewalTimestamp) 
+                spendingLimit.usedUpAmount = 0; 
+            
+            if (amount + spendingLimit.usedUpAmount > spendingLimit.spendingLimit) 
+                return (false, "Spending limit too low");
+        }
+
+        return (true, "");
     }
 
     /**
@@ -349,7 +403,6 @@ contract UserSafe is IUserSafe, Initializable, ReentrancyGuardTransientUpgradeab
         uint256 amount
     ) external onlyEtherFiWallet {
         if (!_isBorrowToken(token)) revert UnsupportedToken();
-        if (amount == 0) revert InvalidValue();
 
         _checkSpendingLimit(token, amount);
         _updateWithdrawalRequestIfNecessary(token, amount);
@@ -701,6 +754,8 @@ contract UserSafe is IUserSafe, Initializable, ReentrancyGuardTransientUpgradeab
                 amount = (amount * 1e6) / 10 ** tokenDecimals;
         }
 
+        if (amount == 0) revert SpendingLimitToAddCannotBeZero();
+
         if (amount + _spendingLimit.usedUpAmount > _spendingLimit.spendingLimit)
             revert ExceededSpendingLimit();
 
@@ -719,6 +774,8 @@ contract UserSafe is IUserSafe, Initializable, ReentrancyGuardTransientUpgradeab
         if (price == 0) revert PriceCannotBeZero();
         // amount * price with 6 decimals / 10 ** tokenDecimals will convert the collateral amount to USD amount with 6 decimals
         amountToAdd = (amountToAdd * price) / 10 ** _getDecimals(token);
+        if (amountToAdd == 0) revert CollateralAmountToAddCannotBeZero();
+
         if (currentCollateral + amountToAdd > _collateralLimit) revert ExceededCollateralLimit();
     }
 
