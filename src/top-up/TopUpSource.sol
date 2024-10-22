@@ -24,29 +24,41 @@ contract TopUpSource is Initializable, UUPSUpgradeable, AccessControlDefaultAdmi
     
     IWETH public immutable weth;
     mapping (address token => TokenConfig config) private _tokenConfig;
+    address public recoveryWallet;
 
     event TokenConfigSet(address[] tokens, TokenConfig[] configs);
     event Bridge(address token, uint256 amount);
     event ETHDeposit(address sender, uint256 amount);
+    event Recovery(address recoveryWallet, address token, uint256 amount);
+    event RecoveryWalletSet(address oldRecoveryWallet, address newRecoveryWallet);
 
     error ArrayLengthMismatch();
     error TokenCannotBeZeroAddress();
     error InvalidConfig();
     error TokenConfigNotSet();
     error ZeroBalance();
+    error RecoveryWalletNotSet();
+    error RecoveryWalletCannotBeZeroAddress();
+    error DefaultAdminCannotBeZeroAddress();
 
     constructor(address _weth) {
         weth = IWETH(_weth);
         _disableInitializers();
     }
 
-    function initialize(uint48 defaultAdminDelay, address defaultAdmin) external initializer {
+    function initialize(uint48 _defaultAdminDelay, address _defaultAdmin, address _recoveryWallet) external initializer {
+        if (_defaultAdmin == address(0)) revert DefaultAdminCannotBeZeroAddress();
+        if (_recoveryWallet == address(0)) revert RecoveryWalletCannotBeZeroAddress();
+
         __UUPSUpgradeable_init_unchained();
-        __AccessControlDefaultAdminRules_init_unchained(defaultAdminDelay, defaultAdmin);
+        __AccessControlDefaultAdminRules_init_unchained(_defaultAdminDelay, _defaultAdmin);
         __Pausable_init_unchained();
 
-        _grantRole(PAUSER_ROLE, defaultAdmin);
-        _grantRole(BRIDGER_ROLE, defaultAdmin);
+        _grantRole(PAUSER_ROLE, _defaultAdmin);
+        _grantRole(BRIDGER_ROLE, _defaultAdmin);
+
+        recoveryWallet = _recoveryWallet;
+        emit RecoveryWalletSet(address(0), _recoveryWallet);
     }
 
     function tokenConfig(address token) external view returns (TokenConfig memory) {
@@ -110,6 +122,20 @@ contract TopUpSource is Initializable, UUPSUpgradeable, AccessControlDefaultAdmi
             _tokenConfig[token].maxSlippageInBps, 
             _tokenConfig[token].additionalData
         );
+    }
+
+    function recoverFunds(address token, uint256 amount) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        if (recoveryWallet == address(0)) revert RecoveryWalletNotSet();
+        if (token == address(0)) revert TokenCannotBeZeroAddress();
+        IERC20(token).safeTransfer(recoveryWallet, amount);   
+
+        emit Recovery(recoveryWallet, token, amount);
+    }
+
+    function setRecoveryWallet(address _recoveryWallet) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        if (_recoveryWallet == address(0)) revert RecoveryWalletCannotBeZeroAddress();
+        emit RecoveryWalletSet(recoveryWallet, _recoveryWallet);
+        recoveryWallet = _recoveryWallet;
     }
 
     function pause() external whenNotPaused onlyRole(PAUSER_ROLE) {

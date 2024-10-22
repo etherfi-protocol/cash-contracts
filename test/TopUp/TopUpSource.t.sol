@@ -15,6 +15,7 @@ contract TopUpSourceTest is Test {
     address owner = makeAddr("owner");
     address notOwner = makeAddr("notOwner");
     address alice = makeAddr("alice");
+    address recoveryWallet = makeAddr("recoveryWallet");
     TopUpSource topUpSrc;
     OFTAdapter oftAdapter;
     StargateAdapter stargateAdapter;
@@ -64,13 +65,17 @@ contract TopUpSourceTest is Test {
         topUpSrc = TopUpSource(payable(address(
             new UUPSProxy(
                 topUpSrcImpl,
-                abi.encodeWithSelector(
-                    TopUpSource.initialize.selector, 
-                    100, 
-                    owner
-                )
+                ""
             )
         ))); 
+
+        vm.expectRevert(TopUpSource.DefaultAdminCannotBeZeroAddress.selector);
+        topUpSrc.initialize(100, address(0), recoveryWallet);
+        
+        vm.expectRevert(TopUpSource.RecoveryWalletCannotBeZeroAddress.selector);
+        topUpSrc.initialize(100, owner, address(0));
+
+        topUpSrc.initialize(100, owner, recoveryWallet);
         topUpSrc.setTokenConfig(tokens, tokenConfigs);
 
         vm.stopPrank();
@@ -319,6 +324,65 @@ contract TopUpSourceTest is Test {
 
         vm.expectRevert(PausableUpgradeable.EnforcedPause.selector);
         topUpSrc.bridge(address(usdc));
+        vm.stopPrank();
+    }
+
+    function test_Recovery() public {
+        uint256 amount = 1 ether;
+
+        uint256 recoveryWalletBalBefore = 0;
+        uint256 topUpSrcBalBefore = 100 ether;
+
+        deal(address(usdc), recoveryWallet, recoveryWalletBalBefore);
+        deal(address(usdc), address(topUpSrc), topUpSrcBalBefore);
+
+        vm.prank(owner);
+        vm.expectEmit(true, true, true, true);
+        emit TopUpSource.Recovery(recoveryWallet, address(usdc), amount);
+        topUpSrc.recoverFunds(address(usdc), amount);
+
+        uint256 recoveryWalletBalAfter = usdc.balanceOf(recoveryWallet);
+        uint256 topUpSrcBalAfter = usdc.balanceOf(address(topUpSrc));
+
+        assertEq(recoveryWalletBalAfter - recoveryWalletBalBefore, amount);
+        assertEq(topUpSrcBalBefore - topUpSrcBalAfter, amount);
+    }
+
+    function test_OnlyDefaultAdminCanRecoverFunds() public {
+        vm.startPrank(notOwner);
+        vm.expectRevert(buildAccessControlRevertData(notOwner, topUpSrc.DEFAULT_ADMIN_ROLE()));
+        topUpSrc.recoverFunds(address(usdc), 1);
+        vm.stopPrank();
+    }
+
+    function test_CannotRecoverIfTokenIsAddressZero() public {
+        vm.prank(owner);
+        vm.expectRevert(TopUpSource.TokenCannotBeZeroAddress.selector);
+        topUpSrc.recoverFunds(address(0), 1);
+    }
+
+    function test_CanSetRecoveryWallet() public {
+        address newRecoveryWallet = makeAddr("newRecoveryWallet");
+        vm.startPrank(owner);
+        vm.expectEmit(true, true, true, true);
+        emit TopUpSource.RecoveryWalletSet(recoveryWallet, newRecoveryWallet);
+        topUpSrc.setRecoveryWallet(newRecoveryWallet);
+        vm.stopPrank();
+
+        assertEq(topUpSrc.recoveryWallet(), newRecoveryWallet);
+    }
+
+    function test_OnlyOwnerCanSetRecoveryWallet() public {
+        vm.startPrank(notOwner);
+        vm.expectRevert(buildAccessControlRevertData(notOwner, topUpSrc.DEFAULT_ADMIN_ROLE()));
+        topUpSrc.setRecoveryWallet(address(1));
+        vm.stopPrank();
+    }
+
+    function test_CannotSetRecoveryWalletToAddressZero() public {
+        vm.startPrank(owner);
+        vm.expectRevert(TopUpSource.RecoveryWalletCannotBeZeroAddress.selector);
+        topUpSrc.setRecoveryWallet(address(0));
         vm.stopPrank();
     }
 
