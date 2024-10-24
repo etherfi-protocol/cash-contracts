@@ -6,28 +6,41 @@ import {UUPSUpgradeable, Initializable} from "openzeppelin-contracts-upgradeable
 import {PausableUpgradeable} from "openzeppelin-contracts-upgradeable/contracts/utils/PausableUpgradeable.sol";
 import {SafeERC20, IERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {ReentrancyGuardTransientUpgradeable} from "../utils/ReentrancyGuardTransientUpgradeable.sol";
+import {EIP712Upgradeable} from "openzeppelin-contracts-upgradeable/contracts/utils/cryptography/EIP712Upgradeable.sol";
+import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
+import {NoncesUpgradeable} from "openzeppelin-contracts-upgradeable/contracts/utils/NoncesUpgradeable.sol";
 import {ICashDataProvider} from "../interfaces/ICashDataProvider.sol";
 
-contract TopUpDest is Initializable, UUPSUpgradeable, AccessControlDefaultAdminRulesUpgradeable, ReentrancyGuardTransientUpgradeable, PausableUpgradeable {
+contract TopUpDest is Initializable, UUPSUpgradeable, EIP712Upgradeable, NoncesUpgradeable, AccessControlDefaultAdminRulesUpgradeable, ReentrancyGuardTransientUpgradeable, PausableUpgradeable {
     using SafeERC20 for IERC20;
+
+    bytes32 public constant USER_SAFE_REGISTRY_TYPEHASH =
+        keccak256("MapEoaToUserSafe(address eoa,address userSafe,uint256 nonce,uint256 deadline)");
 
     bytes32 public constant DEPOSITOR_ROLE = keccak256("DEPOSITOR_ROLE");
     bytes32 public constant TOP_UP_ROLE = keccak256("TOP_UP_ROLE");
     bytes32 public constant PAUSER_ROLE = keccak256("PAUSER_ROLE");
 
     mapping(address token => uint256 deposits) public deposits;
-    mapping(bytes32 txId => bool status) public transactionCompleted;
+    mapping(uint256 chainId => mapping(bytes32 txId => bool status)) public transactionCompleted;
+    mapping(address eoa => address userSafe) public eoaToUserSafeRegistry;
     ICashDataProvider public cashDataProvider;
 
     event Deposit(address token, uint256 amount);
     event Withdrawal(address token, uint256 amount);
-    event TopUp(bytes32 txId, address userSafe, address token, uint256 amount);
+    event TopUp(uint256 chainId, bytes32 txId, address userSafe, address token, uint256 amount);
+    event TopUpBatch(uint256[] chainId, bytes32[] txId, address[] userSafe, address[] token, uint256[] amount);
+    event EoaToUserSafeRegistered(address eoa, address userSafe);
 
     error BalanceTooLow();
     error AmountGreaterThanDeposit();
     error AmountCannotBeZero();
     error TransactionAlreadyCompleted();
     error NotARegisteredUserSafe();
+    error ExpiredSignature();
+    error InvalidSigner();
+    error EoaCannotBeAddressZero();
+    error ArrayLengthMismatch();
 
     constructor() {
         _disableInitializers();
@@ -37,12 +50,39 @@ contract TopUpDest is Initializable, UUPSUpgradeable, AccessControlDefaultAdminR
         __UUPSUpgradeable_init_unchained();
         __ReentrancyGuardTransient_init();
         __AccessControlDefaultAdminRules_init_unchained(_defaultAdminDelay, _defaultAdmin);
+        __EIP712_init_unchained("TopUpContracts", "1");
         __Pausable_init_unchained();
+        __Nonces_init_unchained();
+
         cashDataProvider = ICashDataProvider(_cashDataProvider);
 
         _grantRole(DEPOSITOR_ROLE, _defaultAdmin);
         _grantRole(PAUSER_ROLE, _defaultAdmin);
         _grantRole(TOP_UP_ROLE, _defaultAdmin);
+    }
+
+    function DOMAIN_SEPARATOR() external view returns (bytes32) {
+        return _domainSeparatorV4();
+    }
+
+    function mapEoaToUserSafe(
+        address eoa,
+        address userSafe,
+        uint256 deadline,
+        uint8 v,
+        bytes32 r,
+        bytes32 s
+    ) external {
+        if (eoa == address(0)) revert EoaCannotBeAddressZero();
+        if (!cashDataProvider.isUserSafe(userSafe)) revert NotARegisteredUserSafe();
+        if (block.timestamp > deadline) revert ExpiredSignature();
+        bytes32 structHash = keccak256(abi.encode(USER_SAFE_REGISTRY_TYPEHASH, eoa, userSafe, _useNonce(eoa), deadline));
+        bytes32 hash = _hashTypedDataV4(structHash);
+        address signer = ECDSA.recover(hash, v, r, s);
+        if (signer != eoa) revert InvalidSigner();
+        eoaToUserSafeRegistry[eoa] = userSafe;
+
+        emit EoaToUserSafeRegistered(eoa, userSafe);
     }
 
     function deposit(address token, uint256 amount) external onlyRole(DEPOSITOR_ROLE) {
@@ -63,14 +103,42 @@ contract TopUpDest is Initializable, UUPSUpgradeable, AccessControlDefaultAdminR
         emit Withdrawal(token, amount);
     }
 
-    function topUpUserSafe(bytes32 txId, address userSafe, address token, uint256 amount) external whenNotPaused nonReentrant onlyRole(TOP_UP_ROLE) {
-        if (transactionCompleted[txId]) revert TransactionAlreadyCompleted();
+    function topUpUserSafe(
+        uint256[] memory chainIds, 
+        bytes32[] memory txIds,
+        address[] memory userSafes,
+        address[] memory tokens, 
+        uint256[] memory amounts
+    ) external whenNotPaused nonReentrant onlyRole(TOP_UP_ROLE) {
+        uint256 len = chainIds.length;
+        if (len != txIds.length || len != userSafes.length || len != tokens.length || len != amounts.length) revert ArrayLengthMismatch();    
+        for (uint256 i = 0; i < len; ) {
+            _topUp(chainIds[i], txIds[i], userSafes[i], tokens[i], amounts[i]);
+            unchecked {
+                ++i;
+            }
+        }
+
+        emit TopUpBatch(chainIds, txIds, userSafes, tokens, amounts);
+    }
+
+    function topUpUserSafe(
+        uint256 chainId, 
+        bytes32 txId, 
+        address userSafe, 
+        address token, 
+        uint256 amount
+    ) external whenNotPaused nonReentrant onlyRole(TOP_UP_ROLE) {
+        _topUp(chainId, txId, userSafe, token, amount);
+        emit TopUp(chainId, txId, userSafe, token, amount);
+    }
+
+    function _topUp(uint256 chainId, bytes32 txId, address userSafe, address token, uint256 amount) internal {
+        if (transactionCompleted[chainId][txId]) revert TransactionAlreadyCompleted();
         if (!cashDataProvider.isUserSafe(userSafe)) revert NotARegisteredUserSafe();
 
-        transactionCompleted[txId] = true;
+        transactionCompleted[chainId][txId] = true;
         _transfer(userSafe, token, amount);
-
-        emit TopUp(txId, userSafe, token, amount);
     }
 
     function pause() external onlyRole(PAUSER_ROLE) {

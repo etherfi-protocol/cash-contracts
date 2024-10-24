@@ -8,6 +8,16 @@ import {UUPSProxy} from "../../src/UUPSProxy.sol";
 import {MockERC20} from "../../src/mocks/MockERC20.sol";
 import {IAccessControl} from "@openzeppelin/contracts/access/IAccessControl.sol";
 
+bytes32 constant USER_SAFE_REGISTRY_TYPEHASH =
+        keccak256("MapEoaToUserSafe(address eoa,address userSafe,uint256 nonce,uint256 deadline)");
+
+struct MapEoaToUserSafe {
+    address eoa;
+    address userSafe;
+    uint256 nonce;
+    uint256 deadline;
+}
+
 contract TopUpDestTest is Test {
     address userSafeFactory = makeAddr("userSafeFactory");
     address owner = makeAddr("owner");
@@ -59,6 +69,60 @@ contract TopUpDestTest is Test {
 
         vm.prank(userSafeFactory);
         cashDataProvider.whitelistUserSafe(userSafe);
+    }
+
+    function test_CanRegisterEoaToUserSafe() public {
+        (address alice, uint256 alicePk) = makeAddrAndKey("alice");
+        bytes32 domainSeparator = topUpDest.DOMAIN_SEPARATOR();
+        MapEoaToUserSafe memory mapEoaToUserSafe = MapEoaToUserSafe({
+            eoa: alice,
+            userSafe: userSafe,
+            nonce: 0,
+            deadline: 100
+        });
+        
+        bytes32 digest = getTypedDataHash(domainSeparator, mapEoaToUserSafe);
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(alicePk, digest);
+
+        vm.expectEmit(true, true, true, true);
+        emit TopUpDest.EoaToUserSafeRegistered(alice, userSafe);
+        topUpDest.mapEoaToUserSafe(alice, userSafe, 100, v, r, s);
+
+        assertEq(topUpDest.eoaToUserSafeRegistry(alice), userSafe);
+    }
+
+    function test_CannotRegisterEoaToUserSafeIfEoaIsAddressZero() public {
+        vm.expectRevert(TopUpDest.EoaCannotBeAddressZero.selector);
+        topUpDest.mapEoaToUserSafe(address(0), address(1), 10, 1, bytes32(0), bytes32(0));
+    }
+
+    function test_CannotRegisterEoaToUserSafeIfUserSafeIsNotRegistered() public {
+        vm.expectRevert(TopUpDest.NotARegisteredUserSafe.selector);
+        topUpDest.mapEoaToUserSafe(address(1), address(1), 10, 1, bytes32(0), bytes32(0));
+    }
+
+    function test_CannotRegisterEoaToUserSafeIfDeadlineHasPassed() public {
+        vm.warp(100);
+        vm.expectRevert(TopUpDest.ExpiredSignature.selector);
+        topUpDest.mapEoaToUserSafe(address(1), userSafe, 10, 1, bytes32(0), bytes32(0));
+    }
+
+    function test_CannotRegisterEoaToUserSafeIfSignatureIsInvalid() public {
+        (address alice, uint256 alicePk) = makeAddrAndKey("alice");
+        bytes32 domainSeparator = topUpDest.DOMAIN_SEPARATOR();
+        MapEoaToUserSafe memory mapEoaToUserSafe = MapEoaToUserSafe({
+            eoa: alice,
+            userSafe: userSafe,
+            nonce: 0,
+            deadline: 100
+        });
+        
+        bytes32 digest = getTypedDataHash(domainSeparator, mapEoaToUserSafe);
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(alicePk, digest);
+        r = s;
+
+        vm.expectRevert(TopUpDest.InvalidSigner.selector);
+        topUpDest.mapEoaToUserSafe(alice, userSafe, 100, v, r, s);
     }
 
     function test_CanDeposit() external {
@@ -135,7 +199,7 @@ contract TopUpDestTest is Test {
         token.approve(address(topUpDest), amount);
         topUpDest.deposit(address(token), amount);
 
-        topUpDest.topUpUserSafe(bytes32(uint256(1)), userSafe, address(token), amount);
+        topUpDest.topUpUserSafe(1, bytes32(uint256(1)), userSafe, address(token), amount);
 
         vm.expectRevert(TopUpDest.BalanceTooLow.selector);
         topUpDest.withdraw(address(token), 1);
@@ -151,12 +215,106 @@ contract TopUpDestTest is Test {
         topUpDest.deposit(address(token), amount);
 
         vm.expectEmit(true, true, true, true);
-        emit TopUpDest.TopUp(txId, userSafe, address(token), amount);
-        topUpDest.topUpUserSafe(txId, userSafe, address(token), amount);
+        emit TopUpDest.TopUp(1, txId, userSafe, address(token), amount);
+        topUpDest.topUpUserSafe(1, txId, userSafe, address(token), amount);
         vm.stopPrank();
 
         assertEq(token.balanceOf(address(topUpDest)), 0);
         assertEq(token.balanceOf(address(userSafe)), amount);
+    }
+
+    function test_CanBatchTopUpUserSafe() public {
+        uint256[] memory chainIds = new uint256[](2);
+        chainIds[0] = 1;
+        chainIds[1] = 2;
+
+        bytes32[] memory txIds = new bytes32[](2);
+        txIds[0] = bytes32(uint256(1));
+        txIds[1] = bytes32(uint256(1));
+
+        address[] memory userSafes = new address[](2);
+        userSafes[0] = makeAddr("userSafe0");
+        userSafes[1] = makeAddr("userSafe1");
+
+        address[] memory tokens = new address[](2);
+        tokens[0] = address(token);
+        tokens[1] = address(token);
+
+        uint256[] memory amounts = new uint256[](2);
+        amounts[0] = 1 ether;
+        amounts[1] = 0.1 ether;
+
+        vm.startPrank(userSafeFactory);
+        cashDataProvider.whitelistUserSafe(userSafes[0]);
+        cashDataProvider.whitelistUserSafe(userSafes[1]);
+        vm.stopPrank();
+        
+        deal(address(token), address(topUpDest), 100 ether);
+
+        vm.startPrank(owner);
+        
+        uint256 balTopUpDestBefore = token.balanceOf(address(topUpDest));
+        assertEq(token.balanceOf(address(userSafes[0])), 0);
+        assertEq(token.balanceOf(address(userSafes[1])), 0);
+
+        vm.expectEmit(true, true, true, true);
+        emit TopUpDest.TopUpBatch(chainIds, txIds, userSafes, tokens, amounts);
+        topUpDest.topUpUserSafe(chainIds, txIds, userSafes, tokens, amounts);
+        vm.stopPrank();
+
+        uint256 balTopUpDestAfter = token.balanceOf(address(topUpDest));
+
+        assertEq(token.balanceOf(address(userSafes[0])), amounts[0]);
+        assertEq(token.balanceOf(address(userSafes[1])), amounts[1]);
+        assertEq(balTopUpDestBefore - balTopUpDestAfter, amounts[0] + amounts[1]);
+    }
+
+    function test_CannotBatchTopUpUserSafeIfArrayLengthMismatch() public {
+        uint256[] memory chainIds = new uint256[](2);
+        chainIds[0] = 1;
+        chainIds[1] = 2;
+
+        bytes32[] memory txIds = new bytes32[](2);
+        txIds[0] = bytes32(uint256(1));
+        txIds[1] = bytes32(uint256(1));
+
+        address[] memory userSafes = new address[](2);
+        userSafes[0] = makeAddr("userSafe0");
+        userSafes[1] = makeAddr("userSafe1");
+
+        address[] memory tokens = new address[](2);
+        tokens[0] = address(token);
+        tokens[1] = address(token);
+
+        uint256[] memory amounts = new uint256[](2);
+        amounts[0] = 1 ether;
+        amounts[1] = 0.1 ether;
+        
+        vm.startPrank(owner);
+        
+        txIds = new bytes32[](3);
+        vm.expectRevert(TopUpDest.ArrayLengthMismatch.selector);
+        topUpDest.topUpUserSafe(chainIds, txIds, userSafes, tokens, amounts);
+        
+        txIds = new bytes32[](2);
+        userSafes = new address[](3);
+        vm.expectRevert(TopUpDest.ArrayLengthMismatch.selector);
+        topUpDest.topUpUserSafe(chainIds, txIds, userSafes, tokens, amounts);
+        
+        txIds = new bytes32[](2);
+        userSafes = new address[](2);
+        tokens = new address[](3);
+        vm.expectRevert(TopUpDest.ArrayLengthMismatch.selector);
+        topUpDest.topUpUserSafe(chainIds, txIds, userSafes, tokens, amounts);
+
+        txIds = new bytes32[](2);
+        userSafes = new address[](2);
+        tokens = new address[](2);
+        amounts = new uint256[](3);
+        vm.expectRevert(TopUpDest.ArrayLengthMismatch.selector);
+        topUpDest.topUpUserSafe(chainIds, txIds, userSafes, tokens, amounts);
+
+        vm.stopPrank();
     }
 
     function test_OnlyTopUpRoleCanTopUpUserSafe() public {
@@ -170,7 +328,7 @@ contract TopUpDestTest is Test {
 
         vm.startPrank(noRole);
         vm.expectRevert(buildAccessControlRevertData(noRole, topUpDest.TOP_UP_ROLE()));
-        topUpDest.topUpUserSafe(txId, userSafe, address(token), amount);
+        topUpDest.topUpUserSafe(1, txId, userSafe, address(token), amount);
         vm.stopPrank();
     }
 
@@ -183,11 +341,11 @@ contract TopUpDestTest is Test {
         topUpDest.deposit(address(token), amount);
 
         vm.expectEmit(true, true, true, true);
-        emit TopUpDest.TopUp(txId, userSafe, address(token), amount);
-        topUpDest.topUpUserSafe(txId, userSafe, address(token), amount);
+        emit TopUpDest.TopUp(1, txId, userSafe, address(token), amount);
+        topUpDest.topUpUserSafe(1, txId, userSafe, address(token), amount);
 
         vm.expectRevert(TopUpDest.TransactionAlreadyCompleted.selector);
-        topUpDest.topUpUserSafe(txId, userSafe, address(token), amount);
+        topUpDest.topUpUserSafe(1, txId, userSafe, address(token), amount);
         vm.stopPrank();
     }
 
@@ -200,7 +358,7 @@ contract TopUpDestTest is Test {
         topUpDest.deposit(address(token), amount);
 
         vm.expectRevert(TopUpDest.NotARegisteredUserSafe.selector);
-        topUpDest.topUpUserSafe(txId, notUserSafe, address(token), amount);
+        topUpDest.topUpUserSafe(1, txId, notUserSafe, address(token), amount);
         vm.stopPrank();
     }
 
@@ -210,7 +368,7 @@ contract TopUpDestTest is Test {
 
         vm.startPrank(owner);
         vm.expectRevert(TopUpDest.BalanceTooLow.selector);
-        topUpDest.topUpUserSafe(txId, userSafe, address(token), amount);
+        topUpDest.topUpUserSafe(1, txId, userSafe, address(token), amount);
         vm.stopPrank();
     }
 
@@ -222,7 +380,7 @@ contract TopUpDestTest is Test {
         topUpDest.pause();
 
         vm.expectRevert(PausableUpgradeable.EnforcedPause.selector);
-        topUpDest.topUpUserSafe(txId, userSafe, address(token), amount);
+        topUpDest.topUpUserSafe(1, txId, userSafe, address(token), amount);
         vm.stopPrank();
     }
 
@@ -282,6 +440,37 @@ contract TopUpDestTest is Test {
                 IAccessControl.AccessControlUnauthorizedAccount.selector,
                 account,
                 role
+            );
+    }
+
+    // computes the hash of the fully encoded EIP-712 message for the domain, which can be used to recover the signer
+    function getTypedDataHash(
+        bytes32 DOMAIN_SEPARATOR,
+        MapEoaToUserSafe memory _mapEoaToUserSafe
+    ) internal pure returns (bytes32) {
+        return
+            keccak256(
+                abi.encodePacked(
+                    "\x19\x01",
+                    DOMAIN_SEPARATOR,
+                    getStructHash(_mapEoaToUserSafe)
+                )
+            );
+    }
+
+    // computes the hash of a permit
+    function getStructHash(
+        MapEoaToUserSafe memory _mapEoaToUserSafe
+    ) internal pure returns (bytes32) {
+        return
+            keccak256(
+                abi.encode(
+                    USER_SAFE_REGISTRY_TYPEHASH,
+                    _mapEoaToUserSafe.eoa,
+                    _mapEoaToUserSafe.userSafe,
+                    _mapEoaToUserSafe.nonce,
+                    _mapEoaToUserSafe.deadline
+                )
             );
     }
 }

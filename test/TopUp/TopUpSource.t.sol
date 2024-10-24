@@ -4,7 +4,7 @@ pragma solidity ^0.8.24;
 import {Test} from "forge-std/Test.sol"; 
 import {TopUpSource, BridgeAdapterBase, PausableUpgradeable} from "../../src/top-up/TopUpSource.sol";
 import {StargateAdapter} from "../../src/top-up/bridges/StargateAdapter.sol";
-import {OFTAdapter} from "../../src/top-up/bridges/OFTAdapter.sol";
+import {EtherFiOFTBridgeAdapter} from "../../src/top-up/bridges/EtherFiOFTBridgeAdapter.sol";
 import {UUPSProxy} from "../../src/UUPSProxy.sol";
 import {SafeERC20, IERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IAccessControl} from "@openzeppelin/contracts/access/IAccessControl.sol";
@@ -17,7 +17,7 @@ contract TopUpSourceTest is Test {
     address alice = makeAddr("alice");
     address recoveryWallet = makeAddr("recoveryWallet");
     TopUpSource topUpSrc;
-    OFTAdapter oftAdapter;
+    EtherFiOFTBridgeAdapter oftBridgeAdapter;
     StargateAdapter stargateAdapter;
 
     uint96 maxSlippage = 100;
@@ -39,7 +39,7 @@ contract TopUpSourceTest is Test {
 
         vm.startPrank(owner);
         stargateAdapter = new StargateAdapter();
-        oftAdapter = new OFTAdapter();
+        oftBridgeAdapter = new EtherFiOFTBridgeAdapter();
 
         address[] memory tokens = new address[](2);
         TopUpSource.TokenConfig[] memory tokenConfigs = new TopUpSource.TokenConfig[](2);
@@ -55,7 +55,7 @@ contract TopUpSourceTest is Test {
         });
 
         tokenConfigs[1] = TopUpSource.TokenConfig({
-            bridgeAdapter: address(oftAdapter),
+            bridgeAdapter: address(oftBridgeAdapter),
             recipientOnDestChain: alice,
             maxSlippageInBps: maxSlippage,
             additionalData: abi.encode(weETHOftAddress)
@@ -114,7 +114,7 @@ contract TopUpSourceTest is Test {
         });
 
         tokenConfigs[1] = TopUpSource.TokenConfig({
-            bridgeAdapter: address(oftAdapter),
+            bridgeAdapter: address(oftBridgeAdapter),
             recipientOnDestChain: alice,
             maxSlippageInBps: maxSlippage,
             additionalData: abi.encode(weETHOftAddress)

@@ -5,7 +5,7 @@ import { SendParam, MessagingFee, OFTLimit, OFTFeeDetail, OFTReceipt, MessagingR
 import { BridgeAdapterBase } from "./BridgeAdapterBase.sol";
 import {SafeERC20, IERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
-contract OFTAdapter is BridgeAdapterBase {
+contract EtherFiOFTBridgeAdapter is BridgeAdapterBase {
     using SafeERC20 for IERC20;
 
     // https://docs.layerzero.network/v2/developers/evm/technical-reference/deployed-contracts
