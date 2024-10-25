@@ -126,10 +126,7 @@ contract UserSafeTransfersTest is UserSafeSetup {
 
         // test_CannotSwapWeEthToUsdcAndTransferIfAmountReceivedIsLess
 
-        _resetSpendingLimit(
-            uint8(IUserSafe.SpendingLimitTypes.Monthly),
-            100000e6
-        );
+        _updateSpendingLimit(100000e6);
 
         vm.warp(block.timestamp + delay + 1);
         uint256 newAmountUsdcToSend = 10000e6;
@@ -146,10 +143,7 @@ contract UserSafeTransfersTest is UserSafeSetup {
         );
 
         // test_CannotGoOverSpendingLimit
-        _resetSpendingLimit(
-            uint8(IUserSafe.SpendingLimitTypes.Monthly),
-            1000e6
-        );
+        _updateSpendingLimit(1000e6);
 
         vm.warp(block.timestamp + delay + 1);
         uint256 newInputAmt = 2000e6;
@@ -267,37 +261,6 @@ contract UserSafeTransfersTest is UserSafeSetup {
         bytes memory signature = abi.encodePacked(r, s, v);
 
         aliceSafe.updateSpendingLimit(spendingLimitInUsd, signature);
-    }
-
-    function _resetSpendingLimit(
-        uint8 spendingLimitType,
-        uint256 spendingLimitInUsd
-    ) internal {
-        uint256 nonce = aliceSafe.nonce() + 1;
-
-        bytes32 msgHash = keccak256(
-            abi.encode(
-                UserSafeLib.RESET_SPENDING_LIMIT_METHOD,
-                block.chainid,
-                address(aliceSafe),
-                nonce,
-                spendingLimitType,
-                spendingLimitInUsd
-            )
-        );
-
-        (uint8 v, bytes32 r, bytes32 s) = vm.sign(
-            alicePk,
-            msgHash.toEthSignedMessageHash()
-        );
-
-        bytes memory signature = abi.encodePacked(r, s, v);
-
-        aliceSafe.resetSpendingLimit(
-            spendingLimitType,
-            spendingLimitInUsd,
-            signature
-        );
     }
 
     function _setCollateralLimit(uint256 newCollateralLimit) internal {

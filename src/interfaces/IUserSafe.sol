@@ -4,14 +4,6 @@ pragma solidity ^0.8.24;
 import {OwnerLib} from "../libraries/OwnerLib.sol";
 
 interface IUserSafe {
-    enum SpendingLimitTypes {
-        None,
-        Daily,
-        Weekly,
-        Monthly,
-        Yearly
-    }
-
     struct Signature {
         uint8 index;
         bytes signature;
@@ -30,7 +22,6 @@ interface IUserSafe {
     }
 
     struct SpendingLimitData {
-        SpendingLimitTypes spendingLimitType;
         uint64 renewalTimestamp;
         uint256 spendingLimit; // in USD with 6 decimals
         uint256 usedUpAmount; // in USD with 6 decimals
@@ -66,11 +57,6 @@ interface IUserSafe {
     event RepayDebtManager(address token, uint256 debtAmount);
     event WithdrawCollateralFromDebtManager(address token, uint256 amount);
     event CloseAccountWithDebtManager();
-    event ResetSpendingLimit(
-        uint8 spendingLimitType,
-        uint256 limitInUsd,
-        uint256 startTime
-    );
     event UpdateSpendingLimit(
         uint256 oldLimitInUsd,
         uint256 newLimitInUsd,
@@ -113,7 +99,6 @@ interface IUserSafe {
     error InvalidRecoverySignerAddress();
     error UserRecoverySignerIsUnsetCannotUseIndexZero();
     error IncorrectOutputAmount();
-    error DuplicateTokenFound();
 
     /**
      * @notice Function to fetch the address of the owner of the User Safe.
@@ -181,19 +166,6 @@ interface IUserSafe {
      */
     function setOwner(
         bytes calldata __owner,
-        bytes calldata signature
-    ) external;
-
-    /**
-     * @notice Function to set the spending limit with permit.
-     * @notice This resets the used up amount to 0 and specify a new limit.
-     * @param spendingLimitType Type of spending limit.
-     * @param limitInUsd Spending limit in USD with 6 decimals.
-     * @param signature Must be a valid signature from the user.
-     */
-    function resetSpendingLimit(
-        uint8 spendingLimitType,
-        uint256 limitInUsd,
         bytes calldata signature
     ) external;
 

@@ -16,7 +16,7 @@ import {WebAuthn} from "../libraries/WebAuthn.sol";
 import {OwnerLib} from "../libraries/OwnerLib.sol";
 import {UserSafeLib} from "../libraries/UserSafeLib.sol";
 import {ReentrancyGuardTransientUpgradeable} from "../utils/ReentrancyGuardTransientUpgradeable.sol";
-
+import {ArrayDeDupTransient} from "../libraries/ArrayDeDupTransientLib.sol";
 
 /**
  * @title UserSafe
@@ -29,6 +29,7 @@ contract UserSafe is IUserSafe, Initializable, ReentrancyGuardTransientUpgradeab
     using OwnerLib for bytes;
     using UserSafeLib for OwnerLib.OwnerObject;
     using OwnerLib for OwnerLib.OwnerObject;
+    using ArrayDeDupTransient for address[];
 
     // Address of the Cash Data Provider
     ICashDataProvider private immutable _cashDataProvider;
@@ -50,9 +51,9 @@ contract UserSafe is IUserSafe, Initializable, ReentrancyGuardTransientUpgradeab
     uint256 private _collateralLimit;
 
     // Incoming spending limit -> we want a delay between spending limit changes so we can deduct funds in between to settle account
-    SpendingLimitData private _incomingSpendingLimit;
+    uint256 private _incomingSpendingLimit;
     // Incoming spending limit start timestamp
-    uint256 _incomingSpendingLimitStartTime;
+    uint256 private _incomingSpendingLimitStartTime;
     // Incoming collateral limit -> we want a delay between collateral limit changes so we can deduct funds in between to settle account
     uint256 private _incomingCollateralLimit;
     // Incoming collateral limit start timestamp
@@ -77,11 +78,7 @@ contract UserSafe is IUserSafe, Initializable, ReentrancyGuardTransientUpgradeab
         _ownerBytes = __owner;
 
         _spendingLimit = SpendingLimitData({
-            spendingLimitType: SpendingLimitTypes(SpendingLimitTypes.Monthly),
-            renewalTimestamp: _getSpendingLimitRenewalTimestamp(
-                uint64(block.timestamp),
-                SpendingLimitTypes.Monthly
-            ),
+            renewalTimestamp: _getSpendingLimitRenewalTimestamp(uint64(block.timestamp)),
             spendingLimit: __spendingLimit,
             usedUpAmount: 0
         });
@@ -136,26 +133,26 @@ contract UserSafe is IUserSafe, Initializable, ReentrancyGuardTransientUpgradeab
         view
         returns (SpendingLimitData memory)
     {
-        SpendingLimitData memory _applicableSpendingLimit;
+        SpendingLimitData memory _applicableSpendingLimit = _spendingLimit;
         if (
             _incomingSpendingLimitStartTime != 0 &&
             block.timestamp > _incomingSpendingLimitStartTime
-        ) _applicableSpendingLimit = _incomingSpendingLimit;
-        else _applicableSpendingLimit = _spendingLimit;
+        ) {
+            _applicableSpendingLimit.spendingLimit = _incomingSpendingLimit;
+            _applicableSpendingLimit.renewalTimestamp = _getSpendingLimitRenewalTimestamp(uint64(_incomingSpendingLimitStartTime));
+        }
 
         // If spending limit needs to be renewed, then renew it
         if (block.timestamp > _applicableSpendingLimit.renewalTimestamp) {
             _applicableSpendingLimit.usedUpAmount = 0;
-            _applicableSpendingLimit
-                .renewalTimestamp = _getSpendingLimitRenewalTimestamp(
-                _applicableSpendingLimit.renewalTimestamp,
-                _applicableSpendingLimit.spendingLimitType
-            );
+
+            do _applicableSpendingLimit.renewalTimestamp = _getSpendingLimitRenewalTimestamp(_applicableSpendingLimit.renewalTimestamp);
+            while (block.timestamp > _applicableSpendingLimit.renewalTimestamp);
         }
 
         return _applicableSpendingLimit;
     }
-
+    
     /**
      * @inheritdoc IUserSafe
      */
@@ -184,23 +181,6 @@ contract UserSafe is IUserSafe, Initializable, ReentrancyGuardTransientUpgradeab
         // Owner should not be zero
         __owner.getOwnerObject()._ownerNotZero();
         _setOwner(__owner);
-    }
-
-    /**
-     * @inheritdoc IUserSafe
-     */
-    function resetSpendingLimit(
-        uint8 spendingLimitType,
-        uint256 limitInUsd,
-        bytes calldata signature
-    ) external incrementNonce currentOwner {
-        owner().verifyResetSpendingLimitSig(
-            _nonce,
-            spendingLimitType,
-            limitInUsd,
-            signature
-        );
-        _resetSpendingLimit(spendingLimitType, limitInUsd);
     }
 
     /**
@@ -270,7 +250,7 @@ contract UserSafe is IUserSafe, Initializable, ReentrancyGuardTransientUpgradeab
         address recipient,
         bytes calldata signature
     ) external incrementNonce currentOwner {
-        if (tokens.length > 1) _checkDuplicates(tokens);
+        if (tokens.length > 1) tokens.checkDuplicates();
 
         owner().verifyRequestWithdrawalSig(
             _nonce,
@@ -476,19 +456,8 @@ contract UserSafe is IUserSafe, Initializable, ReentrancyGuardTransientUpgradeab
         emit CloseAccountWithDebtManager();
     }
 
-    function _getSpendingLimitRenewalTimestamp(
-        uint64 startTimestamp,
-        SpendingLimitTypes spendingLimitType
-    ) internal pure returns (uint64 renewalTimestamp) {
-        if (spendingLimitType == SpendingLimitTypes.Daily)
-            return startTimestamp + 24 * 60 * 60;
-        else if (spendingLimitType == SpendingLimitTypes.Weekly)
-            return startTimestamp + 7 * 24 * 60 * 60;
-        else if (spendingLimitType == SpendingLimitTypes.Monthly)
-            return startTimestamp + 30 * 24 * 60 * 60;
-        else if (spendingLimitType == SpendingLimitTypes.Yearly)
-            return startTimestamp + 365 * 24 * 60 * 60;
-        else revert InvalidSpendingLimitType();
+    function _getSpendingLimitRenewalTimestamp(uint64 startTimestamp) internal pure returns (uint64 renewalTimestamp) {
+        return startTimestamp + 30 * 24 * 60 * 60;
     }
 
     function _swapFunds(
@@ -515,44 +484,6 @@ contract UserSafe is IUserSafe, Initializable, ReentrancyGuardTransientUpgradeab
             );
     }
 
-    function _resetSpendingLimit(
-        uint8 spendingLimitType,
-        uint256 limitInUsd
-    ) internal {
-        _currentSpendingLimit();
-
-        if (limitInUsd > _spendingLimit.spendingLimit) {
-            delete _incomingSpendingLimit;
-            delete _incomingSpendingLimitStartTime;
-
-            _spendingLimit = SpendingLimitData({
-                spendingLimitType: SpendingLimitTypes(spendingLimitType),
-                renewalTimestamp: _getSpendingLimitRenewalTimestamp(
-                    uint64(block.timestamp),
-                    SpendingLimitTypes(spendingLimitType)
-                ),
-                spendingLimit: limitInUsd,
-                usedUpAmount: 0
-            });
-
-            emit ResetSpendingLimit(spendingLimitType, limitInUsd, block.timestamp);
-        } else {
-            uint256 startTime = block.timestamp + _cashDataProvider.delay();
-            _incomingSpendingLimitStartTime = startTime;
-
-            _incomingSpendingLimit = SpendingLimitData({
-                spendingLimitType: SpendingLimitTypes(spendingLimitType),
-                renewalTimestamp: _getSpendingLimitRenewalTimestamp(
-                    uint64(startTime),
-                    SpendingLimitTypes(spendingLimitType)
-                ),
-                spendingLimit: limitInUsd,
-                usedUpAmount: 0
-            });
-            emit ResetSpendingLimit(spendingLimitType, limitInUsd, startTime);
-        }
-    }
-
     function _updateSpendingLimit(uint256 limitInUsd) internal {
         _currentSpendingLimit();
 
@@ -568,12 +499,8 @@ contract UserSafe is IUserSafe, Initializable, ReentrancyGuardTransientUpgradeab
 
             _spendingLimit.spendingLimit = limitInUsd;
         } else {
-            _incomingSpendingLimit = _spendingLimit;
-            _incomingSpendingLimit.spendingLimit = limitInUsd;
-
-            _incomingSpendingLimitStartTime =
-                block.timestamp +
-                _cashDataProvider.delay();
+            _incomingSpendingLimit = limitInUsd;
+            _incomingSpendingLimitStartTime = block.timestamp + _cashDataProvider.delay();
 
             emit UpdateSpendingLimit(
                 _spendingLimit.spendingLimit,
@@ -678,10 +605,9 @@ contract UserSafe is IUserSafe, Initializable, ReentrancyGuardTransientUpgradeab
         // If spending limit needs to be renewed, then renew it
         if (block.timestamp > _spendingLimit.renewalTimestamp) {
             _spendingLimit.usedUpAmount = 0;
-            _spendingLimit.renewalTimestamp = _getSpendingLimitRenewalTimestamp(
-                _spendingLimit.renewalTimestamp,
-                _spendingLimit.spendingLimitType
-            );
+            
+            do _spendingLimit.renewalTimestamp = _getSpendingLimitRenewalTimestamp(_spendingLimit.renewalTimestamp);
+            while (block.timestamp > _spendingLimit.renewalTimestamp);
         }
 
         uint8 tokenDecimals = _getDecimals(token);
@@ -811,7 +737,8 @@ contract UserSafe is IUserSafe, Initializable, ReentrancyGuardTransientUpgradeab
             _incomingSpendingLimitStartTime != 0 &&
             block.timestamp > _incomingSpendingLimitStartTime
         ) {
-            _spendingLimit = _incomingSpendingLimit;
+            _spendingLimit.spendingLimit = _incomingSpendingLimit;
+            _spendingLimit.renewalTimestamp = _getSpendingLimitRenewalTimestamp(uint64(_incomingSpendingLimitStartTime));
             delete _incomingSpendingLimit;
             delete _incomingSpendingLimitStartTime;
         }
@@ -854,35 +781,6 @@ contract UserSafe is IUserSafe, Initializable, ReentrancyGuardTransientUpgradeab
     function _onlyEtherFiWallet() private view {
         if (!_cashDataProvider.isEtherFiWallet(msg.sender))
             revert UnauthorizedCall();
-    }
-
-    function _checkDuplicates(address[] calldata tokens) internal {
-        bytes4 errorSelector = DuplicateTokenFound.selector;
-        // Use assembly to interact with transient storage
-        assembly {
-            // Iterate through the tokens array
-            for { let i := 0 } lt(i, tokens.length) { i := add(i, 1) }
-            {
-                // Load the current token address
-                let token := calldataload(add(tokens.offset, mul(i, 0x20)))
-                
-                // Check if the token has been seen before
-                if tload(token) {
-                    // If found, revert with custom error
-                    mstore(0x00, errorSelector) 
-                    revert(0x00, 0x04)
-                }
-                
-                // Mark the token as seen
-                tstore(token, 1)
-            }
-
-            for { let i := 0 } lt(i, tokens.length) { i := add(i, 1) }
-            {
-                let token := calldataload(add(tokens.offset, mul(i, 0x20)))
-                tstore(token, 0)
-            }
-        }
     }
 
     modifier onlyEtherFiWallet() {
