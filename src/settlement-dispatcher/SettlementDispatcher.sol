@@ -8,10 +8,10 @@ import {UUPSUpgradeable, Initializable} from "openzeppelin-contracts-upgradeable
 import { IStargate, Ticket } from "../interfaces/IStargate.sol";
 import { MessagingFee, OFTReceipt, SendParam } from "../interfaces/IOFT.sol";
 
-/// @title CashSafe
+/// @title SettlementDispatcher
 /// @author shivam@ether.fi
 /// @notice This contract receives payments from user safes and bridges it to another chain to pay the fiat provider
-contract CashSafe is Initializable, UUPSUpgradeable, AccessControlDefaultAdminRulesUpgradeable {
+contract SettlementDispatcher is Initializable, UUPSUpgradeable, AccessControlDefaultAdminRulesUpgradeable {
     using SafeERC20 for IERC20;
 
     struct DestinationData {

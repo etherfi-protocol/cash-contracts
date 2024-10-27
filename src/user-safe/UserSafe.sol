@@ -362,7 +362,7 @@ contract UserSafe is
         _updateWithdrawalRequestIfNecessary(token, amount);
 
         IERC20(token).safeTransfer(
-            _cashDataProvider.etherFiCashMultiSig(),
+            _cashDataProvider.settlementDispatcher(),
             amount
         );
         emit TransferForSpending(token, amount);
@@ -408,7 +408,7 @@ contract UserSafe is
             revert TransferAmountGreaterThanReceived();
 
         IERC20(outputToken).safeTransfer(
-            _cashDataProvider.etherFiCashMultiSig(),
+            _cashDataProvider.settlementDispatcher(),
             outputAmountToTransfer
         );
 

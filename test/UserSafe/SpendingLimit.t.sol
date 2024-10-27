@@ -22,10 +22,10 @@ contract UserSafeSpendingLimitTest is UserSafeSetup {
         assertEq(spendingLimitBefore.spentToday, 0);
         assertEq(spendingLimitBefore.spentThisMonth, 0);
 
-        assertEq(usdc.balanceOf(etherFiCashMultisig), 0);
+        assertEq(usdc.balanceOf(settlementDispatcher), 0);
         vm.prank(etherFiWallet);
         aliceSafe.transfer(address(usdc), transferAmount);
-        assertEq(usdc.balanceOf(etherFiCashMultisig), transferAmount);
+        assertEq(usdc.balanceOf(settlementDispatcher), transferAmount);
 
         spendingLimitBefore = aliceSafe.applicableSpendingLimit();
         assertEq(spendingLimitBefore.spentToday, transferAmount);

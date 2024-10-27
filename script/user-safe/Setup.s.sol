@@ -18,7 +18,7 @@ import {UUPSProxy} from "../../src/UUPSProxy.sol";
 import {CashTokenWrapperFactory, CashWrappedERC20} from "../../src/cash-wrapper-token/CashTokenWrapperFactory.sol";
 import {IWeETH} from "../../src/interfaces/IWeETH.sol";
 import {IAggregatorV3} from "../../src/interfaces/IAggregatorV3.sol";
-import {CashSafe} from "../../src/cash-safe/CashSafe.sol";
+import {SettlementDispatcher} from "../../src/settlement-dispatcher/SettlementDispatcher.sol";
 
 contract DeployUserSafeSetup is Utils {
     ERC20 usdc;
@@ -30,7 +30,7 @@ contract DeployUserSafeSetup is Utils {
     IL2DebtManager debtManager;
     CashDataProvider cashDataProvider;
     EtherFiCashAaveV3Adapter aaveV3Adapter;
-    CashSafe cashSafe;
+    SettlementDispatcher settlementDispatcher;
     address etherFiWallet;
     address owner;
     uint256 delay = 300; // 5 min
@@ -58,7 +58,7 @@ contract DeployUserSafeSetup is Utils {
     address debtManagerAdminImpl;
     address debtManagerInitializer;
     address cashDataProviderImpl;
-    address cashSafeImpl;
+    address settlementDispatcherImpl;
 
     function run() public {
         // Pulling deployer info from the environment
@@ -81,19 +81,19 @@ contract DeployUserSafeSetup is Utils {
         usdc = ERC20(chainConfig.usdc);
         weETH = ERC20(chainConfig.weETH);
 
-        cashSafeImpl = address(new CashSafe());
-        cashSafe = CashSafe(payable(address(new UUPSProxy(cashSafeImpl, ""))));
+        settlementDispatcherImpl = address(new SettlementDispatcher());
+        settlementDispatcher = SettlementDispatcher(payable(address(new UUPSProxy(settlementDispatcherImpl, ""))));
         address[] memory tokens = new address[](1);
         tokens[0] = address(usdc);
         
-        CashSafe.DestinationData[] memory destDatas = new CashSafe.DestinationData[](1);
-        destDatas[0] = CashSafe.DestinationData({
+        SettlementDispatcher.DestinationData[] memory destDatas = new SettlementDispatcher.DestinationData[](1);
+        destDatas[0] = SettlementDispatcher.DestinationData({
             destEid: optimismDestEid,
             destRecipient: deployerAddress,
             stargate: chainConfig.stargateUsdcPool
         });
 
-        cashSafe.initialize(
+        settlementDispatcher.initialize(
             uint48(delay),
             deployerAddress,
             tokens,
@@ -208,7 +208,7 @@ contract DeployUserSafeSetup is Utils {
             owner,
             uint64(delay),
             etherFiWallet,
-            address(cashSafe),
+            address(settlementDispatcher),
             address(debtManager),
             address(priceProvider),
             address(swapper),
@@ -315,13 +315,13 @@ contract DeployUserSafeSetup is Utils {
         );
         vm.serializeAddress(
             deployedAddresses,
-            "cashSafeProxy",
-            address(cashSafe)
+            "settlementDispatcherProxy",
+            address(settlementDispatcher)
         );
         vm.serializeAddress(
             deployedAddresses,
-            "cashSafeImpl",
-            address(cashSafeImpl)
+            "settlementDispatcherImpl",
+            address(settlementDispatcherImpl)
         );
         vm.serializeAddress(
             deployedAddresses,

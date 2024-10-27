@@ -2,11 +2,11 @@
 pragma solidity ^0.8.24;
 
 import {Utils} from "./Utils.sol";
-import {CashSafe} from "../../src/cash-safe/CashSafe.sol";
+import {SettlementDispatcher} from "../../src/settlement-dispatcher/SettlementDispatcher.sol";
 import {stdJson} from "forge-std/StdJson.sol";
 import {UUPSUpgradeable} from "openzeppelin-contracts-upgradeable/contracts/proxy/utils/UUPSUpgradeable.sol";
 
-contract UpgradeCashSafe is Utils {
+contract UpgradeSettlementDispatcher is Utils {
     using stdJson for string;
 
     function run() public {
@@ -17,14 +17,14 @@ contract UpgradeCashSafe is Utils {
 
         string memory deployments = readDeploymentFile();
 
-        address cashSafeProxy = stdJson.readAddress(
+        address settlementDispatcherProxy = stdJson.readAddress(
             deployments,
-            string.concat(".", "addresses", ".", "cashSafeProxy")
+            string.concat(".", "addresses", ".", "settlementDispatcherProxy")
         );
 
 
-        address cashSafeImpl = address(new CashSafe());
-        UUPSUpgradeable(cashSafeProxy).upgradeToAndCall(cashSafeImpl, "");
+        address settlementDispatcherImpl = address(new SettlementDispatcher());
+        UUPSUpgradeable(settlementDispatcherProxy).upgradeToAndCall(settlementDispatcherImpl, "");
 
         vm.stopBroadcast();
     }

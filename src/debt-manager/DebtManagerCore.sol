@@ -474,7 +474,7 @@ contract DebtManagerCore is DebtManagerStorage {
         }
 
         IERC20(token).safeTransfer(
-            _cashDataProvider.etherFiCashMultiSig(),
+            _cashDataProvider.settlementDispatcher(),
             amount
         );
 

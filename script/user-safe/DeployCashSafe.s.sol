@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.24;
 import {Script} from "forge-std/Script.sol";
-import {CashSafe} from "../../src/cash-safe/CashSafe.sol";
+import {SettlementDispatcher} from "../../src/settlement-dispatcher/SettlementDispatcher.sol";
 import {UUPSProxy} from "../../src/UUPSProxy.sol";
 import {CashDataProvider} from "../../src/utils/CashDataProvider.sol";
 contract DeployCashSafe is Script {
-    CashSafe cashSafe;  
+    SettlementDispatcher settlementDispatcher;  
     // Scroll
     address usdc = 0x06eFdBFf2a14a7c8E15944D1F4A48F9F95F663A4;
     // https://stargateprotocol.gitbook.io/stargate/v/v2-developer-docs/technical-reference/mainnet-contracts#scroll
@@ -21,21 +21,21 @@ contract DeployCashSafe is Script {
         // Start broadcast with deployer as the signer
         vm.startBroadcast(deployerPrivateKey);
 
-        address cashSafeImpl = address(new CashSafe());
+        address settlementDispatcherImpl = address(new SettlementDispatcher());
         address[] memory tokens = new address[](1); 
         tokens[0] = address(usdc);
 
-        CashSafe.DestinationData[] memory destDatas = new CashSafe.DestinationData[](1);
-        destDatas[0] = CashSafe.DestinationData({
+        SettlementDispatcher.DestinationData[] memory destDatas = new SettlementDispatcher.DestinationData[](1);
+        destDatas[0] = SettlementDispatcher.DestinationData({
             destEid: optimismDestEid,
             destRecipient: deployerAddress,
             stargate: stargateUsdcPool
         });
         
-        cashSafe = CashSafe(payable(address(new UUPSProxy(
-            cashSafeImpl, 
+        settlementDispatcher = SettlementDispatcher(payable(address(new UUPSProxy(
+            settlementDispatcherImpl, 
             abi.encodeWithSelector(
-                CashSafe.initialize.selector, 
+                SettlementDispatcher.initialize.selector, 
                 accessControlDelay, 
                 deployerAddress, 
                 tokens, 
@@ -44,7 +44,7 @@ contract DeployCashSafe is Script {
         ))));
 
         CashDataProvider cashDataProvider = CashDataProvider(0x61D76fB1eb4645F30dE515d0483Bf3488F4a2B99);
-        cashDataProvider.setEtherFiCashMultiSig(address(cashSafe));
+        cashDataProvider.setSettlementDispatcher(address(settlementDispatcher));
 
         vm.stopBroadcast();
     }

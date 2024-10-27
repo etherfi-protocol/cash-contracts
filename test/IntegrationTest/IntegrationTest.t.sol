@@ -119,7 +119,7 @@ contract IntegrationTest is IntegrationTestSetup {
 
         uint256 aliceSafeWeEthBalBefore = weETH.balanceOf(address(aliceSafe));
         uint256 cashSafeUsdcBalBefore = usdc.balanceOf(
-            address(etherFiCashMultisig)
+            address(settlementDispatcher)
         );
 
         vm.prank(etherFiWallet);
@@ -147,7 +147,7 @@ contract IntegrationTest is IntegrationTestSetup {
 
         uint256 aliceSafeWeEthBalAfter = weETH.balanceOf(address(aliceSafe));
         uint256 cashSafeUsdcBalAfter = usdc.balanceOf(
-            address(etherFiCashMultisig)
+            address(settlementDispatcher)
         );
 
         assertEq(aliceSafeWeEthBalBefore - aliceSafeWeEthBalAfter, supplyAmt);

@@ -45,7 +45,7 @@ contract DebtManagerSetup is Utils {
     string chainId;
     address weEthWethOracle;
     address ethUsdcOracle;
-    address etherFiCashSafe = makeAddr("etherFiCashSafe");
+    address settlementDispatcher = makeAddr("settlementDispatcher");
     PriceProvider priceProvider;
     IL2DebtManager debtManager;
     uint256 mockWeETHPriceInUsd = 3000e6;
@@ -191,7 +191,7 @@ contract DebtManagerSetup is Utils {
             owner,
             delay,
             etherFiWallet,
-            etherFiCashSafe,
+            settlementDispatcher,
             address(debtManager),
             address(priceProvider),
             address(swapper),
