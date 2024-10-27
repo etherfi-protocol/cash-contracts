@@ -36,7 +36,7 @@ contract DebtManagerBorrowTest is DebtManagerSetup {
     function test_CanAddOrRemoveSupportedBorrowTokens() public {
         address newBorrowToken = address(new MockERC20("abc", "ABC", 12));
         uint64 borrowApy = 1e18;
-        uint128 minShares = 1e12;
+        uint128 minSharesForBorrowToken = 1e12;
 
         IL2DebtManager.BorrowTokenConfig memory cfg = IL2DebtManager.BorrowTokenConfig({
             interestIndexSnapshot: 0,
@@ -44,7 +44,7 @@ contract DebtManagerBorrowTest is DebtManagerSetup {
             totalSharesOfBorrowTokens: 0,
             lastUpdateTimestamp: uint64(block.timestamp),
             borrowApy: borrowApy,
-            minShares: minShares
+            minShares: minSharesForBorrowToken
         });
 
         vm.startPrank(owner);
@@ -52,7 +52,7 @@ contract DebtManagerBorrowTest is DebtManagerSetup {
         emit IL2DebtManager.BorrowTokenAdded(newBorrowToken);
         vm.expectEmit(true, true, true, true);
         emit IL2DebtManager.BorrowTokenConfigSet(newBorrowToken, cfg);
-        debtManager.supportBorrowToken(newBorrowToken, borrowApy, minShares);
+        debtManager.supportBorrowToken(newBorrowToken, borrowApy, minSharesForBorrowToken);
 
         assertEq(debtManager.borrowApyPerSecond(newBorrowToken), borrowApy);
 

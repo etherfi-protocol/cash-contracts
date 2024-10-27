@@ -44,7 +44,8 @@ library UserSafeLib {
     function verifyUpdateSpendingLimitSig(
         OwnerLib.OwnerObject memory currentOwner,
         uint256 nonce,
-        uint256 limitInUsd,
+        uint256 dailyLimitInUsd,
+        uint256 monthlyLimitInUsd,
         bytes calldata signature
     ) internal view {
         bytes32 msgHash = keccak256(
@@ -53,7 +54,8 @@ library UserSafeLib {
                 block.chainid,
                 address(this),
                 nonce,
-                limitInUsd
+                dailyLimitInUsd,
+                monthlyLimitInUsd
             )
         );
 

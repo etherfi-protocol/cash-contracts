@@ -9,8 +9,10 @@ import {stdJson} from "forge-std/StdJson.sol";
 contract DeployUserSafe is Utils {
     UserSafeFactory userSafeFactory;
     UserSafe ownerSafe;
-    uint256 defaultSpendingLimit = 10000e6;
+    uint256 defaultDailySpendingLimit = 1000e6;
+    uint256 defaultMonthlySpendingLimit = 10000e6;
     uint256 collateralLimit = 10000e6;
+    int256 timezoneOffset = 4 * 3600; // Dubai Timezone
     address ownerEoa;
 
     function run() public {
@@ -38,11 +40,12 @@ contract DeployUserSafe is Utils {
             userSafeFactory.createUserSafe(
                 saltData,
                 abi.encodeWithSelector(
-                    // initialize(bytes,uint256,uint256)
-                    0x32b218ac,
+                    UserSafe.initialize.selector,
                     abi.encode(ownerEoa),
-                    defaultSpendingLimit,
-                    collateralLimit
+                    defaultDailySpendingLimit,
+                    defaultMonthlySpendingLimit,
+                    collateralLimit,
+                    timezoneOffset
                 )
             )
         );

@@ -45,11 +45,12 @@ contract UserSafeFactoryTest is UserSafeSetup {
             factory.createUserSafe(
                 saltData,
                 abi.encodeWithSelector(
-                    // initialize(bytes,uint256, uint256)
-                    0x32b218ac,
+                    UserSafe.initialize.selector,
                     bobBytes,
-                    defaultSpendingLimit,
-                    collateralLimit
+                    defaultDailySpendingLimit,
+                    defaultMonthlySpendingLimit,
+                    collateralLimit,
+                    timezoneOffset
                 )
             )
         );
@@ -61,11 +62,12 @@ contract UserSafeFactoryTest is UserSafeSetup {
         address deterministicAddress = factory.getUserSafeAddress(
             saltData, 
             abi.encodeWithSelector(
-                // initialize(bytes,uint256, uint256)
-                0x32b218ac,
+                UserSafe.initialize.selector,
                 bobBytes,
-                defaultSpendingLimit,
-                collateralLimit
+                defaultDailySpendingLimit,
+                defaultMonthlySpendingLimit,
+                collateralLimit,
+                timezoneOffset
             ));
 
         assertEq(deterministicAddress, address(bobSafe));
@@ -111,11 +113,12 @@ contract UserSafeFactoryTest is UserSafeSetup {
         factory.createUserSafe(
             saltData,
             abi.encodeWithSelector(
-                // initialize(bytes,uint256, uint256)
-                0x32b218ac,
+                UserSafe.initialize.selector,
                 hex"112345",
-                defaultSpendingLimit,
-                collateralLimit
+                defaultDailySpendingLimit,
+                defaultMonthlySpendingLimit,
+                collateralLimit,
+                timezoneOffset
             )
         );
     }

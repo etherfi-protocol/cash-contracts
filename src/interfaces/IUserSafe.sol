@@ -2,6 +2,7 @@
 pragma solidity ^0.8.24;
 
 import {OwnerLib} from "../libraries/OwnerLib.sol";
+import {SpendingLimit} from "../libraries/SpendingLimitLib.sol";
 
 interface IUserSafe {
     struct Signature {
@@ -19,12 +20,6 @@ interface IUserSafe {
         uint256[] amounts;
         address recipient;
         uint96 finalizeTime;
-    }
-
-    struct SpendingLimitData {
-        uint64 renewalTimestamp;
-        uint256 spendingLimit; // in USD with 6 decimals
-        uint256 usedUpAmount; // in USD with 6 decimals
     }
 
     event DepositFunds(address indexed token, uint256 amount);
@@ -57,11 +52,6 @@ interface IUserSafe {
     event RepayDebtManager(address token, uint256 debtAmount);
     event WithdrawCollateralFromDebtManager(address token, uint256 amount);
     event CloseAccountWithDebtManager();
-    event UpdateSpendingLimit(
-        uint256 oldLimitInUsd,
-        uint256 newLimitInUsd,
-        uint256 startTime
-    );
     event SetCollateralLimit(
         uint256 oldLimitInUsd,
         uint256 newLimitInUsd,
@@ -87,9 +77,7 @@ interface IUserSafe {
     error UnauthorizedCall();
     error InvalidNonce();
     error TransferAmountGreaterThanReceived();
-    error ExceededSpendingLimit();
     error ExceededCollateralLimit();
-    error InvalidSpendingLimitType();
     error UnsupportedToken();
     error RecoveryNotActive();
     error InvalidSignatureIndex();
@@ -99,6 +87,7 @@ interface IUserSafe {
     error InvalidRecoverySignerAddress();
     error UserRecoverySignerIsUnsetCannotUseIndexZero();
     error IncorrectOutputAmount();
+    error AmountZeroWithSixDecimals();
 
     /**
      * @notice Function to fetch the address of the owner of the User Safe.
@@ -147,10 +136,7 @@ interface IUserSafe {
      * @notice This function gives renewed limit based on if the renewal timestamp is in the past.
      * @return Current applicable spending limit
      */
-    function applicableSpendingLimit()
-        external
-        view
-        returns (SpendingLimitData memory);
+    function applicableSpendingLimit() external view returns (SpendingLimit memory);
 
     /**
      * @notice Function to get the current applicable collateral limit.
@@ -158,6 +144,14 @@ interface IUserSafe {
      * @return Current applicable collateral limit
      */
     function applicableCollateralLimit() external view returns (uint256);
+
+    /**
+     * @notice Function to fetch if a user can spend. 
+     * @notice This is a utility function for the backend to put checks on spendings.
+     * @param token Address of the token to spend.
+     * @param amount Amount of the token to spend.
+     */
+    function canSpend(address token, uint256 amount) external view returns (bool, string memory);
 
     /**
      * @notice Function to set the owner of the contract.
@@ -182,11 +176,13 @@ interface IUserSafe {
     /**
      * @notice Function to set the spending limit with permit.
      * @notice This does not affect the used up amount and specify a new limit.
-     * @param limitInUsd Spending limit in USD with 6 decimals.
+     * @param dailyLimitInUsd Daily spending limit in USD with 6 decimals.
+     * @param dailyLimitInUsd Monthly spending limit in USD with 6 decimals.
      * @param signature Must be a valid signature from the user.
      */
     function updateSpendingLimit(
-        uint256 limitInUsd,
+        uint256 dailyLimitInUsd,
+        uint256 monthlyLimitInUsd,
         bytes calldata signature
     ) external;
 

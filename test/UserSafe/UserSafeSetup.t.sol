@@ -4,7 +4,7 @@ pragma solidity ^0.8.24;
 import {Test, console, stdError} from "forge-std/Test.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {UserSafeFactory} from "../../src/user-safe/UserSafeFactory.sol";
-import {UserSafe} from "../../src//user-safe/UserSafe.sol";
+import {UserSafe, SpendingLimit} from "../../src//user-safe/UserSafe.sol";
 import {IL2DebtManager} from "../../src/interfaces/IL2DebtManager.sol";
 import {DebtManagerCore} from "../../src/debt-manager/DebtManagerCore.sol";
 import {DebtManagerAdmin} from "../../src/debt-manager/DebtManagerAdmin.sol";
@@ -52,7 +52,8 @@ contract UserSafeSetup is Utils {
     CashDataProvider cashDataProvider;
 
     uint256 mockWeETHPriceInUsd = 3000e6;
-    uint256 defaultSpendingLimit = 10000e6;
+    uint256 defaultDailySpendingLimit = 10000e6;
+    uint256 defaultMonthlySpendingLimit = 100000e6;
     uint256 collateralLimit = 10000e6;
     uint64 delay = 10;
     address etherFiCashMultisig = makeAddr("multisig");
@@ -84,6 +85,7 @@ contract UserSafeSetup is Utils {
     uint256 supplyCap = 10000 ether;
     MockCashTokenWrapperFactory wrapperTokenFactory;
     MockCashWrappedERC20 wweETH;
+    int256 timezoneOffset = 4 * 60 * 60; // Dubai timezone
 
     function setUp() public virtual {
         chainId = vm.envString("TEST_CHAIN");
@@ -266,11 +268,12 @@ contract UserSafeSetup is Utils {
             factory.createUserSafe(
                 saltData,
                 abi.encodeWithSelector(
-                    // initialize(bytes,uint256, uint256)
-                    0x32b218ac,
+                    UserSafe.initialize.selector,
                     aliceBytes,
-                    defaultSpendingLimit,
-                    collateralLimit
+                    defaultDailySpendingLimit,
+                    defaultMonthlySpendingLimit,
+                    collateralLimit,
+                    timezoneOffset
                 )
             )
         );

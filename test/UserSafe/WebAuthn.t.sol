@@ -27,11 +27,12 @@ contract UserSafeWebAuthnSignatureTest is UserSafeSetup {
             factory.createUserSafe(
                 saltData,
                 abi.encodeWithSelector(
-                    // initialize(bytes,uint256, uint256)
-                    0x32b218ac,
+                    UserSafe.initialize.selector,
                     passkeyOwner,
-                    defaultSpendingLimit,
-                    collateralLimit
+                    defaultDailySpendingLimit,
+                    defaultMonthlySpendingLimit,
+                    collateralLimit,
+                    timezoneOffset
                 )
             )
         );

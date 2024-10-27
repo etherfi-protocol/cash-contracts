@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import {IUserSafe, OwnerLib, UserSafe, UserSafeLib} from "../../src/user-safe/UserSafe.sol";
+import {IUserSafe, OwnerLib, UserSafe, UserSafeLib, SpendingLimitLib} from "../../src/user-safe/UserSafe.sol";
 import {MessageHashUtils} from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
 import {ERC20, UserSafeSetup} from "./UserSafeSetup.t.sol";
 
@@ -42,7 +42,7 @@ contract UserSafeTransfersTest is UserSafeSetup {
     function test_CannotTransferForSpendingWhenBalanceIsInsufficient() public {
         uint256 amount = aliceSafeUsdcBalanceBefore + 1;
         vm.prank(alice);
-        _updateSpendingLimit(amount);
+        _updateSpendingLimit(amount, amount);
 
         vm.warp(block.timestamp + delay + 1);
         vm.prank(etherFiWallet);
@@ -58,9 +58,16 @@ contract UserSafeTransfersTest is UserSafeSetup {
     }
 
     function test_CannotTransferMoreThanSpendingLimit() public {
-        uint256 amount = defaultSpendingLimit + 1;
+        uint256 amount = defaultDailySpendingLimit + 1;
         vm.prank(etherFiWallet);
-        vm.expectRevert(IUserSafe.ExceededSpendingLimit.selector);
+        vm.expectRevert(SpendingLimitLib.ExceededDailySpendingLimit.selector);
+        aliceSafe.transfer(address(usdc), amount);
+
+        _updateSpendingLimit(1 ether, defaultMonthlySpendingLimit);
+
+        amount = defaultMonthlySpendingLimit + 1;
+        vm.prank(etherFiWallet);
+        vm.expectRevert(SpendingLimitLib.ExceededMonthlySpendingLimit.selector);
         aliceSafe.transfer(address(usdc), amount);
     }
 
@@ -126,7 +133,7 @@ contract UserSafeTransfersTest is UserSafeSetup {
 
         // test_CannotSwapWeEthToUsdcAndTransferIfAmountReceivedIsLess
 
-        _updateSpendingLimit(100000e6);
+        _updateSpendingLimit(100000e6, 100000e6);
 
         vm.warp(block.timestamp + delay + 1);
         uint256 newAmountUsdcToSend = 10000e6;
@@ -143,13 +150,13 @@ contract UserSafeTransfersTest is UserSafeSetup {
         );
 
         // test_CannotGoOverSpendingLimit
-        _updateSpendingLimit(1000e6);
+        _updateSpendingLimit(1000e6, 1000e6);
 
         vm.warp(block.timestamp + delay + 1);
         uint256 newInputAmt = 2000e6;
-        newAmountUsdcToSend = aliceSafe.applicableSpendingLimit().spendingLimit + 1;
+        newAmountUsdcToSend = aliceSafe.applicableSpendingLimit().dailyLimit + 1;
         vm.prank(etherFiWallet);
-        vm.expectRevert(IUserSafe.ExceededSpendingLimit.selector);
+        vm.expectRevert(SpendingLimitLib.ExceededDailySpendingLimit.selector);
         aliceSafe.swapAndTransfer(
             assets[0],
             address(usdc),
@@ -241,7 +248,7 @@ contract UserSafeTransfersTest is UserSafeSetup {
         aliceSafe.addCollateral(unsupportedToken, amount);
     }
 
-    function _updateSpendingLimit(uint256 spendingLimitInUsd) internal {
+    function _updateSpendingLimit(uint256 dailyLimitInUsd, uint256 monthlyLimitInUsd) internal {
         uint256 nonce = aliceSafe.nonce() + 1;
 
         bytes32 msgHash = keccak256(
@@ -250,7 +257,8 @@ contract UserSafeTransfersTest is UserSafeSetup {
                 block.chainid,
                 address(aliceSafe),
                 nonce,
-                spendingLimitInUsd
+                dailyLimitInUsd,
+                monthlyLimitInUsd
             )
         );
 
@@ -260,7 +268,7 @@ contract UserSafeTransfersTest is UserSafeSetup {
         );
         bytes memory signature = abi.encodePacked(r, s, v);
 
-        aliceSafe.updateSpendingLimit(spendingLimitInUsd, signature);
+        aliceSafe.updateSpendingLimit(dailyLimitInUsd, monthlyLimitInUsd, signature);
     }
 
     function _setCollateralLimit(uint256 newCollateralLimit) internal {

@@ -17,19 +17,26 @@ import {OwnerLib} from "../libraries/OwnerLib.sol";
 import {UserSafeLib} from "../libraries/UserSafeLib.sol";
 import {ReentrancyGuardTransientUpgradeable} from "../utils/ReentrancyGuardTransientUpgradeable.sol";
 import {ArrayDeDupTransient} from "../libraries/ArrayDeDupTransientLib.sol";
+import {SpendingLimit, SpendingLimitLib} from "../libraries/SpendingLimitLib.sol";
 
 /**
  * @title UserSafe
  * @author ether.fi [shivam@ether.fi]
  * @notice User safe account for interactions with the EtherFi Cash contracts
  */
-contract UserSafe is IUserSafe, Initializable, ReentrancyGuardTransientUpgradeable, UserSafeRecovery {
+contract UserSafe is
+    IUserSafe,
+    Initializable,
+    ReentrancyGuardTransientUpgradeable,
+    UserSafeRecovery
+{
     using SafeERC20 for IERC20;
     using SignatureUtils for bytes32;
     using OwnerLib for bytes;
     using UserSafeLib for OwnerLib.OwnerObject;
     using OwnerLib for OwnerLib.OwnerObject;
     using ArrayDeDupTransient for address[];
+    using SpendingLimitLib for SpendingLimit;
 
     // Address of the Cash Data Provider
     ICashDataProvider private immutable _cashDataProvider;
@@ -46,14 +53,10 @@ contract UserSafe is IUserSafe, Initializable, ReentrancyGuardTransientUpgradeab
     // Nonce for permit operations
     uint256 private _nonce;
     // Current spending limit
-    SpendingLimitData private _spendingLimit;
+    SpendingLimit private _spendingLimit;
     // Collateral limit
     uint256 private _collateralLimit;
 
-    // Incoming spending limit -> we want a delay between spending limit changes so we can deduct funds in between to settle account
-    uint256 private _incomingSpendingLimit;
-    // Incoming spending limit start timestamp
-    uint256 private _incomingSpendingLimitStartTime;
     // Incoming collateral limit -> we want a delay between collateral limit changes so we can deduct funds in between to settle account
     uint256 private _incomingCollateralLimit;
     // Incoming collateral limit start timestamp
@@ -71,20 +74,19 @@ contract UserSafe is IUserSafe, Initializable, ReentrancyGuardTransientUpgradeab
 
     function initialize(
         bytes calldata __owner,
-        uint256 __spendingLimit,
-        uint256 __collateralLimit
+        uint256 __dailySpendingLimit,
+        uint256 __monthlySpendingLimit,
+        uint256 __collateralLimit,
+        int256 __timezoneOffset
     ) external initializer {
         __ReentrancyGuardTransient_init();
         _ownerBytes = __owner;
-
-        _spendingLimit = SpendingLimitData({
-            renewalTimestamp: _getSpendingLimitRenewalTimestamp(uint64(block.timestamp)),
-            spendingLimit: __spendingLimit,
-            usedUpAmount: 0
-        });
-
+        _spendingLimit.initialize(
+            __dailySpendingLimit,
+            __monthlySpendingLimit,
+            __timezoneOffset
+        );
         _collateralLimit = __collateralLimit;
-
         __UserSafeRecovery_init();
     }
 
@@ -131,28 +133,11 @@ contract UserSafe is IUserSafe, Initializable, ReentrancyGuardTransientUpgradeab
     function applicableSpendingLimit()
         external
         view
-        returns (SpendingLimitData memory)
+        returns (SpendingLimit memory)
     {
-        SpendingLimitData memory _applicableSpendingLimit = _spendingLimit;
-        if (
-            _incomingSpendingLimitStartTime != 0 &&
-            block.timestamp > _incomingSpendingLimitStartTime
-        ) {
-            _applicableSpendingLimit.spendingLimit = _incomingSpendingLimit;
-            _applicableSpendingLimit.renewalTimestamp = _getSpendingLimitRenewalTimestamp(uint64(_incomingSpendingLimitStartTime));
-        }
-
-        // If spending limit needs to be renewed, then renew it
-        if (block.timestamp > _applicableSpendingLimit.renewalTimestamp) {
-            _applicableSpendingLimit.usedUpAmount = 0;
-
-            do _applicableSpendingLimit.renewalTimestamp = _getSpendingLimitRenewalTimestamp(_applicableSpendingLimit.renewalTimestamp);
-            while (block.timestamp > _applicableSpendingLimit.renewalTimestamp);
-        }
-
-        return _applicableSpendingLimit;
+        return _spendingLimit.getCurrentLimit();
     }
-    
+
     /**
      * @inheritdoc IUserSafe
      */
@@ -163,6 +148,39 @@ contract UserSafe is IUserSafe, Initializable, ReentrancyGuardTransientUpgradeab
         ) return _incomingCollateralLimit;
 
         return _collateralLimit;
+    }
+
+    /**
+     * @inheritdoc IUserSafe
+     */
+    function canSpend(
+        address token,
+        uint256 amount
+    ) external view returns (bool, string memory) {
+        amount = (amount * 10 ** 6) / 10 ** _getDecimals(token);
+        if (amount == 0) revert AmountZeroWithSixDecimals();
+
+        uint256 balance = IERC20(token).balanceOf(address(this));
+        if (balance < amount) return (false, "Balance too low");
+
+        uint256 len = _pendingWithdrawalRequest.tokens.length;
+        uint256 tokenIndex = len;
+        for (uint256 i = 0; i < len; ) {
+            if (_pendingWithdrawalRequest.tokens[i] == token) {
+                tokenIndex = i;
+                break;
+            }
+            unchecked {
+                ++i;
+            }
+        }
+
+        // If the token does not exist in withdrawal request
+        if (tokenIndex != len)
+            balance = balance - _pendingWithdrawalRequest.amounts[tokenIndex];
+        if (balance < amount) return (false, "Tokens pending withdrawal");
+
+        return _spendingLimit.canSpend(amount);
     }
 
     /**
@@ -187,11 +205,21 @@ contract UserSafe is IUserSafe, Initializable, ReentrancyGuardTransientUpgradeab
      * @inheritdoc IUserSafe
      */
     function updateSpendingLimit(
-        uint256 limitInUsd,
+        uint256 dailyLimitInUsd,
+        uint256 monthlyLimitInUsd,
         bytes calldata signature
     ) external incrementNonce currentOwner {
-        owner().verifyUpdateSpendingLimitSig(_nonce, limitInUsd, signature);
-        _updateSpendingLimit(limitInUsd);
+        owner().verifyUpdateSpendingLimitSig(
+            _nonce,
+            dailyLimitInUsd,
+            monthlyLimitInUsd,
+            signature
+        );
+        _spendingLimit.updateSpendingLimit(
+            dailyLimitInUsd,
+            monthlyLimitInUsd,
+            _cashDataProvider.delay()
+        );
     }
 
     /**
@@ -428,10 +456,7 @@ contract UserSafe is IUserSafe, Initializable, ReentrancyGuardTransientUpgradeab
     /**
      * @inheritdoc IUserSafe
      */
-    function repay(
-        address token,
-        uint256 amount
-    ) external onlyEtherFiWallet {
+    function repay(address token, uint256 amount) external onlyEtherFiWallet {
         address debtManager = _cashDataProvider.etherFiCashDebtManager();
         _repay(debtManager, token, amount);
     }
@@ -456,10 +481,6 @@ contract UserSafe is IUserSafe, Initializable, ReentrancyGuardTransientUpgradeab
         emit CloseAccountWithDebtManager();
     }
 
-    function _getSpendingLimitRenewalTimestamp(uint64 startTimestamp) internal pure returns (uint64 renewalTimestamp) {
-        return startTimestamp + 30 * 24 * 60 * 60;
-    }
-
     function _swapFunds(
         address inputTokenToSwap,
         address outputToken,
@@ -482,32 +503,6 @@ contract UserSafe is IUserSafe, Initializable, ReentrancyGuardTransientUpgradeab
                 guaranteedOutputAmount,
                 swapData
             );
-    }
-
-    function _updateSpendingLimit(uint256 limitInUsd) internal {
-        _currentSpendingLimit();
-
-        if (limitInUsd > _spendingLimit.spendingLimit) {
-            delete _incomingSpendingLimit;
-            delete _incomingSpendingLimitStartTime;
-            
-            emit UpdateSpendingLimit(
-                _spendingLimit.spendingLimit,
-                limitInUsd,
-                block.timestamp
-            );
-
-            _spendingLimit.spendingLimit = limitInUsd;
-        } else {
-            _incomingSpendingLimit = limitInUsd;
-            _incomingSpendingLimitStartTime = block.timestamp + _cashDataProvider.delay();
-
-            emit UpdateSpendingLimit(
-                _spendingLimit.spendingLimit,
-                limitInUsd,
-                _incomingSpendingLimitStartTime
-            );
-        }
     }
 
     function _setCollateralLimit(uint256 limitInUsd) internal {
@@ -535,7 +530,6 @@ contract UserSafe is IUserSafe, Initializable, ReentrancyGuardTransientUpgradeab
                 _incomingCollateralLimitStartTime
             );
         }
-
     }
 
     function _requestWithdrawal(
@@ -600,16 +594,6 @@ contract UserSafe is IUserSafe, Initializable, ReentrancyGuardTransientUpgradeab
     }
 
     function _checkSpendingLimit(address token, uint256 amount) internal {
-        _currentSpendingLimit();
-
-        // If spending limit needs to be renewed, then renew it
-        if (block.timestamp > _spendingLimit.renewalTimestamp) {
-            _spendingLimit.usedUpAmount = 0;
-            
-            do _spendingLimit.renewalTimestamp = _getSpendingLimitRenewalTimestamp(_spendingLimit.renewalTimestamp);
-            while (block.timestamp > _spendingLimit.renewalTimestamp);
-        }
-
         uint8 tokenDecimals = _getDecimals(token);
 
         // in current case, token can be either collateral tokens or borrow tokens
@@ -620,14 +604,10 @@ contract UserSafe is IUserSafe, Initializable, ReentrancyGuardTransientUpgradeab
             amount = (amount * price) / 10 ** tokenDecimals;
         } else {
             if (tokenDecimals != 6)
-                // get amount in 6 decimals
                 amount = (amount * 1e6) / 10 ** tokenDecimals;
         }
 
-        if (amount + _spendingLimit.usedUpAmount > _spendingLimit.spendingLimit)
-            revert ExceededSpendingLimit();
-
-        _spendingLimit.usedUpAmount += amount;
+        _spendingLimit.spend(amount);
     }
 
     function _checkCollateralLimit(
@@ -637,11 +617,15 @@ contract UserSafe is IUserSafe, Initializable, ReentrancyGuardTransientUpgradeab
     ) internal {
         _currentCollateralLimit();
 
-        uint256 currentCollateral = IL2DebtManager(debtManager).getCollateralValueInUsd(address(this));
-        uint256 price = IPriceProvider(_cashDataProvider.priceProvider()).price(token);
+        uint256 currentCollateral = IL2DebtManager(debtManager)
+            .getCollateralValueInUsd(address(this));
+        uint256 price = IPriceProvider(_cashDataProvider.priceProvider()).price(
+            token
+        );
         // amount * price with 6 decimals / 10 ** tokenDecimals will convert the collateral amount to USD amount with 6 decimals
         amountToAdd = (amountToAdd * price) / 10 ** _getDecimals(token);
-        if (currentCollateral + amountToAdd > _collateralLimit) revert ExceededCollateralLimit();
+        if (currentCollateral + amountToAdd > _collateralLimit)
+            revert ExceededCollateralLimit();
     }
 
     function _addCollateral(
@@ -685,11 +669,7 @@ contract UserSafe is IUserSafe, Initializable, ReentrancyGuardTransientUpgradeab
         // Repay token can either be borrow token or collateral token
         IERC20(token).forceApprove(debtManager, amount);
 
-        IL2DebtManager(debtManager).repay(
-            address(this),
-            token,
-            amount
-        );
+        IL2DebtManager(debtManager).repay(address(this), token, amount);
         emit RepayDebtManager(token, amount);
     }
 
@@ -729,18 +709,6 @@ contract UserSafe is IUserSafe, Initializable, ReentrancyGuardTransientUpgradeab
         if (amount + _pendingWithdrawalRequest.amounts[tokenIndex] > balance) {
             _pendingWithdrawalRequest.amounts[tokenIndex] = balance - amount;
             emit WithdrawalAmountUpdated(token, balance - amount);
-        }
-    }
-
-    function _currentSpendingLimit() internal {
-        if (
-            _incomingSpendingLimitStartTime != 0 &&
-            block.timestamp > _incomingSpendingLimitStartTime
-        ) {
-            _spendingLimit.spendingLimit = _incomingSpendingLimit;
-            _spendingLimit.renewalTimestamp = _getSpendingLimitRenewalTimestamp(uint64(_incomingSpendingLimitStartTime));
-            delete _incomingSpendingLimit;
-            delete _incomingSpendingLimitStartTime;
         }
     }
 

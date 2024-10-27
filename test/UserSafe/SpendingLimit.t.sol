@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import {IUserSafe, OwnerLib, UserSafe, UserSafeLib} from "../../src/user-safe/UserSafe.sol";
+import {IUserSafe, OwnerLib, UserSafe, UserSafeLib, SpendingLimit, SpendingLimitLib} from "../../src/user-safe/UserSafe.sol";
 import {MessageHashUtils} from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
 import {UserSafeSetup} from "./UserSafeSetup.t.sol";
 
@@ -12,13 +12,15 @@ contract UserSafeSpendingLimitTest is UserSafeSetup {
         vm.prank(alice);
         usdc.transfer(address(aliceSafe), 1000e6);
 
-        uint256 spendingLimitInUsd = 1000000000;
+        uint256 dailySpendingLimitInUsd = 100e6;
+        uint256 monthlySpendingLimitInUsd = 1000e6;
         uint256 transferAmount = 1e6;
 
-        UserSafe.SpendingLimitData memory spendingLimitBefore = aliceSafe
-            .applicableSpendingLimit();
-        assertEq(spendingLimitBefore.spendingLimit, defaultSpendingLimit);
-        assertEq(spendingLimitBefore.usedUpAmount, 0);
+        SpendingLimit memory spendingLimitBefore = aliceSafe.applicableSpendingLimit();
+        assertEq(spendingLimitBefore.dailyLimit, defaultDailySpendingLimit);
+        assertEq(spendingLimitBefore.monthlyLimit, defaultMonthlySpendingLimit);
+        assertEq(spendingLimitBefore.spentToday, 0);
+        assertEq(spendingLimitBefore.spentThisMonth, 0);
 
         assertEq(usdc.balanceOf(etherFiCashMultisig), 0);
         vm.prank(etherFiWallet);
@@ -26,7 +28,8 @@ contract UserSafeSpendingLimitTest is UserSafeSetup {
         assertEq(usdc.balanceOf(etherFiCashMultisig), transferAmount);
 
         spendingLimitBefore = aliceSafe.applicableSpendingLimit();
-        assertEq(spendingLimitBefore.usedUpAmount, transferAmount);
+        assertEq(spendingLimitBefore.spentToday, transferAmount);
+        assertEq(spendingLimitBefore.spentThisMonth, transferAmount);
 
         uint256 nonce = aliceSafe.nonce() + 1;
 
@@ -36,7 +39,8 @@ contract UserSafeSpendingLimitTest is UserSafeSetup {
                 block.chainid,
                 address(aliceSafe),
                 nonce,
-                spendingLimitInUsd
+                dailySpendingLimitInUsd,
+                monthlySpendingLimitInUsd
             )
         );
 
@@ -47,24 +51,34 @@ contract UserSafeSpendingLimitTest is UserSafeSetup {
         bytes memory signature = abi.encodePacked(r, s, v);
 
         vm.prank(notOwner);
-        aliceSafe.updateSpendingLimit(spendingLimitInUsd, signature);
+        aliceSafe.updateSpendingLimit(dailySpendingLimitInUsd, monthlySpendingLimitInUsd, signature);
 
-        UserSafe.SpendingLimitData memory spendingLimitAfterUpdate = aliceSafe
-            .applicableSpendingLimit();
-        assertEq(
-            spendingLimitAfterUpdate.spendingLimit,
-            spendingLimitBefore.spendingLimit
-        );
+        SpendingLimit memory spendingLimitAfterUpdate = aliceSafe.applicableSpendingLimit();
+        
+        assertEq(spendingLimitAfterUpdate.dailyLimit, spendingLimitBefore.dailyLimit);
+        assertEq(spendingLimitAfterUpdate.monthlyLimit, spendingLimitBefore.monthlyLimit);
+        assertEq(spendingLimitAfterUpdate.newDailyLimit, dailySpendingLimitInUsd);
+        assertEq(spendingLimitAfterUpdate.newMonthlyLimit, monthlySpendingLimitInUsd);
+        assertEq(spendingLimitAfterUpdate.spentToday, transferAmount);
+        assertEq(spendingLimitAfterUpdate.spentThisMonth, transferAmount);
+        assertEq(spendingLimitAfterUpdate.dailyLimitChangeActivationTime, block.timestamp + delay);
+        assertEq(spendingLimitAfterUpdate.monthlyLimitChangeActivationTime, block.timestamp + delay);
 
         vm.warp(block.timestamp + delay + 1);
-        UserSafe.SpendingLimitData memory spendingLimitAfter = aliceSafe
-            .applicableSpendingLimit();
-        assertEq(spendingLimitAfter.spendingLimit, spendingLimitInUsd);
-        assertEq(spendingLimitAfter.usedUpAmount, transferAmount);
+        SpendingLimit memory spendingLimitAfter = aliceSafe.applicableSpendingLimit();
+        assertEq(spendingLimitAfter.dailyLimit, dailySpendingLimitInUsd);
+        assertEq(spendingLimitAfter.monthlyLimit, monthlySpendingLimitInUsd);
+        assertEq(spendingLimitAfter.newDailyLimit, 0);
+        assertEq(spendingLimitAfter.newMonthlyLimit, 0);
+        assertEq(spendingLimitAfter.spentToday, transferAmount);
+        assertEq(spendingLimitAfter.spentThisMonth, transferAmount);
+        assertEq(spendingLimitAfter.dailyLimitChangeActivationTime, 0);
+        assertEq(spendingLimitAfter.monthlyLimitChangeActivationTime, 0);
+
     }
 
-    function test_UpdateSpendingLimitDoesNotDelayIfLimitIsGreater() public {
-        uint256 newLimit = defaultSpendingLimit + 1;
+    function test_UpdateDailySpendingLimitDoesNotDelayIfLimitIsGreater() public {
+        uint256 newLimit = defaultDailySpendingLimit + 1;
         uint256 nonce = aliceSafe.nonce() + 1;
 
         bytes32 msgHash = keccak256(
@@ -73,6 +87,36 @@ contract UserSafeSpendingLimitTest is UserSafeSetup {
                 block.chainid,
                 address(aliceSafe),
                 nonce,
+                newLimit,
+                defaultMonthlySpendingLimit
+            )
+        );
+
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(
+            alicePk,
+            msgHash.toEthSignedMessageHash()
+        );
+        bytes memory signature = abi.encodePacked(r, s, v);
+
+        vm.prank(notOwner);
+        aliceSafe.updateSpendingLimit(newLimit, defaultMonthlySpendingLimit, signature);
+
+        assertEq(aliceSafe.applicableSpendingLimit().dailyLimit, newLimit);
+        assertEq(aliceSafe.applicableSpendingLimit().newDailyLimit, 0);
+        assertEq(aliceSafe.applicableSpendingLimit().dailyLimitChangeActivationTime, 0);
+    }
+
+    function test_UpdateMonthlySpendingLimitDoesNotDelayIfLimitIsGreater() public {
+        uint256 newLimit = defaultMonthlySpendingLimit + 1;
+        uint256 nonce = aliceSafe.nonce() + 1;
+
+        bytes32 msgHash = keccak256(
+            abi.encode(
+                UserSafeLib.UPDATE_SPENDING_LIMIT_METHOD,
+                block.chainid,
+                address(aliceSafe),
+                nonce,
+                defaultDailySpendingLimit,
                 newLimit
             )
         );
@@ -84,56 +128,125 @@ contract UserSafeSpendingLimitTest is UserSafeSetup {
         bytes memory signature = abi.encodePacked(r, s, v);
 
         vm.prank(notOwner);
-        aliceSafe.updateSpendingLimit(newLimit, signature);
+        aliceSafe.updateSpendingLimit(defaultDailySpendingLimit, newLimit, signature);
 
-        assertEq(aliceSafe.applicableSpendingLimit().spendingLimit, newLimit);
+        assertEq(aliceSafe.applicableSpendingLimit().monthlyLimit, newLimit);
+        assertEq(aliceSafe.applicableSpendingLimit().newMonthlyLimit, 0);
+        assertEq(aliceSafe.applicableSpendingLimit().monthlyLimitChangeActivationTime, 0);
     }
 
-    function test_CannotSpendMoreThanSpendingLimit() public {
-        uint256 spendingLimit = aliceSafe
-            .applicableSpendingLimit()
-            .spendingLimit;
-        uint256 amount = spendingLimit + 1;
-        vm.prank(alice);
-        usdc.transfer(address(aliceSafe), amount);
+    function test_CannotSpendMoreThanDailyOrMonthlySpendingLimit() public {
+        SpendingLimit memory limit = aliceSafe.applicableSpendingLimit();
+        uint256 amount = limit.dailyLimit + 1;
+        
+        deal(address(usdc), address(aliceSafe), 1 ether);
 
         vm.prank(etherFiWallet);
-        vm.expectRevert(IUserSafe.ExceededSpendingLimit.selector);
+        vm.expectRevert(SpendingLimitLib.ExceededDailySpendingLimit.selector);
+        aliceSafe.transfer(address(usdc), amount);
+
+        // so that daily limit should not throw error
+        _updateSpendingLimit(1 ether, defaultMonthlySpendingLimit);
+
+        amount = limit.monthlyLimit + 1;
+        vm.prank(etherFiWallet);
+        vm.expectRevert(SpendingLimitLib.ExceededMonthlySpendingLimit.selector);
         aliceSafe.transfer(address(usdc), amount);
     }
 
-    function test_SpendingLimitGetsRenewedAutomatically() public {
-        uint256 spendingLimit = aliceSafe
-            .applicableSpendingLimit()
-            .spendingLimit;
-        uint256 amount = spendingLimit / 2;
+    function test_DailySpendingLimitGetsRenewedAutomatically() public {
+        SpendingLimit memory spendingLimit = aliceSafe.applicableSpendingLimit();
+
+        uint256 dailyLimit = spendingLimit.dailyLimit;        
+        uint256 amount = dailyLimit / 2;
 
         deal(address(usdc), address(aliceSafe), 1 ether);
 
         vm.prank(etherFiWallet);
         aliceSafe.transfer(address(usdc), amount);
 
-        uint256 usedUpAmount = aliceSafe.applicableSpendingLimit().usedUpAmount;
-        assertEq(usedUpAmount, amount);
+        assertEq(aliceSafe.applicableSpendingLimit().spentToday, amount);
+        assertEq(aliceSafe.applicableSpendingLimit().spentThisMonth, amount);
 
         vm.prank(etherFiWallet);
-        vm.expectRevert(IUserSafe.ExceededSpendingLimit.selector);
-        aliceSafe.transfer(address(usdc), spendingLimit - amount + 1);
+        vm.expectRevert(SpendingLimitLib.ExceededDailySpendingLimit.selector);
+        aliceSafe.transfer(address(usdc), dailyLimit - amount + 1);
 
-        vm.warp(aliceSafe.applicableSpendingLimit().renewalTimestamp);
+        vm.warp(aliceSafe.applicableSpendingLimit().dailyRenewalTimestamp);
         vm.prank(etherFiWallet);
-        vm.expectRevert(IUserSafe.ExceededSpendingLimit.selector);
-        aliceSafe.transfer(address(usdc), spendingLimit - amount + 1);
+        vm.expectRevert(SpendingLimitLib.ExceededDailySpendingLimit.selector);
+        aliceSafe.transfer(address(usdc), dailyLimit - amount + 1);
 
-        vm.warp(aliceSafe.applicableSpendingLimit().renewalTimestamp + 1);
-
-        // Since the time for renewal is in the past, usedUpAmount should be 0
-        assertEq(aliceSafe.applicableSpendingLimit().usedUpAmount, 0);
+        vm.warp(aliceSafe.applicableSpendingLimit().dailyRenewalTimestamp + 1);
+        // Since the time for renewal is in the past, spentToday should be 0
+        assertEq(aliceSafe.applicableSpendingLimit().spentToday, 0);
+        assertEq(aliceSafe.applicableSpendingLimit().spentThisMonth, amount);
 
         // Since the time for renewal is in the past, we should be able to spend the whole spending limit again
         vm.prank(etherFiWallet);
         vm.expectEmit(true, true, true, true);
-        emit IUserSafe.TransferForSpending(address(usdc), spendingLimit);
-        aliceSafe.transfer(address(usdc), spendingLimit);
+        emit IUserSafe.TransferForSpending(address(usdc), dailyLimit);
+        aliceSafe.transfer(address(usdc), dailyLimit);
+    }
+
+    function test_MonthlySpendingLimitGetsRenewedAutomatically() public {
+        // done so that daily limit should not get exhausted
+        _updateSpendingLimit(defaultMonthlySpendingLimit + 1, defaultMonthlySpendingLimit);
+
+        SpendingLimit memory spendingLimit = aliceSafe.applicableSpendingLimit();
+
+        uint256 monthlyLimit = spendingLimit.monthlyLimit;        
+        uint256 amount = monthlyLimit / 2;
+
+        deal(address(usdc), address(aliceSafe), 1 ether);
+
+        vm.prank(etherFiWallet);
+        aliceSafe.transfer(address(usdc), amount);
+
+        assertEq(aliceSafe.applicableSpendingLimit().spentToday, amount);
+        assertEq(aliceSafe.applicableSpendingLimit().spentThisMonth, amount);
+
+        vm.prank(etherFiWallet);
+        vm.expectRevert(SpendingLimitLib.ExceededMonthlySpendingLimit.selector);
+        aliceSafe.transfer(address(usdc), monthlyLimit - amount + 1);
+
+        vm.warp(aliceSafe.applicableSpendingLimit().monthlyRenewalTimestamp);
+        vm.prank(etherFiWallet);
+        vm.expectRevert(SpendingLimitLib.ExceededMonthlySpendingLimit.selector);
+        aliceSafe.transfer(address(usdc), monthlyLimit - amount + 1);
+
+        vm.warp(aliceSafe.applicableSpendingLimit().monthlyRenewalTimestamp + 1);
+        // Since the time for renewal is in the past, spentToday should be 0
+        assertEq(aliceSafe.applicableSpendingLimit().spentToday, 0);
+        assertEq(aliceSafe.applicableSpendingLimit().spentThisMonth, 0);
+
+        // Since the time for renewal is in the past, we should be able to spend the whole spending limit again
+        vm.prank(etherFiWallet);
+        vm.expectEmit(true, true, true, true);
+        emit IUserSafe.TransferForSpending(address(usdc), monthlyLimit);
+        aliceSafe.transfer(address(usdc), monthlyLimit);
+    }
+
+    function _updateSpendingLimit(uint256 dailyLimitInUsd, uint256 monthlyLimitInUsd) internal {
+        uint256 nonce = aliceSafe.nonce() + 1;
+
+        bytes32 msgHash = keccak256(
+            abi.encode(
+                UserSafeLib.UPDATE_SPENDING_LIMIT_METHOD,
+                block.chainid,
+                address(aliceSafe),
+                nonce,
+                dailyLimitInUsd,
+                monthlyLimitInUsd
+            )
+        );
+
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(
+            alicePk,
+            msgHash.toEthSignedMessageHash()
+        );
+        bytes memory signature = abi.encodePacked(r, s, v);
+
+        aliceSafe.updateSpendingLimit(dailyLimitInUsd, monthlyLimitInUsd, signature);
     }
 }
