@@ -2,17 +2,17 @@
 pragma solidity ^0.8.24;
 
 import {Test} from "forge-std/Test.sol"; 
-import {TopUpDest, PausableUpgradeable} from "../../src/top-up/TopUpDest.sol";
+import {TopUpDest, EIP1271SignatureUtils, PausableUpgradeable} from "../../src/top-up/TopUpDest.sol";
 import {CashDataProvider} from "../../src/utils/CashDataProvider.sol";
 import {UUPSProxy} from "../../src/UUPSProxy.sol";
 import {MockERC20} from "../../src/mocks/MockERC20.sol";
 import {IAccessControl} from "@openzeppelin/contracts/access/IAccessControl.sol";
 
 bytes32 constant USER_SAFE_REGISTRY_TYPEHASH =
-        keccak256("MapEoaToUserSafe(address eoa,address userSafe,uint256 nonce,uint256 deadline)");
+    keccak256("MapWalletToUserSafe(address wallet,address userSafe,uint256 nonce,uint256 deadline)");
 
-struct MapEoaToUserSafe {
-    address eoa;
+struct MapWalletToUserSafe {
+    address wallet;
     address userSafe;
     uint256 nonce;
     uint256 deadline;
@@ -71,58 +71,60 @@ contract TopUpDestTest is Test {
         cashDataProvider.whitelistUserSafe(userSafe);
     }
 
-    function test_CanRegisterEoaToUserSafe() public {
+    function test_CanRegisterWalletToUserSafe() public {
         (address alice, uint256 alicePk) = makeAddrAndKey("alice");
         bytes32 domainSeparator = topUpDest.DOMAIN_SEPARATOR();
-        MapEoaToUserSafe memory mapEoaToUserSafe = MapEoaToUserSafe({
-            eoa: alice,
+        MapWalletToUserSafe memory mapWalletToUserSafe = MapWalletToUserSafe({
+            wallet: alice,
             userSafe: userSafe,
             nonce: 0,
             deadline: 100
         });
         
-        bytes32 digest = getTypedDataHash(domainSeparator, mapEoaToUserSafe);
+        bytes32 digest = getTypedDataHash(domainSeparator, mapWalletToUserSafe);
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(alicePk, digest);
+        bytes memory signature = abi.encodePacked(r, s, v);
 
         vm.expectEmit(true, true, true, true);
-        emit TopUpDest.EoaToUserSafeRegistered(alice, userSafe);
-        topUpDest.mapEoaToUserSafe(alice, userSafe, 100, v, r, s);
+        emit TopUpDest.WalletToUserSafeRegistered(alice, userSafe);
+        topUpDest.mapWalletToUserSafe(alice, userSafe, 100, signature);
 
-        assertEq(topUpDest.eoaToUserSafeRegistry(alice), userSafe);
+        assertEq(topUpDest.walletToUserSafeRegistry(alice), userSafe);
     }
 
-    function test_CannotRegisterEoaToUserSafeIfEoaIsAddressZero() public {
-        vm.expectRevert(TopUpDest.EoaCannotBeAddressZero.selector);
-        topUpDest.mapEoaToUserSafe(address(0), address(1), 10, 1, bytes32(0), bytes32(0));
+    function test_CannotRegisterWalletToUserSafeIfWalletIsAddressZero() public {
+        vm.expectRevert(TopUpDest.WalletCannotBeAddressZero.selector);
+        topUpDest.mapWalletToUserSafe(address(0), address(1), 10, new bytes(0));
     }
 
-    function test_CannotRegisterEoaToUserSafeIfUserSafeIsNotRegistered() public {
+    function test_CannotRegisterWalletToUserSafeIfUserSafeIsNotRegistered() public {
         vm.expectRevert(TopUpDest.NotARegisteredUserSafe.selector);
-        topUpDest.mapEoaToUserSafe(address(1), address(1), 10, 1, bytes32(0), bytes32(0));
+        topUpDest.mapWalletToUserSafe(address(1), address(1), 10, new bytes(0));
     }
 
-    function test_CannotRegisterEoaToUserSafeIfDeadlineHasPassed() public {
+    function test_CannotRegisterWalletToUserSafeIfDeadlineHasPassed() public {
         vm.warp(100);
         vm.expectRevert(TopUpDest.ExpiredSignature.selector);
-        topUpDest.mapEoaToUserSafe(address(1), userSafe, 10, 1, bytes32(0), bytes32(0));
+        topUpDest.mapWalletToUserSafe(address(1), userSafe, 10, new bytes(0));
     }
 
-    function test_CannotRegisterEoaToUserSafeIfSignatureIsInvalid() public {
+    function test_CannotRegisterWalletToUserSafeIfSignatureIsInvalid() public {
         (address alice, uint256 alicePk) = makeAddrAndKey("alice");
         bytes32 domainSeparator = topUpDest.DOMAIN_SEPARATOR();
-        MapEoaToUserSafe memory mapEoaToUserSafe = MapEoaToUserSafe({
-            eoa: alice,
+        MapWalletToUserSafe memory mapWalletToUserSafe = MapWalletToUserSafe({
+            wallet: alice,
             userSafe: userSafe,
             nonce: 0,
             deadline: 100
         });
         
-        bytes32 digest = getTypedDataHash(domainSeparator, mapEoaToUserSafe);
+        bytes32 digest = getTypedDataHash(domainSeparator, mapWalletToUserSafe);
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(alicePk, digest);
-        r = s;
+        
+        bytes memory signature = abi.encodePacked(r, s, v);
 
-        vm.expectRevert(TopUpDest.InvalidSigner.selector);
-        topUpDest.mapEoaToUserSafe(alice, userSafe, 100, v, r, s);
+        vm.expectRevert(EIP1271SignatureUtils.InvalidSigner.selector);
+        topUpDest.mapWalletToUserSafe(notUserSafe, userSafe, 100, signature);
     }
 
     function test_CanDeposit() external {
@@ -446,30 +448,30 @@ contract TopUpDestTest is Test {
     // computes the hash of the fully encoded EIP-712 message for the domain, which can be used to recover the signer
     function getTypedDataHash(
         bytes32 DOMAIN_SEPARATOR,
-        MapEoaToUserSafe memory _mapEoaToUserSafe
+        MapWalletToUserSafe memory _mapWalletToUserSafe
     ) internal pure returns (bytes32) {
         return
             keccak256(
                 abi.encodePacked(
                     "\x19\x01",
                     DOMAIN_SEPARATOR,
-                    getStructHash(_mapEoaToUserSafe)
+                    getStructHash(_mapWalletToUserSafe)
                 )
             );
     }
 
     // computes the hash of a permit
     function getStructHash(
-        MapEoaToUserSafe memory _mapEoaToUserSafe
+        MapWalletToUserSafe memory _mapWalletToUserSafe
     ) internal pure returns (bytes32) {
         return
             keccak256(
                 abi.encode(
                     USER_SAFE_REGISTRY_TYPEHASH,
-                    _mapEoaToUserSafe.eoa,
-                    _mapEoaToUserSafe.userSafe,
-                    _mapEoaToUserSafe.nonce,
-                    _mapEoaToUserSafe.deadline
+                    _mapWalletToUserSafe.wallet,
+                    _mapWalletToUserSafe.userSafe,
+                    _mapWalletToUserSafe.nonce,
+                    _mapWalletToUserSafe.deadline
                 )
             );
     }

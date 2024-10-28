@@ -10,12 +10,14 @@ import {EIP712Upgradeable} from "openzeppelin-contracts-upgradeable/contracts/ut
 import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import {NoncesUpgradeable} from "openzeppelin-contracts-upgradeable/contracts/utils/NoncesUpgradeable.sol";
 import {ICashDataProvider} from "../interfaces/ICashDataProvider.sol";
+import {EIP1271SignatureUtils} from "../libraries/EIP1271SignatureUtils.sol";
 
 contract TopUpDest is Initializable, UUPSUpgradeable, EIP712Upgradeable, NoncesUpgradeable, AccessControlDefaultAdminRulesUpgradeable, ReentrancyGuardTransientUpgradeable, PausableUpgradeable {
     using SafeERC20 for IERC20;
+    using EIP1271SignatureUtils for bytes32;
 
     bytes32 public constant USER_SAFE_REGISTRY_TYPEHASH =
-        keccak256("MapEoaToUserSafe(address eoa,address userSafe,uint256 nonce,uint256 deadline)");
+        keccak256("MapWalletToUserSafe(address wallet,address userSafe,uint256 nonce,uint256 deadline)");
 
     bytes32 public constant DEPOSITOR_ROLE = keccak256("DEPOSITOR_ROLE");
     bytes32 public constant TOP_UP_ROLE = keccak256("TOP_UP_ROLE");
@@ -23,14 +25,14 @@ contract TopUpDest is Initializable, UUPSUpgradeable, EIP712Upgradeable, NoncesU
 
     mapping(address token => uint256 deposits) public deposits;
     mapping(uint256 chainId => mapping(bytes32 txId => bool status)) public transactionCompleted;
-    mapping(address eoa => address userSafe) public eoaToUserSafeRegistry;
+    mapping(address wallet => address userSafe) public walletToUserSafeRegistry;
     ICashDataProvider public cashDataProvider;
 
     event Deposit(address token, uint256 amount);
     event Withdrawal(address token, uint256 amount);
     event TopUp(uint256 chainId, bytes32 txId, address userSafe, address token, uint256 amount);
     event TopUpBatch(uint256[] chainId, bytes32[] txId, address[] userSafe, address[] token, uint256[] amount);
-    event EoaToUserSafeRegistered(address eoa, address userSafe);
+    event WalletToUserSafeRegistered(address wallet, address userSafe);
 
     error BalanceTooLow();
     error AmountGreaterThanDeposit();
@@ -38,8 +40,7 @@ contract TopUpDest is Initializable, UUPSUpgradeable, EIP712Upgradeable, NoncesU
     error TransactionAlreadyCompleted();
     error NotARegisteredUserSafe();
     error ExpiredSignature();
-    error InvalidSigner();
-    error EoaCannotBeAddressZero();
+    error WalletCannotBeAddressZero();
     error ArrayLengthMismatch();
 
     constructor() {
@@ -65,24 +66,21 @@ contract TopUpDest is Initializable, UUPSUpgradeable, EIP712Upgradeable, NoncesU
         return _domainSeparatorV4();
     }
 
-    function mapEoaToUserSafe(
-        address eoa,
+    function mapWalletToUserSafe(
+        address wallet,
         address userSafe,
         uint256 deadline,
-        uint8 v,
-        bytes32 r,
-        bytes32 s
+        bytes memory signature
     ) external {
-        if (eoa == address(0)) revert EoaCannotBeAddressZero();
+        if (wallet == address(0)) revert WalletCannotBeAddressZero();
         if (!cashDataProvider.isUserSafe(userSafe)) revert NotARegisteredUserSafe();
         if (block.timestamp > deadline) revert ExpiredSignature();
-        bytes32 structHash = keccak256(abi.encode(USER_SAFE_REGISTRY_TYPEHASH, eoa, userSafe, _useNonce(eoa), deadline));
+        bytes32 structHash = keccak256(abi.encode(USER_SAFE_REGISTRY_TYPEHASH, wallet, userSafe, _useNonce(wallet), deadline));
         bytes32 hash = _hashTypedDataV4(structHash);
-        address signer = ECDSA.recover(hash, v, r, s);
-        if (signer != eoa) revert InvalidSigner();
-        eoaToUserSafeRegistry[eoa] = userSafe;
+        hash.checkSignature_EIP1271(wallet, signature);
+        walletToUserSafeRegistry[wallet] = userSafe;
 
-        emit EoaToUserSafeRegistered(eoa, userSafe);
+        emit WalletToUserSafeRegistered(wallet, userSafe);
     }
 
     function deposit(address token, uint256 amount) external onlyRole(DEPOSITOR_ROLE) {
