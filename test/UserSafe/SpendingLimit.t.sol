@@ -74,7 +74,34 @@ contract UserSafeSpendingLimitTest is UserSafeSetup {
         assertEq(spendingLimitAfter.spentThisMonth, transferAmount);
         assertEq(spendingLimitAfter.dailyLimitChangeActivationTime, 0);
         assertEq(spendingLimitAfter.monthlyLimitChangeActivationTime, 0);
+    }
 
+    function test_DailyLimitCannotBeGreaterThanMonthlyLimit() public {
+        uint256 newDailyLimit = 100;
+        uint256 newMonthlyLimit = newDailyLimit - 1;
+
+        uint256 nonce = aliceSafe.nonce() + 1;
+
+        bytes32 msgHash = keccak256(
+            abi.encode(
+                UserSafeLib.UPDATE_SPENDING_LIMIT_METHOD,
+                block.chainid,
+                address(aliceSafe),
+                nonce,
+                newDailyLimit,
+                newMonthlyLimit
+            )
+        );
+
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(
+            alicePk,
+            msgHash.toEthSignedMessageHash()
+        );
+        bytes memory signature = abi.encodePacked(r, s, v);
+
+        vm.prank(notOwner);
+        vm.expectRevert(SpendingLimitLib.DailyLimitCannotBeGreaterThanMonthlyLimit.selector);
+        aliceSafe.updateSpendingLimit(newDailyLimit, newMonthlyLimit, signature);
     }
 
     function test_UpdateDailySpendingLimitDoesNotDelayIfLimitIsGreater() public {

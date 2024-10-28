@@ -25,13 +25,14 @@ library SpendingLimitLib {
 
     error ExceededDailySpendingLimit();
     error ExceededMonthlySpendingLimit();
+    error DailyLimitCannotBeGreaterThanMonthlyLimit();
 
     function initialize(
         SpendingLimit storage limit,
         uint256 dailyLimit,
         uint256 monthlyLimit,
         int256 timezoneOffset
-    ) external {
+    ) external sanity(dailyLimit, monthlyLimit) {
         limit.dailyLimit = dailyLimit;
         limit.monthlyLimit = monthlyLimit;
         limit.timezoneOffset = timezoneOffset;
@@ -72,7 +73,7 @@ library SpendingLimitLib {
         uint256 newDailyLimit,
         uint256 newMonthlyLimit,
         uint64 delay
-    ) external {
+    ) external sanity(newDailyLimit, newMonthlyLimit) {
         currentLimit(limit);
         SpendingLimit memory oldLimit = limit;
 
@@ -187,4 +188,8 @@ library SpendingLimitLib {
         return renewalTimestamp;
     }
 
+    modifier sanity(uint256 dailyLimit, uint256 monthlyLimit) {
+        if (dailyLimit > monthlyLimit) revert DailyLimitCannotBeGreaterThanMonthlyLimit();
+        _;
+    }
 }
