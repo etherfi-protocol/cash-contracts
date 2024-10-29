@@ -22,8 +22,6 @@ contract UserSafeCore is UserSafeStorage {
 
     function initialize(
         address __cashDataProvider,
-        address __etherFiRecoverySigner,
-        address __thirdPartyRecoverySigner,
         bytes calldata __owner,
         uint256 __dailySpendingLimit,
         uint256 __monthlySpendingLimit,
@@ -31,10 +29,7 @@ contract UserSafeCore is UserSafeStorage {
         int256 __timezoneOffset
     ) external initializer {
         _cashDataProvider = ICashDataProvider(__cashDataProvider);
-        if (__etherFiRecoverySigner == __thirdPartyRecoverySigner) revert RecoverySignersCannotBeSame();
-        _etherFiRecoverySigner = __etherFiRecoverySigner;
-        _thirdPartyRecoverySigner = __thirdPartyRecoverySigner;
-
+        
         __ReentrancyGuardTransient_init();
         _isRecoveryActive = true;
         _ownerBytes = __owner;
@@ -97,8 +92,8 @@ contract UserSafeCore is UserSafeStorage {
         returns (OwnerLib.OwnerObject[3] memory signers)
     {
         signers[0] = _userRecoverySigner.getOwnerObject();
-        signers[1] = _etherFiRecoverySigner.getOwnerObject();
-        signers[2] = _thirdPartyRecoverySigner.getOwnerObject();
+        signers[1] = _cashDataProvider.etherFiRecoverySigner().getOwnerObject();
+        signers[2] = _cashDataProvider.thirdPartyRecoverySigner().getOwnerObject();
     }
 
     function isRecoveryActive() external view returns (bool) {

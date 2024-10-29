@@ -220,7 +220,7 @@ contract DeployUserSafeSetup is Utils {
     }
 
     function initializeCashDataProvider() internal {
-        CashDataProvider(address(cashDataProvider)).initialize(
+        CashDataProvider(address(cashDataProvider)).initialize(abi.encode(
             owner,
             uint64(delay),
             etherFiWallet,
@@ -230,8 +230,10 @@ contract DeployUserSafeSetup is Utils {
             address(swapper),
             address(aaveV3Adapter),
             address(userSafeFactory),
-            address(userSafeEventEmitter)
-        );
+            address(userSafeEventEmitter),
+            recoverySigner1,
+            recoverySigner2
+        ));
     }
 
     function initializeDebtManager(

@@ -15,9 +15,6 @@ contract DeployUserSafe is Utils {
     uint256 collateralLimit = 10000e6;
     int256 timezoneOffset = 4 * 3600; // Dubai Timezone
     address ownerEoa;
-    address recoverySigner1 = 0x7fEd99d0aA90423de55e238Eb5F9416FF7Cc58eF;
-    address recoverySigner2 = 0x24e311DA50784Cf9DB1abE59725e4A1A110220FA;
-
 
     function run() public {
         // Pulling deployer info from the environment
@@ -51,8 +48,6 @@ contract DeployUserSafe is Utils {
                 abi.encodeWithSelector(
                     UserSafeCore.initialize.selector,
                     cashDataProvider,
-                    recoverySigner1,
-                    recoverySigner2,
                     abi.encode(ownerEoa),
                     defaultDailySpendingLimit,
                     defaultMonthlySpendingLimit,

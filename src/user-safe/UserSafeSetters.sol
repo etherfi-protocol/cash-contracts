@@ -226,12 +226,10 @@ contract UserSafeSetters is UserSafeStorage {
         uint8 index
     ) internal view returns (OwnerLib.OwnerObject memory) {
         if (index == 0) {
-            if (_userRecoverySigner == address(0))
-                revert UserRecoverySignerIsUnsetCannotUseIndexZero();
-
+            if (_userRecoverySigner == address(0)) revert UserRecoverySignerIsUnsetCannotUseIndexZero();
             return _userRecoverySigner.getOwnerObject();
-        } else if (index == 1) return _etherFiRecoverySigner.getOwnerObject();
-        else if (index == 2) return _thirdPartyRecoverySigner.getOwnerObject();
+        } else if (index == 1) return _cashDataProvider.etherFiRecoverySigner().getOwnerObject();
+        else if (index == 2) return _cashDataProvider.thirdPartyRecoverySigner().getOwnerObject();
         else revert InvalidSignatureIndex();
     }
 

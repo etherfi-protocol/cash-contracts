@@ -43,8 +43,6 @@ contract UserSafeFactoryTest is UserSafeSetup {
                 abi.encodeWithSelector(
                     UserSafeCore.initialize.selector,
                     address(cashDataProvider),
-                    etherFiRecoverySigner,
-                    thirdPartyRecoverySigner,
                     bobBytes,
                     defaultDailySpendingLimit,
                     defaultMonthlySpendingLimit,
@@ -63,8 +61,6 @@ contract UserSafeFactoryTest is UserSafeSetup {
             abi.encodeWithSelector(
                 UserSafeCore.initialize.selector,
                 address(cashDataProvider),
-                etherFiRecoverySigner,
-                thirdPartyRecoverySigner,
                 bobBytes,
                 defaultDailySpendingLimit,
                 defaultMonthlySpendingLimit,
@@ -117,8 +113,6 @@ contract UserSafeFactoryTest is UserSafeSetup {
             abi.encodeWithSelector(
                 UserSafeCore.initialize.selector,
                 address(cashDataProvider),
-                etherFiRecoverySigner,
-                thirdPartyRecoverySigner,
                 hex"112345",
                 defaultDailySpendingLimit,
                 defaultMonthlySpendingLimit,

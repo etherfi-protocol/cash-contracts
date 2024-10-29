@@ -128,7 +128,7 @@ contract DeployMockUserSafeSetup is Utils {
             )
         ));
 
-        CashDataProvider(address(cashDataProvider)).initialize(
+        CashDataProvider(address(cashDataProvider)).initialize(abi.encode(
             owner,
             uint64(delay),
             etherFiWallet,
@@ -138,8 +138,10 @@ contract DeployMockUserSafeSetup is Utils {
             address(swapper),
             address(aaveAdapter),
             address(userSafeFactory),
-            address(userSafeEventEmitter)
-        );
+            address(userSafeEventEmitter),
+            recoverySigner1,
+            recoverySigner2
+        ));
 
         DebtManagerInitializer(address(debtManager)).initialize(
             owner,

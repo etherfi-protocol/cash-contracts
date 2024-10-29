@@ -37,16 +37,20 @@ contract TopUpDestTest is Test {
                 cashDataProviderImpl,
                 abi.encodeWithSelector(
                     CashDataProvider.initialize.selector, 
-                    owner,
-                    100,
-                    address(0),
-                    address(0),
-                    address(0),
-                    address(0),
-                    address(0),
-                    address(0),
-                    userSafeFactory,
-                    address(0)
+                    abi.encode(
+                        owner,
+                        100,
+                        address(0),
+                        address(0),
+                        address(0),
+                        address(0),
+                        address(0),
+                        address(0),
+                        userSafeFactory,
+                        address(0),
+                        makeAddr("recoverySigner1"),
+                        makeAddr("recoverySigner2")
+                    )
                 )
             )
         ));

@@ -33,8 +33,6 @@ contract UserSafeDeployTest is UserSafeSetup {
         bytes memory initData = abi.encodeWithSelector(
             UserSafeCore.initialize.selector,
             address(cashDataProvider),
-            etherFiRecoverySigner,
-            thirdPartyRecoverySigner,
             bobBytes,
             defaultDailySpendingLimit,
             defaultMonthlySpendingLimit,
@@ -55,8 +53,6 @@ contract UserSafeDeployTest is UserSafeSetup {
         bytes memory initData = abi.encodeWithSelector(
             UserSafeCore.initialize.selector,
             address(cashDataProvider),
-            etherFiRecoverySigner,
-            thirdPartyRecoverySigner,
             bobBytes,
             defaultDailySpendingLimit,
             defaultMonthlySpendingLimit,

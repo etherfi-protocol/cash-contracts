@@ -29,8 +29,6 @@ contract UserSafeWebAuthnSignatureTest is UserSafeSetup {
                 abi.encodeWithSelector(
                     UserSafeCore.initialize.selector,
                     address(cashDataProvider),
-                    etherFiRecoverySigner,
-                    thirdPartyRecoverySigner,
                     passkeyOwner,
                     defaultDailySpendingLimit,
                     defaultMonthlySpendingLimit,

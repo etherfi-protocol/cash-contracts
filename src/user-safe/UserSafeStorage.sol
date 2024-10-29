@@ -60,10 +60,6 @@ contract UserSafeStorage is Initializable, ReentrancyGuardTransientUpgradeable {
 
     // Address of the Cash Data Provider
     ICashDataProvider internal _cashDataProvider;
-    // Address of the EtherFi Recovery Signer
-    address internal _etherFiRecoverySigner;
-    // Address of the Third Party Recovery Signer
-    address internal _thirdPartyRecoverySigner;
     // Address of the recovery signer set by the user
     address internal _userRecoverySigner;
 

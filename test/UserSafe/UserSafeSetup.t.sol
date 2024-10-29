@@ -244,7 +244,7 @@ contract UserSafeSetup is Utils {
         ));
         
 
-        CashDataProvider(address(cashDataProvider)).initialize(
+        CashDataProvider(address(cashDataProvider)).initialize(abi.encode(
             owner,
             delay,
             etherFiWallet,
@@ -254,8 +254,10 @@ contract UserSafeSetup is Utils {
             address(swapper),
             address(aaveV3Adapter),
             address(factory),
-            address(eventEmitter)
-        );
+            address(eventEmitter),
+            etherFiRecoverySigner,
+            thirdPartyRecoverySigner
+        ));
 
         DebtManagerInitializer(address(etherFiCashDebtManager)).initialize(
             owner,
@@ -285,8 +287,6 @@ contract UserSafeSetup is Utils {
                 abi.encodeWithSelector(
                     UserSafeCore.initialize.selector,
                     address(cashDataProvider),
-                    etherFiRecoverySigner, 
-                    thirdPartyRecoverySigner,
                     aliceBytes,
                     defaultDailySpendingLimit,
                     defaultMonthlySpendingLimit,
