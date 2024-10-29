@@ -13,7 +13,7 @@ library OwnerLib {
 
     function getOwnerObject(
         bytes memory _ownerBytes
-    ) internal pure returns (OwnerObject memory) {
+    ) internal pure returns (OwnerObject memory) {        
         if (_ownerBytes.length == 32) {
             address addr;
             assembly ("memory-safe") {

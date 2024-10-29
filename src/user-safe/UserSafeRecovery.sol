@@ -61,7 +61,6 @@ abstract contract UserSafeRecovery is IUserSafe {
 
     function _setIsRecoveryActive(bool isActive) internal {
         _isRecoveryActive = isActive;
-        emit IsRecoveryActiveSet(_isRecoveryActive);
     }
 
     function _setIsRecoveryActive(
@@ -78,11 +77,10 @@ abstract contract UserSafeRecovery is IUserSafe {
         _setIsRecoveryActive(isActive);
     }
 
-    function _setUserRecoverySigner(address _recoverySigner) internal {
+    function _setUserRecoverySigner(address _recoverySigner) internal returns (address oldSigner) {
+        oldSigner = _userRecoverySigner;
         if (_recoverySigner == address(0))
             revert InvalidRecoverySignerAddress();
-
-        emit UserRecoverySignerSet(_userRecoverySigner, _recoverySigner);
         _userRecoverySigner = _recoverySigner;
     }
 
@@ -90,14 +88,14 @@ abstract contract UserSafeRecovery is IUserSafe {
         address _recoverySigner,
         uint256 _nonce,
         bytes calldata signature
-    ) internal {
+    ) internal returns (address) {
         UserSafeLib.verifySetUserRecoverySigner(
             this.owner(),
             _nonce,
             _recoverySigner,
             signature
         );
-        _setUserRecoverySigner(_recoverySigner);
+        return _setUserRecoverySigner(_recoverySigner);
     }
 
     function _recoverUserSafe(

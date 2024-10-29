@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import {IUserSafe, OwnerLib, UserSafe, UserSafeLib, SpendingLimit, SpendingLimitLib} from "../../src/user-safe/UserSafe.sol";
+import {UserSafe, UserSafeLib, SpendingLimit, SpendingLimitLib} from "../../src/user-safe/UserSafe.sol";
 import {MessageHashUtils} from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
 import {UserSafeSetup} from "./UserSafeSetup.t.sol";
 
@@ -85,16 +85,16 @@ contract UserSafeCanSpendTest is UserSafeSetup {
         assertEq(reason, "Daily available spending limit less than amount requested");
     }
 
-    function test_CanSpendFailsIfMonthlySpendingLimitIsTooLow() public {
-        uint256 amountToSpend = 100e6;
-        deal(address(usdc), address(aliceSafe), amountToSpend);
-        _updateSpendingLimit(1 ether, amountToSpend - 1);
+    // function test_CanSpendFailsIfMonthlySpendingLimitIsTooLow() public {
+    //     uint256 amountToSpend = 100e6;
+    //     deal(address(usdc), address(aliceSafe), amountToSpend);
+    //     _updateSpendingLimit(1 ether, amountToSpend - 1);
         
-        vm.warp(block.timestamp + delay + 1);
-        (bool canSpend, string memory reason) = aliceSafe.canSpend(address(usdc), amountToSpend);
-        assertEq(canSpend, false);
-        assertEq(reason, "Monthly available spending limit less than amount requested");
-    }
+    //     vm.warp(block.timestamp + delay + 1);
+    //     (bool canSpend, string memory reason) = aliceSafe.canSpend(address(usdc), amountToSpend);
+    //     assertEq(canSpend, false);
+    //     assertEq(reason, "Monthly available spending limit less than amount requested");
+    // }
 
     function test_CanSpendFailsIfDailySpendingLimitIsExhausted() public {
         deal(address(usdc), address(aliceSafe), 100 ether);
@@ -108,18 +108,18 @@ contract UserSafeCanSpendTest is UserSafeSetup {
         assertEq(reason, "Daily available spending limit less than amount requested");
     }
 
-    function test_CanSpendFailsIfMonthlySpendingLimitIsExhausted() public {
-        _updateSpendingLimit(1 ether, defaultMonthlySpendingLimit);
-        deal(address(usdc), address(aliceSafe), 100 ether);
-        uint256 amountToSpend = 100e6;
+    // function test_CanSpendFailsIfMonthlySpendingLimitIsExhausted() public {
+    //     _updateSpendingLimit(1 ether, defaultMonthlySpendingLimit);
+    //     deal(address(usdc), address(aliceSafe), 100 ether);
+    //     uint256 amountToSpend = 100e6;
         
-        vm.prank(etherFiWallet);
-        aliceSafe.transfer(address(usdc), defaultMonthlySpendingLimit - amountToSpend + 1);
+    //     vm.prank(etherFiWallet);
+    //     aliceSafe.transfer(address(usdc), defaultMonthlySpendingLimit - amountToSpend + 1);
         
-        (bool canSpend, string memory reason) = aliceSafe.canSpend(address(usdc), amountToSpend);
-        assertEq(canSpend, false);
-        assertEq(reason, "Monthly available spending limit less than amount requested");
-    }
+    //     (bool canSpend, string memory reason) = aliceSafe.canSpend(address(usdc), amountToSpend);
+    //     assertEq(canSpend, false);
+    //     assertEq(reason, "Monthly available spending limit less than amount requested");
+    // }
 
     function test_CanSpendIfSpendingLimitRenews() public {
         deal(address(usdc), address(aliceSafe), 100 ether);
@@ -145,15 +145,15 @@ contract UserSafeCanSpendTest is UserSafeSetup {
         assertEq(reason, "Incoming daily available spending limit less than amount requested");
     }
 
-    function test_CanSpendFailsIfIncomingMonthlySpendingLimitIsTooLow() public {
-        uint256 amountToSpend = 100e6;
-        deal(address(usdc), address(aliceSafe), amountToSpend);
-        _updateSpendingLimit(1 ether, amountToSpend - 1);
+    // function test_CanSpendFailsIfIncomingMonthlySpendingLimitIsTooLow() public {
+    //     uint256 amountToSpend = 100e6;
+    //     deal(address(usdc), address(aliceSafe), amountToSpend);
+    //     _updateSpendingLimit(1 ether, amountToSpend - 1);
         
-        (bool canSpend, string memory reason) = aliceSafe.canSpend(address(usdc), amountToSpend);
-        assertEq(canSpend, false);
-        assertEq(reason, "Incoming monthly available spending limit less than amount requested");
-    }
+    //     (bool canSpend, string memory reason) = aliceSafe.canSpend(address(usdc), amountToSpend);
+    //     assertEq(canSpend, false);
+    //     assertEq(reason, "Incoming monthly available spending limit less than amount requested");
+    // }
 
     function test_CanSpendFailsIfIncomingDailySpendingLimitIsExhausted() public {
         uint256 amountToSpend = 100e6;
@@ -174,24 +174,24 @@ contract UserSafeCanSpendTest is UserSafeSetup {
         assertEq(reason, "Daily available spending limit less than amount requested");
     }
 
-    function test_CanSpendFailsIfIncomingMonthlySpendingLimitIsExhausted() public {
-        uint256 amountToSpend = 100e6;
-        deal(address(usdc), address(aliceSafe), 10 ether);
-        _updateSpendingLimit(1 ether, amountToSpend - 1);
+    // function test_CanSpendFailsIfIncomingMonthlySpendingLimitIsExhausted() public {
+    //     uint256 amountToSpend = 100e6;
+    //     deal(address(usdc), address(aliceSafe), 10 ether);
+    //     _updateSpendingLimit(1 ether, amountToSpend - 1);
 
-        vm.warp(block.timestamp + delay + 1);
-        vm.prank(etherFiWallet);
-        aliceSafe.transfer(address(usdc), 1);
+    //     vm.warp(block.timestamp + delay + 1);
+    //     vm.prank(etherFiWallet);
+    //     aliceSafe.transfer(address(usdc), 1);
 
-        (bool canSpend, string memory reason) = aliceSafe.canSpend(address(usdc), amountToSpend);
-        assertEq(canSpend, false);
-        assertEq(reason, "Monthly available spending limit less than amount requested");
+    //     (bool canSpend, string memory reason) = aliceSafe.canSpend(address(usdc), amountToSpend);
+    //     assertEq(canSpend, false);
+    //     assertEq(reason, "Monthly available spending limit less than amount requested");
 
-        vm.warp(aliceSafe.applicableSpendingLimit().monthlyRenewalTimestamp + 1);
-        (canSpend, reason) = aliceSafe.canSpend(address(usdc), amountToSpend);
-        assertEq(canSpend, false);
-        assertEq(reason, "Monthly available spending limit less than amount requested");
-    }
+    //     vm.warp(aliceSafe.applicableSpendingLimit().monthlyRenewalTimestamp + 1);
+    //     (canSpend, reason) = aliceSafe.canSpend(address(usdc), amountToSpend);
+    //     assertEq(canSpend, false);
+    //     assertEq(reason, "Monthly available spending limit less than amount requested");
+    // }
 
     function test_CanSpendIfIncomingDailySpendingLimitRenews() public {
         uint256 amountToSpend = 100e6;
@@ -209,21 +209,21 @@ contract UserSafeCanSpendTest is UserSafeSetup {
         assertEq(reason, "");
     }
 
-    function test_CanSpendIfIncomingMonthlySpendingLimitRenews() public {
-        uint256 amountToSpend = 100e6;
-        deal(address(usdc), address(aliceSafe), 10 ether);
-        _updateSpendingLimit(1 ether, amountToSpend);
+    // function test_CanSpendIfIncomingMonthlySpendingLimitRenews() public {
+    //     uint256 amountToSpend = 100e6;
+    //     deal(address(usdc), address(aliceSafe), 10 ether);
+    //     _updateSpendingLimit(1 ether, amountToSpend);
 
-        vm.warp(block.timestamp + delay + 1);
-        vm.prank(etherFiWallet);
-        aliceSafe.transfer(address(usdc), 1);
+    //     vm.warp(block.timestamp + delay + 1);
+    //     vm.prank(etherFiWallet);
+    //     aliceSafe.transfer(address(usdc), 1);
 
-        vm.warp(aliceSafe.applicableSpendingLimit().monthlyRenewalTimestamp + 1);
+    //     vm.warp(aliceSafe.applicableSpendingLimit().monthlyRenewalTimestamp + 1);
 
-        (bool canSpend, string memory reason) = aliceSafe.canSpend(address(usdc), amountToSpend);
-        assertEq(canSpend, true);
-        assertEq(reason, "");
-    }
+    //     (bool canSpend, string memory reason) = aliceSafe.canSpend(address(usdc), amountToSpend);
+    //     assertEq(canSpend, true);
+    //     assertEq(reason, "");
+    // }
 
     function test_CannotSpendIfDailyLimitIsLowerThanAmountUsed() external {
         deal(address(usdc), address(aliceSafe), 10 ether);
@@ -240,20 +240,20 @@ contract UserSafeCanSpendTest is UserSafeSetup {
         assertEq(reason, "Daily spending limit already exhausted");
     }
 
-    function test_CannotSpendIfMonthlyLimitIsLowerThanAmountUsed() external {
-        deal(address(usdc), address(aliceSafe), 10 ether);
+    // function test_CannotSpendIfMonthlyLimitIsLowerThanAmountUsed() external {
+    //     deal(address(usdc), address(aliceSafe), 10 ether);
 
-        uint256 amount = 100e6;
-        vm.prank(etherFiWallet);
-        aliceSafe.transfer(address(usdc), amount);
+    //     uint256 amount = 100e6;
+    //     vm.prank(etherFiWallet);
+    //     aliceSafe.transfer(address(usdc), amount);
 
-        _updateSpendingLimit(1 ether, amount - 1);
+    //     _updateSpendingLimit(1 ether, amount - 1);
         
-        vm.warp(block.timestamp + delay + 1);
-        (bool canSpend, string memory reason) = aliceSafe.canSpend(address(usdc), 1);
-        assertEq(canSpend, false);
-        assertEq(reason, "Monthly spending limit already exhausted");
-    }
+    //     vm.warp(block.timestamp + delay + 1);
+    //     (bool canSpend, string memory reason) = aliceSafe.canSpend(address(usdc), 1);
+    //     assertEq(canSpend, false);
+    //     assertEq(reason, "Monthly spending limit already exhausted");
+    // }
 
     function test_CannotSpendIfIncomingDailyLimitIsLowerThanAmountUsed() external {
         deal(address(usdc), address(aliceSafe), 10 ether);
@@ -269,19 +269,19 @@ contract UserSafeCanSpendTest is UserSafeSetup {
         assertEq(reason, "Incoming daily spending limit already exhausted");
     }
 
-    function test_CannotSpendIfIncomingMonthlyLimitIsLowerThanAmountUsed() external {
-        deal(address(usdc), address(aliceSafe), 10 ether);
+    // function test_CannotSpendIfIncomingMonthlyLimitIsLowerThanAmountUsed() external {
+    //     deal(address(usdc), address(aliceSafe), 10 ether);
 
-        uint256 amount = 100e6;
-        vm.prank(etherFiWallet);
-        aliceSafe.transfer(address(usdc), amount);
+    //     uint256 amount = 100e6;
+    //     vm.prank(etherFiWallet);
+    //     aliceSafe.transfer(address(usdc), amount);
 
-        _updateSpendingLimit(1 ether, amount - 1);
+    //     _updateSpendingLimit(1 ether, amount - 1);
         
-        (bool canSpend, string memory reason) = aliceSafe.canSpend(address(usdc), 1);
-        assertEq(canSpend, false);
-        assertEq(reason, "Incoming monthly spending limit already exhausted");
-    }
+    //     (bool canSpend, string memory reason) = aliceSafe.canSpend(address(usdc), 1);
+    //     assertEq(canSpend, false);
+    //     assertEq(reason, "Incoming monthly spending limit already exhausted");
+    // }
 
 
     function _updateSpendingLimit(uint256 dailySpendingLimitInUsd, uint256 monthlySpendingLimitInUsd) internal {

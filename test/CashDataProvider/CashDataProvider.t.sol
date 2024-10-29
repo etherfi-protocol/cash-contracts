@@ -25,6 +25,7 @@ contract CashDataProviderTest is Test {
     address aaveAdapter = makeAddr("aaveAdapter");
     address userSafeFactory = makeAddr("userSafeFactory");
     address debtManager = makeAddr("debtManager");
+    address userSafeEventEmitter = makeAddr("userSafeEventEmitter");
 
     function setUp() public {
         vm.startPrank(owner);
@@ -43,7 +44,8 @@ contract CashDataProviderTest is Test {
             priceProvider,
             swapper,
             aaveAdapter,
-            userSafeFactory
+            userSafeFactory,
+            userSafeEventEmitter
         );
 
         cashDataProvider.grantRole(ADMIN_ROLE, admin);
@@ -61,6 +63,7 @@ contract CashDataProviderTest is Test {
         assertEq(cashDataProvider.swapper(), swapper);
         assertEq(cashDataProvider.aaveAdapter(), aaveAdapter);
         assertEq(cashDataProvider.userSafeFactory(), userSafeFactory);
+        assertEq(cashDataProvider.userSafeEventEmitter(), userSafeEventEmitter);
         assertEq(cashDataProvider.hasRole(ADMIN_ROLE, owner), true);
         assertEq(cashDataProvider.hasRole(ADMIN_ROLE, admin), true);
     }
@@ -230,6 +233,24 @@ contract CashDataProviderTest is Test {
         emit ICashDataProvider.UserSafeFactoryUpdated(userSafeFactory, newWallet);
         cashDataProvider.setUserSafeFactory(newWallet);
         assertEq(cashDataProvider.userSafeFactory(), newWallet);
+    }
+
+    function test_SetUserSafeEventEmitter() public {
+        address newWallet = makeAddr("newWallet");
+    
+        vm.prank(notAdmin);
+        vm.expectRevert(buildAccessControlRevertData(notAdmin, ADMIN_ROLE));
+        cashDataProvider.setUserSafeEventEmitter(newWallet);
+
+        vm.prank(admin);
+        vm.expectRevert(ICashDataProvider.InvalidValue.selector);
+        cashDataProvider.setUserSafeEventEmitter(address(0));
+        
+        vm.prank(admin);
+        vm.expectEmit(true, true, true, true);
+        emit ICashDataProvider.UserSafeEventEmitterUpdated(userSafeEventEmitter, newWallet);
+        cashDataProvider.setUserSafeEventEmitter(newWallet);
+        assertEq(cashDataProvider.userSafeEventEmitter(), newWallet);
     }
 
     function test_WhitelistUserSafe() public {

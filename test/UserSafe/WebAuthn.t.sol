@@ -5,7 +5,6 @@ import {IUserSafe, OwnerLib, WebAuthn, UserSafe, UserSafeLib} from "../../src/us
 import {MessageHashUtils} from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
 import {UserSafeSetup} from "./UserSafeSetup.t.sol";
 import {WebAuthnInfo, WebAuthnUtils} from "../WebAuthnUtils.sol";
-import {console} from "forge-std/console.sol";
 
 contract UserSafeWebAuthnSignatureTest is UserSafeSetup {
     uint256 passkeyPrivateKey =
@@ -78,8 +77,6 @@ contract UserSafeWebAuthnSignatureTest is UserSafeSetup {
         );
 
         WebAuthnInfo memory webAuthn = WebAuthnUtils.getWebAuthnStruct(msgHash);
-
-        console.logBytes(abi.encode(webAuthn.messageHash));
 
         // a user -> change my spending limit
         // challenge, clientjson

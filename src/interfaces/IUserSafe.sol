@@ -22,55 +22,6 @@ interface IUserSafe {
         uint96 finalizeTime;
     }
 
-    event DepositFunds(address indexed token, uint256 amount);
-    event WithdrawalRequested(
-        address[] tokens,
-        uint256[] amounts,
-        address indexed recipient,
-        uint256 finalizeTimestamp
-    );
-    event WithdrawalAmountUpdated(address indexed token, uint256 amount);
-    event WithdrawalCancelled(
-        address[] tokens,
-        uint256[] amounts,
-        address indexed recipient
-    );
-    event WithdrawalProcessed(
-        address[] tokens,
-        uint256[] amounts,
-        address indexed recipient
-    );
-    event TransferForSpending(address indexed token, uint256 amount);
-    event SwapTransferForSpending(
-        address indexed inputToken,
-        uint256 inputAmount,
-        address indexed outputToken,
-        uint256 outputTokenSent
-    );
-    event AddCollateralToDebtManager(address token, uint256 amount);
-    event BorrowFromDebtManager(address token, uint256 amount);
-    event RepayDebtManager(address token, uint256 debtAmount);
-    event WithdrawCollateralFromDebtManager(address token, uint256 amount);
-    event CloseAccountWithDebtManager();
-    event SetCollateralLimit(
-        uint256 oldLimitInUsd,
-        uint256 newLimitInUsd,
-        uint256 startTime
-    );
-    event IsRecoveryActiveSet(bool isActive);
-    event SetOwner(
-        OwnerLib.OwnerObject oldOwner,
-        OwnerLib.OwnerObject newOwner
-    );
-    event SetIncomingOwner(
-        OwnerLib.OwnerObject incomingOwner,
-        uint256 incomingOwnerStartTime
-    );
-    event UserRecoverySignerSet(
-        address oldRecoverySigner,
-        address newRecoverySigner
-    );
-
     error InsufficientBalance();
     error ArrayLengthMismatch();
     error CannotWithdrawYet();

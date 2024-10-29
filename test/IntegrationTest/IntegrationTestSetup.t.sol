@@ -4,7 +4,7 @@ pragma solidity ^0.8.24;
 import {Test, console, stdError} from "forge-std/Test.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {UserSafeFactory} from "../../src/user-safe/UserSafeFactory.sol";
-import {UserSafe, SpendingLimit} from "../../src//user-safe/UserSafe.sol";
+import {UserSafe, UserSafeEventEmitter, SpendingLimit} from "../../src//user-safe/UserSafe.sol";
 import {IL2DebtManager} from "../../src/interfaces/IL2DebtManager.sol";
 import {DebtManagerCore} from "../../src/debt-manager/DebtManagerCore.sol";
 import {DebtManagerAdmin} from "../../src/debt-manager/DebtManagerAdmin.sol";
@@ -43,6 +43,7 @@ contract IntegrationTestSetup is Utils {
 
     UserSafeFactory factory;
     UserSafe impl;
+    UserSafeEventEmitter eventEmitter;
 
     ERC20 usdc;
     ERC20 weETH;
@@ -230,6 +231,19 @@ contract IntegrationTestSetup is Utils {
             )
         );
 
+        address eventEmitterImpl = address(new UserSafeEventEmitter());
+        eventEmitter = UserSafeEventEmitter(address(
+            new UUPSProxy(
+                eventEmitterImpl,
+                abi.encodeWithSelector(
+                    UserSafeEventEmitter.initialize.selector,
+                    delay,
+                    owner,
+                    address(cashDataProvider)
+                )
+            )
+        ));
+
         CashDataProvider(address(cashDataProvider)).initialize(
             owner,
             delay,
@@ -239,7 +253,8 @@ contract IntegrationTestSetup is Utils {
             address(priceProvider),
             address(swapper),
             address(aaveV3Adapter),
-            address(factory)
+            address(factory),
+            address(eventEmitter)
         );
 
         DebtManagerInitializer(address(etherFiCashDebtManager)).initialize(

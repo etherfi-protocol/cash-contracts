@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import {IUserSafe, OwnerLib, UserSafe, UserSafeLib} from "../../src/user-safe/UserSafe.sol";
+import {IUserSafe, UserSafeEventEmitter, OwnerLib, UserSafe, UserSafeLib} from "../../src/user-safe/UserSafe.sol";
 import {MessageHashUtils} from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
 import {EIP1271SignatureUtils} from "../../src/libraries/EIP1271SignatureUtils.sol";
 import {ERC20, UserSafeSetup} from "./UserSafeSetup.t.sol";
@@ -82,7 +82,8 @@ contract UserSafeRecoveryTest is UserSafeSetup {
             assertEq(aliceSafe.owner().y, 0);
 
             vm.expectEmit();
-            emit IUserSafe.SetIncomingOwner(
+            emit UserSafeEventEmitter.IncomingOwnerSet(
+                address(aliceSafe),
                 newOwner.getOwnerObject(),
                 block.timestamp + delay
             );
@@ -142,7 +143,8 @@ contract UserSafeRecoveryTest is UserSafeSetup {
         IUserSafe.Signature[2] memory signatures = _signRecovery(msgHash, 0, 1);
 
         vm.expectEmit();
-        emit IUserSafe.SetIncomingOwner(
+        emit UserSafeEventEmitter.IncomingOwnerSet(
+            address(aliceSafe),
             newOwner.getOwnerObject(),
             block.timestamp + delay
         );

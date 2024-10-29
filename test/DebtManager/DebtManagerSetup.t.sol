@@ -186,6 +186,7 @@ contract DebtManagerSetup is Utils {
 
 
         userSafeFactory = address(1);
+        address eventEmitter = address(1);
 
         CashDataProvider(address(cashDataProvider)).initialize(
             owner,
@@ -196,7 +197,8 @@ contract DebtManagerSetup is Utils {
             address(priceProvider),
             address(swapper),
             address(aaveV3Adapter),
-            userSafeFactory
+            userSafeFactory,
+            eventEmitter
         );
     
         DebtManagerInitializer(address(debtManager)).initialize(

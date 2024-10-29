@@ -20,9 +20,6 @@ struct SpendingLimit {
 library SpendingLimitLib {
     using TimeLib for uint256;
 
-    event SpendingLimitSet(address indexed user, uint256 dailyLimit, uint256 monthlyLimit);
-    event SpendingLimitChanged(SpendingLimit oldLimit, SpendingLimit newLimit);
-
     error ExceededDailySpendingLimit();
     error ExceededMonthlySpendingLimit();
     error DailyLimitCannotBeGreaterThanMonthlyLimit();
@@ -32,14 +29,15 @@ library SpendingLimitLib {
         uint256 dailyLimit,
         uint256 monthlyLimit,
         int256 timezoneOffset
-    ) external sanity(dailyLimit, monthlyLimit) {
+    ) external sanity(dailyLimit, monthlyLimit) returns (SpendingLimit memory, SpendingLimit memory) {
+        SpendingLimit memory dummyLimit;
         limit.dailyLimit = dailyLimit;
         limit.monthlyLimit = monthlyLimit;
         limit.timezoneOffset = timezoneOffset;
         limit.dailyRenewalTimestamp = block.timestamp.getStartOfNextDay(limit.timezoneOffset);
         limit.monthlyRenewalTimestamp = block.timestamp.getStartOfNextMonth(limit.timezoneOffset);
 
-        emit SpendingLimitSet(msg.sender, dailyLimit, monthlyLimit);
+        return (dummyLimit, limit);
     }
 
     function currentLimit(SpendingLimit storage limit) internal {
@@ -73,7 +71,7 @@ library SpendingLimitLib {
         uint256 newDailyLimit,
         uint256 newMonthlyLimit,
         uint64 delay
-    ) external sanity(newDailyLimit, newMonthlyLimit) {
+    ) external sanity(newDailyLimit, newMonthlyLimit) returns (SpendingLimit memory, SpendingLimit memory) {
         currentLimit(limit);
         SpendingLimit memory oldLimit = limit;
 
@@ -82,6 +80,7 @@ library SpendingLimitLib {
             limit.dailyLimitChangeActivationTime = uint64(block.timestamp) + delay;
         } else {
             limit.dailyLimit = newDailyLimit;
+            limit.dailyRenewalTimestamp = uint256(block.timestamp).getStartOfNextDay(limit.timezoneOffset);
             limit.newDailyLimit = 0;
             limit.dailyLimitChangeActivationTime = 0;
         }
@@ -91,11 +90,12 @@ library SpendingLimitLib {
             limit.monthlyLimitChangeActivationTime = uint64(block.timestamp) + delay;
         } else {
             limit.monthlyLimit = newMonthlyLimit;
+            limit.monthlyRenewalTimestamp = uint256(block.timestamp).getStartOfNextMonth(limit.timezoneOffset);
             limit.newMonthlyLimit = 0;
             limit.monthlyLimitChangeActivationTime = 0;
         }
 
-        emit SpendingLimitChanged(oldLimit, limit);
+        return (oldLimit, limit);
     }
 
     function canSpend(SpendingLimit memory limit, uint256 amount) external view returns (bool, string memory) {

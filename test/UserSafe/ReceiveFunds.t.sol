@@ -2,7 +2,7 @@
 pragma solidity ^0.8.24;
 
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import {IUserSafe, UserSafe} from "../../src/user-safe/UserSafe.sol";
+import {IUserSafe, UserSafeEventEmitter, UserSafe} from "../../src/user-safe/UserSafe.sol";
 import {MessageHashUtils} from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
 import {UserSafeSetup} from "./UserSafeSetup.t.sol";
 
@@ -25,7 +25,7 @@ contract UserSafeReceiveFundsTest is UserSafeSetup {
         vm.startPrank(alice);
         usdc.approve(address(aliceSafe), amount);
         vm.expectEmit(true, true, true, true);
-        emit IUserSafe.DepositFunds(address(usdc), amount);
+        emit UserSafeEventEmitter.DepositFunds(address(aliceSafe), address(usdc), amount);
         aliceSafe.receiveFunds(address(usdc), amount);
         vm.stopPrank();
     }
@@ -49,7 +49,7 @@ contract UserSafeReceiveFundsTest is UserSafeSetup {
 
             vm.prank(notOwner);
             vm.expectEmit(true, true, true, true);
-            emit IUserSafe.DepositFunds(address(weETH), amount);
+            emit UserSafeEventEmitter.DepositFunds(address(aliceSafe), address(weETH), amount);
             aliceSafe.receiveFundsWithPermit(
                 alice,
                 address(weETH),

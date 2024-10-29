@@ -3,7 +3,7 @@ pragma solidity ^0.8.24;
 
 import {Script} from "forge-std/Script.sol";
 import {UserSafeFactory} from "../../src/user-safe/UserSafeFactory.sol";
-import {UserSafe} from "../../src/user-safe/UserSafe.sol";
+import {UserSafe, UserSafeEventEmitter} from "../../src/user-safe/UserSafe.sol";
 import {MockERC20} from "../../src/mocks/MockERC20.sol";
 import {MockPriceProvider} from "../../src/mocks/MockPriceProvider.sol";
 import {MockSwapper} from "../../src/mocks/MockSwapper.sol";
@@ -23,6 +23,7 @@ contract DeployMockUserSafeSetup is Utils {
     MockPriceProvider priceProvider;
     MockSwapper swapper;
     UserSafe userSafeImpl;
+    UserSafeEventEmitter userSafeEventEmitter;
     UserSafeFactory userSafeFactory;
     IL2DebtManager debtManager;
     CashDataProvider cashDataProvider;
@@ -113,6 +114,19 @@ contract DeployMockUserSafeSetup is Utils {
             )
         );
 
+        address eventEmitterImpl = address(new UserSafeEventEmitter());
+        userSafeEventEmitter = UserSafeEventEmitter(address(
+            new UUPSProxy(
+                eventEmitterImpl,
+                abi.encodeWithSelector(
+                    UserSafeEventEmitter.initialize.selector,
+                    delay,
+                    owner,
+                    address(cashDataProvider)
+                )
+            )
+        ));
+
         CashDataProvider(address(cashDataProvider)).initialize(
             owner,
             uint64(delay),
@@ -122,7 +136,8 @@ contract DeployMockUserSafeSetup is Utils {
             address(priceProvider),
             address(swapper),
             address(aaveAdapter),
-            address(userSafeFactory)
+            address(userSafeFactory),
+            address(userSafeEventEmitter)
         );
 
         DebtManagerInitializer(address(debtManager)).initialize(
@@ -158,6 +173,26 @@ contract DeployMockUserSafeSetup is Utils {
             deployedAddresses,
             "userSafeImpl",
             address(userSafeImpl)
+        );
+        vm.serializeAddress(
+            deployedAddresses,
+            "userSafeFactoryImpl",
+            address(factoryImpl)
+        );
+        vm.serializeAddress(
+            deployedAddresses,
+            "userSafeFactoryProxy",
+            address(userSafeFactory)
+        );
+        vm.serializeAddress(
+            deployedAddresses,
+            "userSafeEventEmitterImpl",
+            address(eventEmitterImpl)
+        );
+        vm.serializeAddress(
+            deployedAddresses,
+            "userSafeEventEmitterProxy",
+            address(userSafeEventEmitter)
         );
         vm.serializeAddress(
             deployedAddresses,

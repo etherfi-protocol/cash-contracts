@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import {IUserSafe, OwnerLib, UserSafe, UserSafeLib} from "../../src/user-safe/UserSafe.sol";
+import {UserSafeEventEmitter, IUserSafe, OwnerLib, UserSafe, UserSafeLib} from "../../src/user-safe/UserSafe.sol";
 import {MessageHashUtils} from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
 import {UserSafeSetup} from "./UserSafeSetup.t.sol";
 
@@ -34,7 +34,8 @@ contract UserSafeCollateralLimitTest is UserSafeSetup {
 
         vm.prank(alice);
         vm.expectEmit(true, true, true, true);
-        emit IUserSafe.SetCollateralLimit(
+        emit UserSafeEventEmitter.CollateralLimitSet(
+            address(aliceSafe),
             collateralLimitBefore,
             newCollateralLimit,
             delayedTime - 1
@@ -75,7 +76,8 @@ contract UserSafeCollateralLimitTest is UserSafeSetup {
 
         vm.prank(alice);
         vm.expectEmit(true, true, true, true);
-        emit IUserSafe.SetCollateralLimit(
+        emit UserSafeEventEmitter.CollateralLimitSet(
+            address(aliceSafe),
             collateralLimitBefore,
             newCollateralLimit,
             block.timestamp

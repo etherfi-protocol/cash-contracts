@@ -45,7 +45,8 @@ contract TopUpDestTest is Test {
                     address(0),
                     address(0),
                     address(0),
-                    userSafeFactory
+                    userSafeFactory,
+                    address(0)
                 )
             )
         ));
@@ -77,7 +78,7 @@ contract TopUpDestTest is Test {
         MapWalletToUserSafe memory mapWalletToUserSafe = MapWalletToUserSafe({
             wallet: alice,
             userSafe: userSafe,
-            nonce: 0,
+            nonce: topUpDest.nonces(alice),
             deadline: 100
         });
         

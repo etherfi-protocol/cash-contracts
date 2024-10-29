@@ -3,7 +3,7 @@ pragma solidity ^0.8.24;
 
 import {Script} from "forge-std/Script.sol";
 import {UserSafeFactory} from "../../src/user-safe/UserSafeFactory.sol";
-import {UserSafe} from "../../src/user-safe/UserSafe.sol";
+import {UserSafe, UserSafeEventEmitter} from "../../src/user-safe/UserSafe.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {PriceProvider} from "../../src/oracle/PriceProvider.sol";
 import {SwapperOpenOcean} from "../../src/utils/SwapperOpenOcean.sol";
@@ -26,6 +26,7 @@ contract DeployUserSafeSetup is Utils {
     PriceProvider priceProvider;
     SwapperOpenOcean swapper;
     UserSafe userSafeImpl;
+    UserSafeEventEmitter userSafeEventEmitter;
     UserSafeFactory userSafeFactory;
     IL2DebtManager debtManager;
     CashDataProvider cashDataProvider;
@@ -59,6 +60,7 @@ contract DeployUserSafeSetup is Utils {
     address debtManagerInitializer;
     address cashDataProviderImpl;
     address settlementDispatcherImpl;
+    address eventEmitterImpl;
 
     function run() public {
         // Pulling deployer info from the environment
@@ -196,6 +198,19 @@ contract DeployUserSafeSetup is Utils {
             )
         );
 
+        eventEmitterImpl = address(new UserSafeEventEmitter());
+        userSafeEventEmitter = UserSafeEventEmitter(address(
+            new UUPSProxy(
+                eventEmitterImpl,
+                abi.encodeWithSelector(
+                    UserSafeEventEmitter.initialize.selector,
+                    delay,
+                    owner,
+                    address(cashDataProvider)
+                )
+            )
+        ));
+
         initializeCashDataProvider();
         initializeDebtManager(debtManagerProxy, collateralTokenConfig);
         saveDeployments();
@@ -213,7 +228,8 @@ contract DeployUserSafeSetup is Utils {
             address(priceProvider),
             address(swapper),
             address(aaveV3Adapter),
-            address(userSafeFactory)
+            address(userSafeFactory),
+            address(userSafeEventEmitter)
         );
     }
 
@@ -270,8 +286,18 @@ contract DeployUserSafeSetup is Utils {
         );
         vm.serializeAddress(
             deployedAddresses,
-            "userSafeFactory",
+            "userSafeFactoryProxy",
             address(userSafeFactory)
+        );
+        vm.serializeAddress(
+            deployedAddresses,
+            "userSafeEventEmitterImpl",
+            address(eventEmitterImpl)
+        );
+        vm.serializeAddress(
+            deployedAddresses,
+            "userSafeEventEmitterProxy",
+            address(userSafeEventEmitter)
         );
         vm.serializeAddress(
             deployedAddresses,

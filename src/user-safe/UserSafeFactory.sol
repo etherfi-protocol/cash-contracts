@@ -23,6 +23,7 @@ contract UserSafeFactory is Initializable, UUPSUpgradeable, AccessControlDefault
     event BeaconSet(address oldBeacon, address newBeacon);
 
     error InvalidValue();
+    error SafeAddressDifferentFromDetermined();
 
     constructor() {
         _disableInitializers();
@@ -62,7 +63,10 @@ contract UserSafeFactory is Initializable, UUPSUpgradeable, AccessControlDefault
      * @return Address of the user safe.
      */
     function createUserSafe(bytes memory saltData, bytes memory data) external onlyRole(ADMIN_ROLE) returns (address) {
-        address safe = address(
+        address safe = this.getUserSafeAddress(saltData, data);
+        ICashDataProvider(cashDataProvider).whitelistUserSafe(safe);
+
+        address deployedSafe = address(
             CREATE3.deployDeterministic(
                 abi.encodePacked(
                     type(BeaconProxy).creationCode, 
@@ -72,7 +76,7 @@ contract UserSafeFactory is Initializable, UUPSUpgradeable, AccessControlDefault
             )
         );
         
-        ICashDataProvider(cashDataProvider).whitelistUserSafe(safe);
+        if (deployedSafe != safe) revert SafeAddressDifferentFromDetermined();
 
         emit UserSafeDeployed(safe);
         return safe;

@@ -2,6 +2,7 @@
 pragma solidity ^0.8.24;
 
 import {EIP1271SignatureUtils} from "./EIP1271SignatureUtils.sol";
+import {MessageHashUtils} from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
 import {OwnerLib} from "./OwnerLib.sol";
 import {WebAuthn} from "./WebAuthn.sol";
 
@@ -10,6 +11,7 @@ import {WebAuthn} from "./WebAuthn.sol";
  */
 library SignatureUtils {
     using EIP1271SignatureUtils for bytes32;
+    using MessageHashUtils for bytes32;
 
     error InvalidWebAuthSignature();
 
@@ -19,7 +21,7 @@ library SignatureUtils {
         bytes calldata signature
     ) internal view {
         if (owner.ethAddr != address(0))
-            hash.checkSignature_EIP1271(owner.ethAddr, signature);
+            hash.toEthSignedMessageHash().checkSignature_EIP1271(owner.ethAddr, signature);
         else {
             WebAuthn.WebAuthnAuth memory auth = abi.decode(
                 signature,

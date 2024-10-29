@@ -51,7 +51,7 @@ contract TopUpDest is Initializable, UUPSUpgradeable, EIP712Upgradeable, NoncesU
         __UUPSUpgradeable_init_unchained();
         __ReentrancyGuardTransient_init();
         __AccessControlDefaultAdminRules_init_unchained(_defaultAdminDelay, _defaultAdmin);
-        __EIP712_init_unchained("TopUpContracts", "1");
+        __EIP712_init_unchained("TopUpContract", "1");
         __Pausable_init_unchained();
         __Nonces_init_unchained();
 
@@ -78,6 +78,18 @@ contract TopUpDest is Initializable, UUPSUpgradeable, EIP712Upgradeable, NoncesU
         bytes32 structHash = keccak256(abi.encode(USER_SAFE_REGISTRY_TYPEHASH, wallet, userSafe, _useNonce(wallet), deadline));
         bytes32 hash = _hashTypedDataV4(structHash);
         hash.checkSignature_EIP1271(wallet, signature);
+        walletToUserSafeRegistry[wallet] = userSafe;
+
+        emit WalletToUserSafeRegistered(wallet, userSafe);
+    }
+
+    // TODO: Remove in Prod, this function is just for Testing purposes
+    function mapWalletToUserSafeMock(
+        address wallet,
+        address userSafe
+     ) external {
+        if (wallet == address(0)) revert WalletCannotBeAddressZero();
+        if (!cashDataProvider.isUserSafe(userSafe)) revert NotARegisteredUserSafe();
         walletToUserSafeRegistry[wallet] = userSafe;
 
         emit WalletToUserSafeRegistered(wallet, userSafe);

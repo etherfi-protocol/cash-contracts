@@ -18,6 +18,7 @@ import {UserSafeLib} from "../libraries/UserSafeLib.sol";
 import {ReentrancyGuardTransientUpgradeable} from "../utils/ReentrancyGuardTransientUpgradeable.sol";
 import {ArrayDeDupTransient} from "../libraries/ArrayDeDupTransientLib.sol";
 import {SpendingLimit, SpendingLimitLib} from "../libraries/SpendingLimitLib.sol";
+import {UserSafeEventEmitter} from "./UserSafeEventEmitter.sol";
 
 /**
  * @title UserSafe
@@ -61,7 +62,7 @@ contract UserSafe is
     uint256 private _incomingCollateralLimit;
     // Incoming collateral limit start timestamp
     uint256 private _incomingCollateralLimitStartTime;
-
+    
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor(
         address __cashDataProvider,
@@ -80,14 +81,26 @@ contract UserSafe is
         int256 __timezoneOffset
     ) external initializer {
         __ReentrancyGuardTransient_init();
+        __UserSafeRecovery_init();
         _ownerBytes = __owner;
-        _spendingLimit.initialize(
+        (, SpendingLimit memory newLimit) = _spendingLimit.initialize(
             __dailySpendingLimit,
             __monthlySpendingLimit,
             __timezoneOffset
         );
         _collateralLimit = __collateralLimit;
-        __UserSafeRecovery_init();
+
+        emitInitializeEvents(newLimit, __owner, __collateralLimit);
+    }
+
+    function emitInitializeEvents(SpendingLimit memory newLimit, bytes memory __owner, uint256 __collateralLimit) internal {
+        OwnerLib.OwnerObject memory dummyOwner;
+        SpendingLimit memory dummyLimit;
+
+        UserSafeEventEmitter eventEmitter = UserSafeEventEmitter(_cashDataProvider.userSafeEventEmitter());
+        eventEmitter.emitSpendingLimitChanged(dummyLimit, newLimit);
+        eventEmitter.emitCollateralLimitSet(0, __collateralLimit, block.timestamp);
+        eventEmitter.emitOwnerSet(dummyOwner, __owner.getOwnerObject());
     }
 
     /**
@@ -215,11 +228,13 @@ contract UserSafe is
             monthlyLimitInUsd,
             signature
         );
-        _spendingLimit.updateSpendingLimit(
+        (SpendingLimit memory oldLimit, SpendingLimit memory newLimit) = _spendingLimit.updateSpendingLimit(
             dailyLimitInUsd,
             monthlyLimitInUsd,
             _cashDataProvider.delay()
         );
+
+        UserSafeEventEmitter(_cashDataProvider.userSafeEventEmitter()).emitSpendingLimitChanged(oldLimit, newLimit);
     }
 
     /**
@@ -238,7 +253,7 @@ contract UserSafe is
      */
     function receiveFunds(address token, uint256 amount) external {
         IERC20(token).safeTransferFrom(msg.sender, address(this), amount);
-        emit DepositFunds(token, amount);
+        UserSafeEventEmitter(_cashDataProvider.userSafeEventEmitter()).emitDepositFunds(token, amount);
     }
 
     /**
@@ -266,7 +281,7 @@ contract UserSafe is
         {} catch {}
 
         IERC20(token).safeTransferFrom(fundsOwner, address(this), amount);
-        emit DepositFunds(token, amount);
+        UserSafeEventEmitter(_cashDataProvider.userSafeEventEmitter()).emitDepositFunds(token, amount);
     }
 
     /**
@@ -310,12 +325,7 @@ contract UserSafe is
             }
         }
 
-        emit WithdrawalProcessed(
-            _pendingWithdrawalRequest.tokens,
-            _pendingWithdrawalRequest.amounts,
-            recipient
-        );
-
+        UserSafeEventEmitter(_cashDataProvider.userSafeEventEmitter()).emitWithdrawalProcessed(_pendingWithdrawalRequest.tokens, _pendingWithdrawalRequest.amounts, recipient);
         delete _pendingWithdrawalRequest;
     }
 
@@ -327,6 +337,7 @@ contract UserSafe is
         bytes calldata signature
     ) external incrementNonce currentOwner {
         _setIsRecoveryActive(isActive, _nonce, signature);
+        UserSafeEventEmitter(_cashDataProvider.userSafeEventEmitter()).emitIsRecoveryActiveSet(isActive);
     }
 
     /**
@@ -336,7 +347,8 @@ contract UserSafe is
         address userRecoverySigner,
         bytes calldata signature
     ) external incrementNonce currentOwner {
-        _setUserRecoverySigner(userRecoverySigner, _nonce, signature);
+        address _oldSigner = _setUserRecoverySigner(userRecoverySigner, _nonce, signature);
+        UserSafeEventEmitter(_cashDataProvider.userSafeEventEmitter()).emitUserRecoverySignerSet(_oldSigner, userRecoverySigner);
     }
 
     /**
@@ -365,7 +377,8 @@ contract UserSafe is
             _cashDataProvider.settlementDispatcher(),
             amount
         );
-        emit TransferForSpending(token, amount);
+
+        UserSafeEventEmitter(_cashDataProvider.userSafeEventEmitter()).emitTransferForSpending(token, amount);
     }
 
     /**
@@ -412,8 +425,8 @@ contract UserSafe is
             outputAmountToTransfer
         );
 
-        emit SwapTransferForSpending(
-            inputTokenToSwap,
+        UserSafeEventEmitter(_cashDataProvider.userSafeEventEmitter()).emitSwapTransferForSpending(
+            inputTokenToSwap, 
             inputAmountToSwap,
             outputToken,
             outputAmountToTransfer
@@ -476,9 +489,8 @@ contract UserSafe is
      * @inheritdoc IUserSafe
      */
     function closeAccountWithDebtManager() external onlyEtherFiWallet {
-        IL2DebtManager(_cashDataProvider.etherFiCashDebtManager())
-            .closeAccount();
-        emit CloseAccountWithDebtManager();
+        IL2DebtManager(_cashDataProvider.etherFiCashDebtManager()).closeAccount();
+        UserSafeEventEmitter(_cashDataProvider.userSafeEventEmitter()).emitCloseAccountWithDebtManager();
     }
 
     function _swapFunds(
@@ -507,28 +519,18 @@ contract UserSafe is
 
     function _setCollateralLimit(uint256 limitInUsd) internal {
         _currentCollateralLimit();
+        UserSafeEventEmitter eventEmitter = UserSafeEventEmitter(_cashDataProvider.userSafeEventEmitter());
 
         if (limitInUsd > _collateralLimit) {
             delete _incomingCollateralLimitStartTime;
             delete _incomingCollateralLimit;
 
-            emit SetCollateralLimit(
-                _collateralLimit,
-                limitInUsd,
-                block.timestamp
-            );
+            eventEmitter.emitCollateralLimitSet(_collateralLimit, limitInUsd, block.timestamp);
             _collateralLimit = limitInUsd;
         } else {
-            _incomingCollateralLimitStartTime =
-                block.timestamp +
-                _cashDataProvider.delay();
+            _incomingCollateralLimitStartTime = block.timestamp + _cashDataProvider.delay();
             _incomingCollateralLimit = limitInUsd;
-
-            emit SetCollateralLimit(
-                _collateralLimit,
-                limitInUsd,
-                _incomingCollateralLimitStartTime
-            );
+            eventEmitter.emitCollateralLimitSet(_collateralLimit, limitInUsd, _incomingCollateralLimitStartTime);
         }
     }
 
@@ -541,9 +543,7 @@ contract UserSafe is
 
         uint256 len = tokens.length;
         if (len != amounts.length) revert ArrayLengthMismatch();
-
         uint96 finalTime = uint96(block.timestamp) + _cashDataProvider.delay();
-
         for (uint256 i = 0; i < len; ) {
             if (IERC20(tokens[i]).balanceOf(address(this)) < amounts[i])
                 revert InsufficientBalance();
@@ -560,12 +560,12 @@ contract UserSafe is
             finalizeTime: finalTime
         });
 
-        emit WithdrawalRequested(tokens, amounts, recipient, finalTime);
+        UserSafeEventEmitter(_cashDataProvider.userSafeEventEmitter()).emitWithdrawalRequested(tokens, amounts, recipient, finalTime);
     }
 
     function _cancelOldWithdrawal() internal {
         if (_pendingWithdrawalRequest.tokens.length > 0) {
-            emit WithdrawalCancelled(
+            UserSafeEventEmitter(_cashDataProvider.userSafeEventEmitter()).emitWithdrawalCancelled(
                 _pendingWithdrawalRequest.tokens,
                 _pendingWithdrawalRequest.amounts,
                 _pendingWithdrawalRequest.recipient
@@ -576,7 +576,7 @@ contract UserSafe is
     }
 
     function _setOwner(bytes calldata __owner) internal {
-        emit SetOwner(_ownerBytes.getOwnerObject(), __owner.getOwnerObject());
+        UserSafeEventEmitter(_cashDataProvider.userSafeEventEmitter()).emitOwnerSet(_ownerBytes.getOwnerObject(), __owner.getOwnerObject());
         _ownerBytes = __owner;
     }
 
@@ -585,8 +585,8 @@ contract UserSafe is
         OwnerLib.OwnerObject memory ownerObj = __owner.getOwnerObject();
         ownerObj._ownerNotZero();
 
-        emit SetIncomingOwner(ownerObj, _incomingOwnerStartTime);
         _incomingOwnerBytes = __owner;
+        UserSafeEventEmitter(_cashDataProvider.userSafeEventEmitter()).emitIncomingOwnerSet(ownerObj, _incomingOwnerStartTime);
     }
 
     function _getDecimals(address token) internal view returns (uint8) {
@@ -617,15 +617,11 @@ contract UserSafe is
     ) internal {
         _currentCollateralLimit();
 
-        uint256 currentCollateral = IL2DebtManager(debtManager)
-            .getCollateralValueInUsd(address(this));
-        uint256 price = IPriceProvider(_cashDataProvider.priceProvider()).price(
-            token
-        );
+        uint256 currentCollateral = IL2DebtManager(debtManager).getCollateralValueInUsd(address(this));
+        uint256 price = IPriceProvider(_cashDataProvider.priceProvider()).price(token);
         // amount * price with 6 decimals / 10 ** tokenDecimals will convert the collateral amount to USD amount with 6 decimals
         amountToAdd = (amountToAdd * price) / 10 ** _getDecimals(token);
-        if (currentCollateral + amountToAdd > _collateralLimit)
-            revert ExceededCollateralLimit();
+        if (currentCollateral + amountToAdd > _collateralLimit) revert ExceededCollateralLimit();
     }
 
     function _addCollateral(
@@ -644,8 +640,7 @@ contract UserSafe is
             address(this),
             amount
         );
-
-        emit AddCollateralToDebtManager(token, amount);
+        UserSafeEventEmitter(_cashDataProvider.userSafeEventEmitter()).emitAddCollateralToDebtManager(token, amount);
     }
 
     function _borrow(
@@ -658,7 +653,7 @@ contract UserSafe is
         _checkSpendingLimit(token, amount);
 
         IL2DebtManager(debtManager).borrow(token, amount);
-        emit BorrowFromDebtManager(token, amount);
+        UserSafeEventEmitter(_cashDataProvider.userSafeEventEmitter()).emitBorrowFromDebtManager(token, amount);
     }
 
     function _repay(
@@ -670,7 +665,7 @@ contract UserSafe is
         IERC20(token).forceApprove(debtManager, amount);
 
         IL2DebtManager(debtManager).repay(address(this), token, amount);
-        emit RepayDebtManager(token, amount);
+        UserSafeEventEmitter(_cashDataProvider.userSafeEventEmitter()).emitRepayDebtManager(token, amount);
     }
 
     function _withdrawCollateralFromDebtManager(
@@ -680,7 +675,7 @@ contract UserSafe is
     ) internal {
         if (!_isCollateralToken(token)) revert UnsupportedToken();
         IL2DebtManager(debtManager).withdrawCollateral(token, amount);
-        emit WithdrawCollateralFromDebtManager(token, amount);
+        UserSafeEventEmitter(_cashDataProvider.userSafeEventEmitter()).emitWithdrawCollateralFromDebtManager(token, amount);
     }
 
     function _updateWithdrawalRequestIfNecessary(
@@ -708,7 +703,7 @@ contract UserSafe is
 
         if (amount + _pendingWithdrawalRequest.amounts[tokenIndex] > balance) {
             _pendingWithdrawalRequest.amounts[tokenIndex] = balance - amount;
-            emit WithdrawalAmountUpdated(token, balance - amount);
+            UserSafeEventEmitter(_cashDataProvider.userSafeEventEmitter()).emitWithdrawalAmountUpdated(token, balance - amount);
         }
     }
 
