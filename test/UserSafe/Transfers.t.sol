@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import {IUserSafe, UserSafeEventEmitter, OwnerLib, UserSafe, UserSafeLib, SpendingLimitLib} from "../../src/user-safe/UserSafe.sol";
+import {IUserSafe, UserSafeEventEmitter, OwnerLib, UserSafeLib, SpendingLimitLib} from "../../src/user-safe/UserSafeCore.sol";
 import {MessageHashUtils} from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
 import {ERC20, UserSafeSetup} from "./UserSafeSetup.t.sol";
 

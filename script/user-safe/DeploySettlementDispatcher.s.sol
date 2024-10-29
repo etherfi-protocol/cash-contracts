@@ -4,7 +4,7 @@ import {Script} from "forge-std/Script.sol";
 import {SettlementDispatcher} from "../../src/settlement-dispatcher/SettlementDispatcher.sol";
 import {UUPSProxy} from "../../src/UUPSProxy.sol";
 import {CashDataProvider} from "../../src/utils/CashDataProvider.sol";
-contract DeployCashSafe is Script {
+contract DeploySettlementDispatcher is Script {
     SettlementDispatcher settlementDispatcher;  
     // Scroll
     address usdc = 0x06eFdBFf2a14a7c8E15944D1F4A48F9F95F663A4;

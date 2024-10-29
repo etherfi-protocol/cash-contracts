@@ -3,13 +3,17 @@ pragma solidity ^0.8.24;
 
 import {Utils, ChainConfig} from "./Utils.sol";
 import {UserSafeFactory} from "../../src/user-safe/UserSafeFactory.sol";
-import {UserSafe} from "../../src/user-safe/UserSafe.sol";
 import {stdJson} from "forge-std/StdJson.sol";
 import {UUPSProxy} from "../../src/UUPSProxy.sol";
+import {UserSafeCore} from "../../src/user-safe/UserSafeCore.sol";
+import {UserSafeSetters} from "../../src/user-safe/UserSafeSetters.sol";
+
 
 contract DeployUserSafeFactory is Utils {
     using stdJson for string;
 
+    UserSafeCore userSafeCoreImpl;
+    UserSafeSetters userSafeSettersImpl;
     UserSafeFactory userSafeFactory;
     address userSafeImpl;
     address cashDataProvider;
@@ -36,6 +40,8 @@ contract DeployUserSafeFactory is Utils {
             string.concat(".", "addresses", ".", "cashDataProviderProxy")
         );
 
+        userSafeCoreImpl = new UserSafeCore();
+        userSafeSettersImpl = new UserSafeSetters();
         address factoryImpl = address(new UserSafeFactory());
     
         userSafeFactory = UserSafeFactory(
@@ -45,7 +51,9 @@ contract DeployUserSafeFactory is Utils {
                     UserSafeFactory.initialize.selector, 
                     address(userSafeImpl), 
                     owner, 
-                    address(cashDataProvider)
+                    address(cashDataProvider),
+                    address(userSafeCoreImpl),
+                    address(userSafeSettersImpl)
                 ))
             )
         );

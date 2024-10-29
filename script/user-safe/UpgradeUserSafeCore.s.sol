@@ -3,14 +3,14 @@ pragma solidity ^0.8.24;
 
 import {Utils, ChainConfig} from "./Utils.sol";
 import {UserSafeFactory} from "../../src/user-safe/UserSafeFactory.sol";
-import {UserSafe} from "../../src/user-safe/UserSafe.sol";
+import {UserSafeCore} from "../../src/user-safe/UserSafeCore.sol";
 import {stdJson} from "forge-std/StdJson.sol";
 
-contract UpgradeUserSafe is Utils {
+contract UpgradeUserSafeCore is Utils {
     using stdJson for string;
 
     UserSafeFactory userSafeFactory;
-    UserSafe userSafeImpl;
+    UserSafeCore userSafeCoreImpl;
 
     function run() public {
         // Pulling deployer info from the environment
@@ -43,13 +43,9 @@ contract UpgradeUserSafe is Utils {
             )
         );
 
-        userSafeImpl = new UserSafe(
-            cashDataProvider,
-            recoverySigner1,
-            recoverySigner2
-        );
+        userSafeCoreImpl = new UserSafeCore();
 
-        userSafeFactory.upgradeUserSafeImpl(address(userSafeImpl));
+        userSafeFactory.upgradeUserSafeCoreImpl(address(userSafeCoreImpl));
 
         vm.stopBroadcast();
     }

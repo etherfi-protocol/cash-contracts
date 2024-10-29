@@ -4,7 +4,7 @@ pragma solidity ^0.8.24;
 import {SafeERC20, IERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {SignatureUtils} from "./SignatureUtils.sol";
 import {OwnerLib} from "./OwnerLib.sol";
-import {IUserSafe} from "../interfaces/IUserSafe.sol";
+import {UserSafeStorage} from "../user-safe/UserSafeStorage.sol";
 
 library UserSafeLib {
     using SignatureUtils for bytes32;
@@ -144,7 +144,7 @@ library UserSafeLib {
 
     function verifyRecoverSig(
         uint256 nonce,
-        IUserSafe.Signature[2] calldata signatures,
+        UserSafeStorage.Signature[2] calldata signatures,
         OwnerLib.OwnerObject[2] memory recoveryOwners,
         bytes calldata newOwner
     ) internal view {

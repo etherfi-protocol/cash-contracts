@@ -4,7 +4,6 @@ pragma solidity ^0.8.24;
 import {Test, console, stdError} from "forge-std/Test.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {UserSafeFactory} from "../../src/user-safe/UserSafeFactory.sol";
-import {UserSafe, UserSafeEventEmitter, SpendingLimit} from "../../src//user-safe/UserSafe.sol";
 import {IL2DebtManager} from "../../src/interfaces/IL2DebtManager.sol";
 import {DebtManagerCore} from "../../src/debt-manager/DebtManagerCore.sol";
 import {DebtManagerAdmin} from "../../src/debt-manager/DebtManagerAdmin.sol";
@@ -27,6 +26,9 @@ import {UUPSProxy} from "../../src/UUPSProxy.sol";
 import {MockCashTokenWrapperFactory} from "../../src/mocks/MockCashTokenWrapperFactory.sol";
 import {MockCashWrappedERC20} from "../../src/mocks/MockCashWrappedERC20.sol";
 import {IAggregatorV3} from "../../src/interfaces/IAggregatorV3.sol";
+import {UserSafeCore, UserSafeEventEmitter, SpendingLimit} from "../../src/user-safe/UserSafeCore.sol";
+import {UserSafeSetters} from "../../src/user-safe/UserSafeSetters.sol";
+import {IUserSafe} from "../../src/interfaces/IUserSafe.sol";
 
 contract UserSafeSetup is Utils {
     using OwnerLib for address;
@@ -41,8 +43,9 @@ contract UserSafeSetup is Utils {
     uint256 thirdPartyRecoverySignerPk;
     address thirdPartyRecoverySigner;
 
+    UserSafeCore userSafeCoreImpl;
+    UserSafeSetters userSafeSettersImpl;
     UserSafeFactory factory;
-    UserSafe impl;
     UserSafeEventEmitter eventEmitter;
 
     ERC20 usdc;
@@ -68,7 +71,7 @@ contract UserSafeSetup is Utils {
     address alice;
     uint256 alicePk;
     bytes aliceBytes;
-    UserSafe aliceSafe;
+    IUserSafe aliceSafe;
 
     IEtherFiCashAaveV3Adapter aaveV3Adapter;
 
@@ -209,12 +212,8 @@ contract UserSafeSetup is Utils {
             "thirdPartyRecoverySigner"
         );
 
-        impl = new UserSafe(
-            address(cashDataProvider),
-            etherFiRecoverySigner,
-            thirdPartyRecoverySigner
-        );
-
+        userSafeCoreImpl = new UserSafeCore();
+        userSafeSettersImpl = new UserSafeSetters();
         address factoryImpl = address(new UserSafeFactory());
         
         factory = UserSafeFactory(
@@ -223,9 +222,10 @@ contract UserSafeSetup is Utils {
                 abi.encodeWithSelector(
                     UserSafeFactory.initialize.selector, 
                     uint48(delay),
-                    address(impl), 
                     owner, 
-                    address(cashDataProvider)
+                    address(cashDataProvider),
+                    address(userSafeCoreImpl),
+                    address(userSafeSettersImpl)
                 ))
             )
         );
@@ -279,11 +279,14 @@ contract UserSafeSetup is Utils {
 
         bytes memory saltData = bytes("aliceSafe");
 
-        aliceSafe = UserSafe(
+        aliceSafe = IUserSafe(
             factory.createUserSafe(
                 saltData,
                 abi.encodeWithSelector(
-                    UserSafe.initialize.selector,
+                    UserSafeCore.initialize.selector,
+                    address(cashDataProvider),
+                    etherFiRecoverySigner, 
+                    thirdPartyRecoverySigner,
                     aliceBytes,
                     defaultDailySpendingLimit,
                     defaultMonthlySpendingLimit,

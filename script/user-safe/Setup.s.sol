@@ -3,7 +3,6 @@ pragma solidity ^0.8.24;
 
 import {Script} from "forge-std/Script.sol";
 import {UserSafeFactory} from "../../src/user-safe/UserSafeFactory.sol";
-import {UserSafe, UserSafeEventEmitter} from "../../src/user-safe/UserSafe.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {PriceProvider} from "../../src/oracle/PriceProvider.sol";
 import {SwapperOpenOcean} from "../../src/utils/SwapperOpenOcean.sol";
@@ -19,14 +18,19 @@ import {CashTokenWrapperFactory, CashWrappedERC20} from "../../src/cash-wrapper-
 import {IWeETH} from "../../src/interfaces/IWeETH.sol";
 import {IAggregatorV3} from "../../src/interfaces/IAggregatorV3.sol";
 import {SettlementDispatcher} from "../../src/settlement-dispatcher/SettlementDispatcher.sol";
+import {UserSafeCore} from "../../src/user-safe/UserSafeCore.sol";
+import {UserSafeSetters} from "../../src/user-safe/UserSafeSetters.sol";
+import {UserSafeEventEmitter} from "../../src/user-safe/UserSafeEventEmitter.sol";
+import {IUserSafe} from "../../src/interfaces/IUserSafe.sol";
 
 contract DeployUserSafeSetup is Utils {
     ERC20 usdc;
     ERC20 weETH;
     PriceProvider priceProvider;
     SwapperOpenOcean swapper;
-    UserSafe userSafeImpl;
     UserSafeEventEmitter userSafeEventEmitter;
+    UserSafeCore userSafeCoreImpl;
+    UserSafeSetters userSafeSettersImpl;
     UserSafeFactory userSafeFactory;
     IL2DebtManager debtManager;
     CashDataProvider cashDataProvider;
@@ -140,49 +144,45 @@ contract DeployUserSafeSetup is Utils {
             chainConfig.swapRouterOpenOcean,
             supportedCollateralTokens
         );
-        aaveV3Adapter = new EtherFiCashAaveV3Adapter(
-            chainConfig.aaveV3Pool,
-            chainConfig.aaveV3PoolDataProvider,
-            aaveV3ReferralCode,
-            interestRateMode
-        );
+        // aaveV3Adapter = new EtherFiCashAaveV3Adapter(
+        //     chainConfig.aaveV3Pool,
+        //     chainConfig.aaveV3PoolDataProvider,
+        //     aaveV3ReferralCode,
+        //     interestRateMode
+        // );
 
-        address cashWrappedERC20Impl = address(new CashWrappedERC20());
-        wrapperTokenFactory = new CashTokenWrapperFactory(address(cashWrappedERC20Impl), owner);
+        // address cashWrappedERC20Impl = address(new CashWrappedERC20());
+        // wrapperTokenFactory = new CashTokenWrapperFactory(address(cashWrappedERC20Impl), owner);
 
         cashDataProviderImpl = address(new CashDataProvider());
         cashDataProvider = CashDataProvider(
             address(new UUPSProxy(cashDataProviderImpl, ""))
         );
 
-        address[] memory collateralTokens = new address[](1);
-        collateralTokens[0] = address(weETH);
-        address[] memory borrowTokens = new address[](1);
-        borrowTokens[0] = address(usdc);
+        // address[] memory collateralTokens = new address[](1);
+        // collateralTokens[0] = address(weETH);
+        // address[] memory borrowTokens = new address[](1);
+        // borrowTokens[0] = address(usdc);
 
-        DebtManagerCore.CollateralTokenConfig[]
-            memory collateralTokenConfig = new DebtManagerCore.CollateralTokenConfig[](
-                1
-            );
+        // DebtManagerCore.CollateralTokenConfig[]
+        //     memory collateralTokenConfig = new DebtManagerCore.CollateralTokenConfig[](
+        //         1
+        //     );
 
-        collateralTokenConfig[0].ltv = ltv;
-        collateralTokenConfig[0].liquidationThreshold = liquidationThreshold;
-        collateralTokenConfig[0].liquidationBonus = liquidationBonus;
-        collateralTokenConfig[0].supplyCap = supplyCap;
+        // collateralTokenConfig[0].ltv = ltv;
+        // collateralTokenConfig[0].liquidationThreshold = liquidationThreshold;
+        // collateralTokenConfig[0].liquidationBonus = liquidationBonus;
+        // collateralTokenConfig[0].supplyCap = supplyCap;
 
-        debtManagerCoreImpl = address(new DebtManagerCore());
-        debtManagerAdminImpl = address(new DebtManagerAdmin());
-        debtManagerInitializer = address(new DebtManagerInitializer());
-        address debtManagerProxy = address(new UUPSProxy(debtManagerInitializer, ""));
+        // debtManagerCoreImpl = address(new DebtManagerCore());
+        // debtManagerAdminImpl = address(new DebtManagerAdmin());
+        // debtManagerInitializer = address(new DebtManagerInitializer());
+        // address debtManagerProxy = address(new UUPSProxy(debtManagerInitializer, ""));
 
-        debtManager = IL2DebtManager(address(debtManagerProxy));
+        // debtManager = IL2DebtManager(address(debtManagerProxy));
 
-        userSafeImpl = new UserSafe(
-            address(cashDataProvider),
-            recoverySigner1,
-            recoverySigner2
-        );
-
+        userSafeCoreImpl = new UserSafeCore();
+        userSafeSettersImpl = new UserSafeSetters();
         factoryImpl = address(new UserSafeFactory());
         
         userSafeFactory = UserSafeFactory(
@@ -191,9 +191,10 @@ contract DeployUserSafeSetup is Utils {
                 abi.encodeWithSelector(
                     UserSafeFactory.initialize.selector, 
                     delay,
-                    address(userSafeImpl), 
                     owner, 
-                    address(cashDataProvider)
+                    address(cashDataProvider),
+                    address(userSafeCoreImpl),
+                    address(userSafeSettersImpl)
                 ))
             )
         );
@@ -212,7 +213,7 @@ contract DeployUserSafeSetup is Utils {
         ));
 
         initializeCashDataProvider();
-        initializeDebtManager(debtManagerProxy, collateralTokenConfig);
+        // initializeDebtManager(debtManagerProxy, collateralTokenConfig);
         saveDeployments();
 
         vm.stopBroadcast();
@@ -276,11 +277,6 @@ contract DeployUserSafeSetup is Utils {
         vm.serializeAddress(deployedAddresses, "swapper", address(swapper));
         vm.serializeAddress(
             deployedAddresses,
-            "userSafeImpl",
-            address(userSafeImpl)
-        );
-        vm.serializeAddress(
-            deployedAddresses,
             "userSafeFactoryImpl",
             address(factoryImpl)
         );
@@ -288,6 +284,16 @@ contract DeployUserSafeSetup is Utils {
             deployedAddresses,
             "userSafeFactoryProxy",
             address(userSafeFactory)
+        );
+        vm.serializeAddress(
+            deployedAddresses,
+            "userSafeCoreImpl",
+            address(userSafeCoreImpl)
+        );
+        vm.serializeAddress(
+            deployedAddresses,
+            "userSafeSettersImpl",
+            address(userSafeSettersImpl)
         );
         vm.serializeAddress(
             deployedAddresses,

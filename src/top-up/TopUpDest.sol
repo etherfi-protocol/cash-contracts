@@ -84,10 +84,10 @@ contract TopUpDest is Initializable, UUPSUpgradeable, EIP712Upgradeable, NoncesU
     }
 
     // TODO: Remove in Prod, this function is just for Testing purposes
-    function mapWalletToUserSafeMock(
+    function mapWalletToUserSafeAdmin(
         address wallet,
         address userSafe
-     ) external {
+     ) external onlyRole(DEFAULT_ADMIN_ROLE) {
         if (wallet == address(0)) revert WalletCannotBeAddressZero();
         if (!cashDataProvider.isUserSafe(userSafe)) revert NotARegisteredUserSafe();
         walletToUserSafeRegistry[wallet] = userSafe;

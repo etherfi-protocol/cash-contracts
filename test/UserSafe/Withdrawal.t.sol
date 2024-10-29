@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import {IUserSafe, UserSafeEventEmitter, OwnerLib, UserSafe, UserSafeLib} from "../../src/user-safe/UserSafe.sol";
+import {IUserSafe, UserSafeEventEmitter, OwnerLib, UserSafeLib} from "../../src/user-safe/UserSafeCore.sol";
 import {MessageHashUtils} from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
 import {UserSafeSetup} from "./UserSafeSetup.t.sol";
 
@@ -44,7 +44,7 @@ contract UserSafeWithdrawalTest is UserSafeSetup {
             msgHash.toEthSignedMessageHash()
         );
 
-        UserSafe.WithdrawalRequest
+        IUserSafe.WithdrawalRequest
             memory pendingWithdrawalRequestBefore = aliceSafe
                 .pendingWithdrawalRequest();
         assertEq(pendingWithdrawalRequestBefore.tokens.length, 0);
@@ -62,7 +62,7 @@ contract UserSafeWithdrawalTest is UserSafeSetup {
 
         aliceSafe.requestWithdrawal(tokens, amounts, recipient, signature);
 
-        UserSafe.WithdrawalRequest
+        IUserSafe.WithdrawalRequest
             memory pendingWithdrawalRequestAfter = aliceSafe
                 .pendingWithdrawalRequest();
 
@@ -207,7 +207,7 @@ contract UserSafeWithdrawalTest is UserSafeSetup {
             signature
         );
 
-        UserSafe.WithdrawalRequest memory newWithdrawalRequest = aliceSafe
+        IUserSafe.WithdrawalRequest memory newWithdrawalRequest = aliceSafe
             .pendingWithdrawalRequest();
         assertEq(newWithdrawalRequest.tokens.length, 1);
         assertEq(newWithdrawalRequest.tokens[0], newTokens[0]);
