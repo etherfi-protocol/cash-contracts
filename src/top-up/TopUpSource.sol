@@ -22,7 +22,7 @@ contract TopUpSource is Initializable, UUPSUpgradeable, AccessControlDefaultAdmi
     bytes32 public constant BRIDGER_ROLE = keccak256("BRIDGER_ROLE");
     bytes32 public constant PAUSER_ROLE = keccak256("PAUSER_ROLE");
     
-    IWETH public immutable weth;
+    IWETH public weth;
     mapping (address token => TokenConfig config) private _tokenConfig;
     address public recoveryWallet;
 
@@ -41,12 +41,11 @@ contract TopUpSource is Initializable, UUPSUpgradeable, AccessControlDefaultAdmi
     error RecoveryWalletCannotBeZeroAddress();
     error DefaultAdminCannotBeZeroAddress();
 
-    constructor(address _weth) {
-        weth = IWETH(_weth);
+    constructor() {
         _disableInitializers();
     }
 
-    function initialize(uint48 _defaultAdminDelay, address _defaultAdmin, address _recoveryWallet) external initializer {
+    function initialize(address _weth, uint48 _defaultAdminDelay, address _defaultAdmin, address _recoveryWallet) external initializer {
         if (_defaultAdmin == address(0)) revert DefaultAdminCannotBeZeroAddress();
         if (_recoveryWallet == address(0)) revert RecoveryWalletCannotBeZeroAddress();
 
@@ -57,6 +56,7 @@ contract TopUpSource is Initializable, UUPSUpgradeable, AccessControlDefaultAdmi
         _grantRole(PAUSER_ROLE, _defaultAdmin);
         _grantRole(BRIDGER_ROLE, _defaultAdmin);
 
+        weth = IWETH(_weth);
         recoveryWallet = _recoveryWallet;
         emit RecoveryWalletSet(address(0), _recoveryWallet);
     }

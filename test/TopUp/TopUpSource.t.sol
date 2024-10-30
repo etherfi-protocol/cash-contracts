@@ -61,7 +61,7 @@ contract TopUpSourceTest is Test {
             additionalData: abi.encode(weETHOftAddress)
         });
 
-        address topUpSrcImpl = address(new TopUpSource(address(weth)));
+        address topUpSrcImpl = address(new TopUpSource());
         topUpSrc = TopUpSource(payable(address(
             new UUPSProxy(
                 topUpSrcImpl,
@@ -70,12 +70,12 @@ contract TopUpSourceTest is Test {
         ))); 
 
         vm.expectRevert(TopUpSource.DefaultAdminCannotBeZeroAddress.selector);
-        topUpSrc.initialize(100, address(0), recoveryWallet);
+        topUpSrc.initialize(address(weth), 100, address(0), recoveryWallet);
         
         vm.expectRevert(TopUpSource.RecoveryWalletCannotBeZeroAddress.selector);
-        topUpSrc.initialize(100, owner, address(0));
+        topUpSrc.initialize(address(weth), 100, owner, address(0));
 
-        topUpSrc.initialize(100, owner, recoveryWallet);
+        topUpSrc.initialize(address(weth), 100, owner, recoveryWallet);
         topUpSrc.setTokenConfig(tokens, tokenConfigs);
 
         vm.stopPrank();

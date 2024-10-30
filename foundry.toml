@@ -18,6 +18,7 @@ fs_permissions = [{ access = "read-write", path = "./" }]
 mainnet = "${MAINNET_RPC}"
 sepolia = "${SEPOLIA_RPC}"
 scroll = "${SCROLL_RPC}"
+base = "${BASE_RPC}"
 fi_sepolia = "${FI_SEPOLIA_RPC}"
 arbitrum_sepolia = "${ARBITRUM_SEPOLIA_RPC}"
 
@@ -25,5 +26,6 @@ arbitrum_sepolia = "${ARBITRUM_SEPOLIA_RPC}"
 mainnet = { key = "${MAINNET_ETHERSCAN_KEY}" }
 sepolia = { key = "${MAINNET_ETHERSCAN_KEY}" }
 scroll = { key = "${SCROLLSCAN_KEY}" }
+base = { key = "${BASESCAN_KEY}" }
 fi_sepolia = { url = "https://fi-sepolia-explorer.ether.fi/api", key = "5P1ZGHEFGJUN2N1T9NY6NVVDXQDJKPMD2Z" }
 arbitrum_sepolia = { key = "${ARBISCAN_KEY}" }

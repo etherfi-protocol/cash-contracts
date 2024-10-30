@@ -97,6 +97,15 @@ contract Utils is Script {
         string memory dir = string.concat(vm.projectRoot(), "/deployments/");
         string memory chainDir = string.concat(vm.toString(block.chainid), "/");
         string memory file = string.concat("deployments", ".json");
+
+        // Ensure the directory exists by creating it if needed
+        if (!vm.exists(dir)) {
+            vm.createDir(dir, true); // The 'true' parameter creates any missing intermediate directories
+        }
+        if (!vm.exists(chainDir)) {
+            vm.createDir(chainDir, true);
+        }
+        
         vm.writeJson(output, string.concat(dir, chainDir, file));
     }
 
@@ -106,6 +115,34 @@ contract Utils is Script {
         string memory file = string.concat("safe", ".json");
         vm.writeJson(output, string.concat(dir, chainDir, file));
     }
+
+    function addToJsonFile(
+        string memory filePath,
+        string memory newEntry
+    ) internal {
+        // Load the existing JSON or initialize an empty JSON if the file is not found
+        string memory jsonContent;
+        if (vm.exists(filePath)) {
+            jsonContent = vm.readFile(filePath);
+        } else {
+            jsonContent = "{}"; // Initialize as empty JSON
+        }
+
+        // Convert the JSON content into a format you can modify (string manipulation here)
+        // Append or modify your JSON structure as needed
+        // In this example, we assume `newEntry` is a properly formatted JSON snippet you want to merge.
+        string memory updatedJson = string.concat(
+            "{",
+            jsonContent,
+            ",",
+            newEntry,
+            "}"
+        );
+
+        // Write the modified JSON back to the file
+        vm.writeFile(filePath, updatedJson);
+    }
+
 
     function isFork(string memory chainId) internal pure returns (bool) {
         if (keccak256(bytes(chainId)) == keccak256(bytes("local")))

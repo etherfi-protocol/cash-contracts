@@ -38,7 +38,6 @@ contract DeployUserSafe is Utils {
             deployments,
             string.concat(".", "addresses", ".", "cashDataProviderProxy")
         );
-        
 
         bytes memory saltData = abi.encode("ownerSafe", block.timestamp);
         
