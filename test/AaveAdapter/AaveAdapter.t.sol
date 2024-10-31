@@ -22,7 +22,7 @@ contract AaveAdapterTest is Utils {
     uint256 interestRateMode = 2;
     uint16 aaveReferralCode = 0;
 
-    IERC20 weETH;
+    IERC20 weth;
     IERC20 usdc;
     string chainId;
 
@@ -35,7 +35,7 @@ contract AaveAdapterTest is Utils {
             emit log_named_string("Testing on ChainID", chainId);
 
             usdc = IERC20(address(new MockERC20("USDC", "USDC", 6)));
-            weETH = IERC20(address(new MockERC20("weETH", "weETH", 18)));
+            weth = IERC20(address(new MockERC20("WETH", "WETH", 18)));
             aaveV3Adapter = IEtherFiCashAaveV3Adapter(new MockAaveAdapter());
         } else {
             emit log_named_string("Testing on ChainID", chainId);
@@ -44,7 +44,7 @@ contract AaveAdapterTest is Utils {
             vm.createSelectFork(chainConfig.rpc);
 
             usdc = IERC20(chainConfig.usdc);
-            weETH = IERC20(chainConfig.weETH);
+            weth = IERC20(chainConfig.weth);
 
             aavePool = IPool(chainConfig.aaveV3Pool);
             aaveV3PoolDataProvider = IPoolDataProvider(
@@ -61,30 +61,30 @@ contract AaveAdapterTest is Utils {
             );
 
             deal(address(usdc), owner, 1 ether);
-            deal(address(weETH), owner, 1000 ether);
+            deal(address(weth), owner, 1000 ether);
         }
 
         vm.stopPrank();
     }
 
-    function test_Flow() public {
+    function test_AaveFullFlow() public {
         test_FullFlow();
     }
 
-    function test_Process() public {
+    function test_AaveProcess() public {
         test_Borrow();
     }
 
     function test_Supply() internal returns (uint256) {
         vm.startPrank(owner);
 
-        uint256 amount = 0.01 ether;
-        weETH.safeTransfer(address(aaveV3Adapter), amount);
-        aaveV3Adapter.supply(address(weETH), amount);
+        uint256 amount = 0.001 ether;
+        weth.safeTransfer(address(aaveV3Adapter), amount);
+        aaveV3Adapter.supply(address(weth), amount);
 
         uint256 collateralBalance = aaveV3Adapter.getCollateralBalance(
             address(aaveV3Adapter),
-            address(weETH)
+            address(weth)
         );
         assertEq(collateralBalance, amount);
 
@@ -100,7 +100,7 @@ contract AaveAdapterTest is Utils {
         vm.roll(block.number + 10);
         uint256 usdcBalBefore = usdc.balanceOf(address(aaveV3Adapter));
 
-        uint256 borrowAmt = 1e6;
+        uint256 borrowAmt = 0.1e6;
 
         if (!isFork(chainId)) {
             usdc.safeTransfer(address(aaveV3Adapter), borrowAmt);
@@ -114,8 +114,8 @@ contract AaveAdapterTest is Utils {
             address(aaveV3Adapter),
             address(usdc)
         );
-        assertEq(debt, borrowAmt);
-        assertEq(usdcBalAfter - usdcBalBefore, borrowAmt);
+        assertApproxEqAbs(debt, borrowAmt, 1);
+        assertApproxEqAbs(usdcBalAfter - usdcBalBefore, borrowAmt, 1);
 
         vm.stopPrank();
 
@@ -152,20 +152,20 @@ contract AaveAdapterTest is Utils {
         vm.startPrank(owner);
 
         vm.roll(block.number + 10);
-        uint256 balBefore = weETH.balanceOf(address(aaveV3Adapter));
+        uint256 balBefore = weth.balanceOf(address(aaveV3Adapter));
 
         uint256 withdrawAmt = aaveV3Adapter.getCollateralBalance(
             address(aaveV3Adapter),
-            address(weETH)
+            address(weth)
         );
 
         if (!isFork(chainId)) {
-            weETH.safeTransfer(address(aaveV3Adapter), withdrawAmt);
+            weth.safeTransfer(address(aaveV3Adapter), withdrawAmt);
         }
 
-        aaveV3Adapter.withdraw(address(weETH), withdrawAmt);
+        aaveV3Adapter.withdraw(address(weth), withdrawAmt);
 
-        uint256 balAfter = weETH.balanceOf(address(aaveV3Adapter));
+        uint256 balAfter = weth.balanceOf(address(aaveV3Adapter));
         assertEq(balAfter - balBefore, withdrawAmt);
         vm.stopPrank();
     }

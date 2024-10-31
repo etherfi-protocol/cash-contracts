@@ -119,10 +119,7 @@ abstract contract UserSafeRecovery is IUserSafe {
             newOwner
         );
 
-        OwnerLib.OwnerObject memory oldOwner = this.owner();
-        _setOwner(newOwner);
-
-        emit UserSafeRecovered(oldOwner, this.owner());
+        _setIncomingOwner(newOwner);
     }
 
     function _getRecoveryOwner(
@@ -142,7 +139,7 @@ abstract contract UserSafeRecovery is IUserSafe {
         if (!_isRecoveryActive) revert RecoveryNotActive();
     }
 
-    function _setOwner(bytes calldata __owner) internal virtual;
+    function _setIncomingOwner(bytes calldata __owner) internal virtual;
 
     modifier onlyWhenRecoveryActive() {
         _onlyWhenRecoveryActive();

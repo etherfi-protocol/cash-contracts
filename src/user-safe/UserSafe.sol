@@ -15,23 +15,31 @@ import {UserSafeRecovery} from "./UserSafeRecovery.sol";
 import {WebAuthn} from "../libraries/WebAuthn.sol";
 import {OwnerLib} from "../libraries/OwnerLib.sol";
 import {UserSafeLib} from "../libraries/UserSafeLib.sol";
+import {ReentrancyGuardTransientUpgradeable} from "../utils/ReentrancyGuardTransientUpgradeable.sol";
+
 
 /**
  * @title UserSafe
  * @author ether.fi [shivam@ether.fi]
  * @notice User safe account for interactions with the EtherFi Cash contracts
  */
-contract UserSafe is IUserSafe, Initializable, UserSafeRecovery {
+contract UserSafe is IUserSafe, Initializable, ReentrancyGuardTransientUpgradeable, UserSafeRecovery {
     using SafeERC20 for IERC20;
     using SignatureUtils for bytes32;
     using OwnerLib for bytes;
     using UserSafeLib for OwnerLib.OwnerObject;
+    using OwnerLib for OwnerLib.OwnerObject;
 
     // Address of the Cash Data Provider
     ICashDataProvider private immutable _cashDataProvider;
 
     // Owner: if ethAddr -> abi.encode(owner), if passkey -> abi.encode(x,y)
     bytes private _ownerBytes;
+    // Owner: if ethAddr -> abi.encode(owner), if passkey -> abi.encode(x,y)
+    bytes private _incomingOwnerBytes;
+    // Time when the incoming owner becomes the owner
+    uint256 private _incomingOwnerStartTime;
+
     // Withdrawal requests pending with the contract
     WithdrawalRequest private _pendingWithdrawalRequest;
     // Nonce for permit operations
@@ -65,6 +73,7 @@ contract UserSafe is IUserSafe, Initializable, UserSafeRecovery {
         uint256 __spendingLimit,
         uint256 __collateralLimit
     ) external initializer {
+        __ReentrancyGuardTransient_init();
         _ownerBytes = __owner;
 
         _spendingLimit = SpendingLimitData({
@@ -86,6 +95,11 @@ contract UserSafe is IUserSafe, Initializable, UserSafeRecovery {
      * @inheritdoc IUserSafe
      */
     function owner() public view returns (OwnerLib.OwnerObject memory) {
+        if (
+            _incomingOwnerStartTime != 0 &&
+            block.timestamp > _incomingOwnerStartTime
+        ) return _incomingOwnerBytes.getOwnerObject();
+
         return _ownerBytes.getOwnerObject();
     }
 
@@ -154,16 +168,21 @@ contract UserSafe is IUserSafe, Initializable, UserSafeRecovery {
         return _collateralLimit;
     }
 
-    // NOTE: Do we want to have this functionality? Owner is KYCd already
-    // they should not be able to change the owner
     /**
      * @inheritdoc IUserSafe
      */
     function setOwner(
         bytes calldata __owner,
         bytes calldata signature
-    ) external incrementNonce {
+    ) external incrementNonce currentOwner {
+        // Since owner is setting a new owner, an incoming owner does not make sense
+        delete _incomingOwnerBytes;
+        delete _incomingOwnerStartTime;
+
         owner().verifySetOwnerSig(_nonce, __owner, signature);
+
+        // Owner should not be zero
+        __owner.getOwnerObject()._ownerNotZero();
         _setOwner(__owner);
     }
 
@@ -174,7 +193,7 @@ contract UserSafe is IUserSafe, Initializable, UserSafeRecovery {
         uint8 spendingLimitType,
         uint256 limitInUsd,
         bytes calldata signature
-    ) external incrementNonce {
+    ) external incrementNonce currentOwner {
         owner().verifyResetSpendingLimitSig(
             _nonce,
             spendingLimitType,
@@ -190,7 +209,7 @@ contract UserSafe is IUserSafe, Initializable, UserSafeRecovery {
     function updateSpendingLimit(
         uint256 limitInUsd,
         bytes calldata signature
-    ) external incrementNonce {
+    ) external incrementNonce currentOwner {
         owner().verifyUpdateSpendingLimitSig(_nonce, limitInUsd, signature);
         _updateSpendingLimit(limitInUsd);
     }
@@ -201,7 +220,7 @@ contract UserSafe is IUserSafe, Initializable, UserSafeRecovery {
     function setCollateralLimit(
         uint256 limitInUsd,
         bytes calldata signature
-    ) external incrementNonce {
+    ) external incrementNonce currentOwner {
         owner().verifySetCollateralLimitSig(_nonce, limitInUsd, signature);
         _setCollateralLimit(limitInUsd);
     }
@@ -250,7 +269,9 @@ contract UserSafe is IUserSafe, Initializable, UserSafeRecovery {
         uint256[] calldata amounts,
         address recipient,
         bytes calldata signature
-    ) external incrementNonce {
+    ) external incrementNonce currentOwner {
+        if (tokens.length > 1) _checkDuplicates(tokens);
+
         owner().verifyRequestWithdrawalSig(
             _nonce,
             tokens,
@@ -264,7 +285,7 @@ contract UserSafe is IUserSafe, Initializable, UserSafeRecovery {
     /**
      * @inheritdoc IUserSafe
      */
-    function processWithdrawal() external {
+    function processWithdrawal() external nonReentrant {
         if (_pendingWithdrawalRequest.finalizeTime > block.timestamp)
             revert CannotWithdrawYet();
         address recipient = _pendingWithdrawalRequest.recipient;
@@ -296,7 +317,7 @@ contract UserSafe is IUserSafe, Initializable, UserSafeRecovery {
     function setIsRecoveryActive(
         bool isActive,
         bytes calldata signature
-    ) external incrementNonce {
+    ) external incrementNonce currentOwner {
         _setIsRecoveryActive(isActive, _nonce, signature);
     }
 
@@ -306,7 +327,7 @@ contract UserSafe is IUserSafe, Initializable, UserSafeRecovery {
     function setUserRecoverySigner(
         address userRecoverySigner,
         bytes calldata signature
-    ) external incrementNonce {
+    ) external incrementNonce currentOwner {
         _setUserRecoverySigner(userRecoverySigner, _nonce, signature);
     }
 
@@ -316,7 +337,7 @@ contract UserSafe is IUserSafe, Initializable, UserSafeRecovery {
     function recoverUserSafe(
         bytes calldata newOwner,
         Signature[2] calldata signatures
-    ) external onlyWhenRecoveryActive incrementNonce {
+    ) external onlyWhenRecoveryActive incrementNonce currentOwner {
         _recoverUserSafe(_nonce, signatures, newOwner);
     }
 
@@ -359,6 +380,8 @@ contract UserSafe is IUserSafe, Initializable, UserSafeRecovery {
             inputAmountToSwap
         );
 
+        uint256 balBefore = IERC20(outputToken).balanceOf(address(this));
+
         uint256 returnAmount = _swapFunds(
             inputTokenToSwap,
             outputToken,
@@ -367,6 +390,11 @@ contract UserSafe is IUserSafe, Initializable, UserSafeRecovery {
             guaranteedOutputAmount,
             swapData
         );
+
+        if (
+            IERC20(outputToken).balanceOf(address(this)) !=
+            balBefore + returnAmount
+        ) revert IncorrectOutputAmount();
 
         if (outputAmountToTransfer > returnAmount)
             revert TransferAmountGreaterThanReceived();
@@ -422,10 +450,10 @@ contract UserSafe is IUserSafe, Initializable, UserSafeRecovery {
      */
     function repay(
         address token,
-        uint256 repayDebtUsdcAmt
+        uint256 amount
     ) external onlyEtherFiWallet {
         address debtManager = _cashDataProvider.etherFiCashDebtManager();
-        _repay(debtManager, token, repayDebtUsdcAmt);
+        _repay(debtManager, token, amount);
     }
 
     /**
@@ -493,52 +521,94 @@ contract UserSafe is IUserSafe, Initializable, UserSafeRecovery {
     ) internal {
         _currentSpendingLimit();
 
-        uint256 startTime = block.timestamp + _cashDataProvider.delay();
-        _incomingSpendingLimitStartTime = startTime;
+        if (limitInUsd > _spendingLimit.spendingLimit) {
+            delete _incomingSpendingLimit;
+            delete _incomingSpendingLimitStartTime;
 
-        _incomingSpendingLimit = SpendingLimitData({
-            spendingLimitType: SpendingLimitTypes(spendingLimitType),
-            renewalTimestamp: _getSpendingLimitRenewalTimestamp(
-                uint64(startTime),
-                SpendingLimitTypes(spendingLimitType)
-            ),
-            spendingLimit: limitInUsd,
-            usedUpAmount: 0
-        });
+            _spendingLimit = SpendingLimitData({
+                spendingLimitType: SpendingLimitTypes(spendingLimitType),
+                renewalTimestamp: _getSpendingLimitRenewalTimestamp(
+                    uint64(block.timestamp),
+                    SpendingLimitTypes(spendingLimitType)
+                ),
+                spendingLimit: limitInUsd,
+                usedUpAmount: 0
+            });
 
-        emit ResetSpendingLimit(spendingLimitType, limitInUsd, startTime);
+            emit ResetSpendingLimit(spendingLimitType, limitInUsd, block.timestamp);
+        } else {
+            uint256 startTime = block.timestamp + _cashDataProvider.delay();
+            _incomingSpendingLimitStartTime = startTime;
+
+            _incomingSpendingLimit = SpendingLimitData({
+                spendingLimitType: SpendingLimitTypes(spendingLimitType),
+                renewalTimestamp: _getSpendingLimitRenewalTimestamp(
+                    uint64(startTime),
+                    SpendingLimitTypes(spendingLimitType)
+                ),
+                spendingLimit: limitInUsd,
+                usedUpAmount: 0
+            });
+            emit ResetSpendingLimit(spendingLimitType, limitInUsd, startTime);
+        }
     }
 
     function _updateSpendingLimit(uint256 limitInUsd) internal {
         _currentSpendingLimit();
 
-        _incomingSpendingLimit = _spendingLimit;
-        _incomingSpendingLimit.spendingLimit = limitInUsd;
+        if (limitInUsd > _spendingLimit.spendingLimit) {
+            delete _incomingSpendingLimit;
+            delete _incomingSpendingLimitStartTime;
+            
+            emit UpdateSpendingLimit(
+                _spendingLimit.spendingLimit,
+                limitInUsd,
+                block.timestamp
+            );
 
-        _incomingSpendingLimitStartTime =
-            block.timestamp +
-            _cashDataProvider.delay();
+            _spendingLimit.spendingLimit = limitInUsd;
+        } else {
+            _incomingSpendingLimit = _spendingLimit;
+            _incomingSpendingLimit.spendingLimit = limitInUsd;
 
-        emit UpdateSpendingLimit(
-            _spendingLimit.spendingLimit,
-            limitInUsd,
-            _incomingSpendingLimitStartTime
-        );
+            _incomingSpendingLimitStartTime =
+                block.timestamp +
+                _cashDataProvider.delay();
+
+            emit UpdateSpendingLimit(
+                _spendingLimit.spendingLimit,
+                limitInUsd,
+                _incomingSpendingLimitStartTime
+            );
+        }
     }
 
     function _setCollateralLimit(uint256 limitInUsd) internal {
         _currentCollateralLimit();
 
-        _incomingCollateralLimitStartTime =
-            block.timestamp +
-            _cashDataProvider.delay();
-        _incomingCollateralLimit = limitInUsd;
+        if (limitInUsd > _collateralLimit) {
+            delete _incomingCollateralLimitStartTime;
+            delete _incomingCollateralLimit;
 
-        emit SetCollateralLimit(
-            _collateralLimit,
-            limitInUsd,
-            _incomingCollateralLimitStartTime
-        );
+            emit SetCollateralLimit(
+                _collateralLimit,
+                limitInUsd,
+                block.timestamp
+            );
+            _collateralLimit = limitInUsd;
+        } else {
+            _incomingCollateralLimitStartTime =
+                block.timestamp +
+                _cashDataProvider.delay();
+            _incomingCollateralLimit = limitInUsd;
+
+            emit SetCollateralLimit(
+                _collateralLimit,
+                limitInUsd,
+                _incomingCollateralLimitStartTime
+            );
+        }
+
     }
 
     function _requestWithdrawal(
@@ -573,18 +643,29 @@ contract UserSafe is IUserSafe, Initializable, UserSafeRecovery {
     }
 
     function _cancelOldWithdrawal() internal {
-        emit WithdrawalCancelled(
-            _pendingWithdrawalRequest.tokens,
-            _pendingWithdrawalRequest.amounts,
-            _pendingWithdrawalRequest.recipient
-        );
+        if (_pendingWithdrawalRequest.tokens.length > 0) {
+            emit WithdrawalCancelled(
+                _pendingWithdrawalRequest.tokens,
+                _pendingWithdrawalRequest.amounts,
+                _pendingWithdrawalRequest.recipient
+            );
 
-        delete _pendingWithdrawalRequest;
+            delete _pendingWithdrawalRequest;
+        }
     }
 
-    function _setOwner(bytes calldata __owner) internal override {
+    function _setOwner(bytes calldata __owner) internal {
         emit SetOwner(_ownerBytes.getOwnerObject(), __owner.getOwnerObject());
         _ownerBytes = __owner;
+    }
+
+    function _setIncomingOwner(bytes calldata __owner) internal override {
+        _incomingOwnerStartTime = block.timestamp + _cashDataProvider.delay();
+        OwnerLib.OwnerObject memory ownerObj = __owner.getOwnerObject();
+        ownerObj._ownerNotZero();
+
+        emit SetIncomingOwner(ownerObj, _incomingOwnerStartTime);
+        _incomingOwnerBytes = __owner;
     }
 
     function _getDecimals(address token) internal view returns (uint8) {
@@ -630,18 +711,11 @@ contract UserSafe is IUserSafe, Initializable, UserSafeRecovery {
     ) internal {
         _currentCollateralLimit();
 
-        uint256 currentCollateral = IL2DebtManager(debtManager)
-            .getCollateralValueInUsdc(address(this));
-
-        uint256 price = IPriceProvider(_cashDataProvider.priceProvider()).price(
-            token
-        );
-
+        uint256 currentCollateral = IL2DebtManager(debtManager).getCollateralValueInUsd(address(this));
+        uint256 price = IPriceProvider(_cashDataProvider.priceProvider()).price(token);
         // amount * price with 6 decimals / 10 ** tokenDecimals will convert the collateral amount to USD amount with 6 decimals
         amountToAdd = (amountToAdd * price) / 10 ** _getDecimals(token);
-
-        if (currentCollateral + amountToAdd > _collateralLimit)
-            revert ExceededCollateralLimit();
+        if (currentCollateral + amountToAdd > _collateralLimit) revert ExceededCollateralLimit();
     }
 
     function _addCollateral(
@@ -680,17 +754,17 @@ contract UserSafe is IUserSafe, Initializable, UserSafeRecovery {
     function _repay(
         address debtManager,
         address token,
-        uint256 repayDebtUsdcAmt
+        uint256 amount
     ) internal {
         // Repay token can either be borrow token or collateral token
-        IERC20(token).forceApprove(debtManager, repayDebtUsdcAmt);
+        IERC20(token).forceApprove(debtManager, amount);
 
         IL2DebtManager(debtManager).repay(
             address(this),
             token,
-            repayDebtUsdcAmt
+            amount
         );
-        emit RepayDebtManager(token, repayDebtUsdcAmt);
+        emit RepayDebtManager(token, amount);
     }
 
     function _withdrawCollateralFromDebtManager(
@@ -743,6 +817,17 @@ contract UserSafe is IUserSafe, Initializable, UserSafeRecovery {
         }
     }
 
+    function _currentOwner() internal {
+        if (
+            _incomingOwnerStartTime != 0 &&
+            block.timestamp > _incomingOwnerStartTime
+        ) {
+            _ownerBytes = _incomingOwnerBytes;
+            delete _incomingOwnerBytes;
+            delete _incomingOwnerStartTime;
+        }
+    }
+
     function _currentCollateralLimit() internal {
         if (
             _incomingCollateralLimitStartTime != 0 &&
@@ -767,8 +852,37 @@ contract UserSafe is IUserSafe, Initializable, UserSafeRecovery {
     }
 
     function _onlyEtherFiWallet() private view {
-        if (msg.sender != _cashDataProvider.etherFiWallet())
+        if (!_cashDataProvider.isEtherFiWallet(msg.sender))
             revert UnauthorizedCall();
+    }
+
+    function _checkDuplicates(address[] calldata tokens) internal {
+        bytes4 errorSelector = DuplicateTokenFound.selector;
+        // Use assembly to interact with transient storage
+        assembly {
+            // Iterate through the tokens array
+            for { let i := 0 } lt(i, tokens.length) { i := add(i, 1) }
+            {
+                // Load the current token address
+                let token := calldataload(add(tokens.offset, mul(i, 0x20)))
+                
+                // Check if the token has been seen before
+                if tload(token) {
+                    // If found, revert with custom error
+                    mstore(0x00, errorSelector) 
+                    revert(0x00, 0x04)
+                }
+                
+                // Mark the token as seen
+                tstore(token, 1)
+            }
+
+            for { let i := 0 } lt(i, tokens.length) { i := add(i, 1) }
+            {
+                let token := calldataload(add(tokens.offset, mul(i, 0x20)))
+                tstore(token, 0)
+            }
+        }
     }
 
     modifier onlyEtherFiWallet() {
@@ -778,6 +892,11 @@ contract UserSafe is IUserSafe, Initializable, UserSafeRecovery {
 
     modifier incrementNonce() {
         _nonce++;
+        _;
+    }
+
+    modifier currentOwner() {
+        _currentOwner();
         _;
     }
 }

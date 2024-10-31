@@ -51,8 +51,17 @@ contract UserSafeRecoveryTest is UserSafeSetup {
         assertEq(aliceSafe.isRecoveryActive(), setValue);
     }
 
+    function test_CanSetUserRecoverySigner() public {
+        _setUserRecoverySigner(userRecoverySigner, bytes4(0));
+        assertEq(aliceSafe.recoverySigners()[0].ethAddr, userRecoverySigner);
+    }
+
+    function test_CannotSetUserRecoverySignerIfAddressZero() public {
+        _setUserRecoverySigner(address(0), IUserSafe.InvalidRecoverySignerAddress.selector);
+    }
+
     function test_CanRecoverWithTwoAuthorizedSignatures() public {
-        _setUserRecoverySigner();
+        _setUserRecoverySigner(userRecoverySigner, bytes4(0));
 
         (address newOwner, uint256 newOwnerPk) = makeAddrAndKey("newOwner");
         bytes memory newOwnerBytes = abi.encode(newOwner);
@@ -82,12 +91,13 @@ contract UserSafeRecoveryTest is UserSafeSetup {
             assertEq(aliceSafe.owner().y, 0);
 
             vm.expectEmit();
-            emit IUserSafe.UserSafeRecovered(
-                alice.getOwnerObject(),
-                newOwner.getOwnerObject()
+            emit IUserSafe.SetIncomingOwner(
+                newOwner.getOwnerObject(),
+                block.timestamp + delay
             );
             aliceSafe.recoverUserSafe(newOwnerBytes, signatures);
 
+            vm.warp(block.timestamp + delay + 1);
             assertEq(aliceSafe.owner().ethAddr, newOwner);
             assertEq(aliceSafe.owner().x, 0);
             assertEq(aliceSafe.owner().y, 0);
@@ -98,8 +108,82 @@ contract UserSafeRecoveryTest is UserSafeSetup {
         }
     }
 
+    function test_CannotRecoverIfRecoveryIndexIsInvalid() public {
+        _setUserRecoverySigner(userRecoverySigner, bytes4(0));
+        (address newOwner, ) = makeAddrAndKey("newOwner");
+        bytes memory newOwnerBytes = abi.encode(newOwner);
+
+        uint256 nonce = aliceSafe.nonce() + 1;
+
+        bytes32 msgHash = keccak256(
+            abi.encode(
+                UserSafeLib.RECOVERY_METHOD,
+                block.chainid,
+                address(aliceSafe),
+                nonce,
+                newOwnerBytes
+            )
+        );
+
+        IUserSafe.Signature[2] memory signatures = _signRecovery(msgHash, 0, 1);
+        signatures[0].index = 3;
+        vm.expectRevert(IUserSafe.InvalidSignatureIndex.selector);
+        aliceSafe.recoverUserSafe(newOwnerBytes, signatures);
+    }
+
+    function test_UserCanCancelRecoveryIfMaliciousRecovery() public {
+        _setUserRecoverySigner(userRecoverySigner, bytes4(0));
+        (address newOwner, ) = makeAddrAndKey("newOwner");
+        bytes memory newOwnerBytes = abi.encode(newOwner);
+
+        uint256 nonce = aliceSafe.nonce() + 1;
+
+        bytes32 msgHash = keccak256(
+            abi.encode(
+                UserSafeLib.RECOVERY_METHOD,
+                block.chainid,
+                address(aliceSafe),
+                nonce,
+                newOwnerBytes
+            )
+        );
+
+        IUserSafe.Signature[2] memory signatures = _signRecovery(msgHash, 0, 1);
+
+        vm.expectEmit();
+        emit IUserSafe.SetIncomingOwner(
+            newOwner.getOwnerObject(),
+            block.timestamp + delay
+        );
+        aliceSafe.recoverUserSafe(newOwnerBytes, signatures);
+
+        bytes memory aliceOwnerBytes = abi.encode(alice);
+        nonce += 1;
+        msgHash = keccak256(
+            abi.encode(
+                UserSafeLib.SET_OWNER_METHOD,
+                block.chainid,
+                address(aliceSafe),
+                nonce,
+                aliceOwnerBytes
+            )
+        );
+
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(
+            alicePk,
+            msgHash.toEthSignedMessageHash()
+        );
+        bytes memory setOwnerSignature = abi.encodePacked(r, s, v);
+        aliceSafe.setOwner(aliceOwnerBytes, setOwnerSignature);
+
+        vm.warp(block.timestamp + delay + 1);
+        assertEq(aliceSafe.owner().ethAddr, alice);
+        assertEq(aliceSafe.owner().x, 0);
+        assertEq(aliceSafe.owner().y, 0);
+    }
+
     function test_CannotRecoverIfRecoveryIsInactive() public {
-        _setUserRecoverySigner();
+        _setUserRecoverySigner(userRecoverySigner, bytes4(0));
 
         vm.prank(alice);
         _setIsRecoveryActive(false);
@@ -148,7 +232,7 @@ contract UserSafeRecoveryTest is UserSafeSetup {
     }
 
     function test_RecoveryFailsIfSignatureIsInvalid() public {
-        _setUserRecoverySigner();
+        _setUserRecoverySigner(userRecoverySigner, bytes4(0));
 
         address newOwner = makeAddr("newOwner");
         bytes memory newOwnerBytes = abi.encode(newOwner);
@@ -276,7 +360,7 @@ contract UserSafeRecoveryTest is UserSafeSetup {
         aliceSafe.setOwner(ownerBytes, signature);
     }
 
-    function _setUserRecoverySigner() internal {
+    function _setUserRecoverySigner(address signer, bytes4 err) internal {
         uint256 nonce = aliceSafe.nonce() + 1;
         bytes32 msgHash = keccak256(
             abi.encode(
@@ -284,7 +368,7 @@ contract UserSafeRecoveryTest is UserSafeSetup {
                 block.chainid,
                 address(aliceSafe),
                 nonce,
-                userRecoverySigner
+                signer
             )
         );
 
@@ -294,7 +378,8 @@ contract UserSafeRecoveryTest is UserSafeSetup {
         );
 
         bytes memory signature = abi.encodePacked(r, s, v);
-
-        aliceSafe.setUserRecoverySigner(userRecoverySigner, signature);
+        
+        if (err != bytes4(0)) vm.expectRevert(err);
+        aliceSafe.setUserRecoverySigner(signer, signature);
     }
 }

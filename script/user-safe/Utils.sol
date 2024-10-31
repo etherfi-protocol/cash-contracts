@@ -11,11 +11,14 @@ struct ChainConfig {
     address weEthWethOracle;
     address ethUsdcOracle;
     address swapRouter1InchV6;
+    address swapRouterOpenOcean;
     address aaveV3Pool;
     address aaveV3PoolDataProvider;
 }
 
 contract Utils is Script {
+    address eth = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
+
     function getChainConfig(
         string memory chainId
     ) internal view returns (ChainConfig memory) {
@@ -57,6 +60,11 @@ contract Utils is Script {
             string.concat(".", chainId, ".", "swapRouter1InchV6")
         );
 
+        address swapRouterOpenOcean = stdJson.readAddress(
+            inputJson,
+            string.concat(".", chainId, ".", "swapRouterOpenOcean")
+        );
+
         address aaveV3Pool = stdJson.readAddress(
             inputJson,
             string.concat(".", chainId, ".", "aaveV3Pool")
@@ -75,6 +83,7 @@ contract Utils is Script {
                 weEthWethOracle: weEthWethOracle,
                 ethUsdcOracle: ethUsdcOracle,
                 swapRouter1InchV6: swapRouter1InchV6,
+                swapRouterOpenOcean: swapRouterOpenOcean,
                 aaveV3Pool: aaveV3Pool,
                 aaveV3PoolDataProvider: aaveV3PoolDataProvider
             });

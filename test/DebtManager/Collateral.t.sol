@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import {DebtManagerSetup} from "./DebtManagerSetup.t.sol";
+import {DebtManagerSetup, PriceProvider, MockPriceProvider} from "./DebtManagerSetup.t.sol";
 import {IL2DebtManager} from "../../src/interfaces/IL2DebtManager.sol";
 import {SafeERC20, IERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IERC20Errors} from "@openzeppelin/contracts/interfaces/draft-IERC6093.sol";
@@ -9,8 +9,9 @@ import {IERC20Errors} from "@openzeppelin/contracts/interfaces/draft-IERC6093.so
 contract DebtManagerCollateralTest is DebtManagerSetup {
     using SafeERC20 for IERC20;
 
-    uint256 newLtv = 80e18;
-    uint256 newLiquidationThreshold = 85e18;
+    uint80 newLtv = 80e18;
+    uint80 newLiquidationThreshold = 85e18;
+    uint96 newLiquidationBonus = 10e18;
 
     function setUp() public override {
         super.setUp();
@@ -20,30 +21,45 @@ contract DebtManagerCollateralTest is DebtManagerSetup {
     }
 
     function test_LtvCannotBeGreaterThanLiquidationThreshold() public {
+        IL2DebtManager.CollateralTokenConfig memory collateralTokenConfig;
+        collateralTokenConfig.ltv = 90e18;
+        collateralTokenConfig.liquidationThreshold = 80e18;
+
         vm.startPrank(owner);
         vm.expectRevert(
             IL2DebtManager.LtvCannotBeGreaterThanLiquidationThreshold.selector
         );
-        debtManager.setLtvAndLiquidationThreshold(address(weETH), 90e18, 80e18);
+        debtManager.setCollateralTokenConfig(address(weETH), collateralTokenConfig);
         vm.stopPrank();
     }
 
     function test_CanAddOrRemoveSupportedCollateralTokens() public {
-        address newCollateralToken = address(usdc);
-
         vm.startPrank(owner);
-        debtManager.supportCollateralToken(
-            newCollateralToken,
-            newLtv,
-            newLiquidationThreshold
+        
+        priceProvider = PriceProvider(
+            address(new MockPriceProvider(mockWeETHPriceInUsd))
         );
 
-        (uint256 _ltv, uint256 _liquidationThreshold) = debtManager
+        cashDataProvider.setPriceProvider(address(priceProvider));
+
+        address newCollateralToken = address(usdc);
+        IL2DebtManager.CollateralTokenConfig memory collateralTokenConfig;
+        collateralTokenConfig.ltv = newLtv;
+        collateralTokenConfig.liquidationThreshold = newLiquidationThreshold;
+        collateralTokenConfig.liquidationBonus = newLiquidationBonus;
+
+        debtManager.supportCollateralToken(
+            newCollateralToken,
+            collateralTokenConfig
+        );
+
+        IL2DebtManager.CollateralTokenConfig memory configFromContract = debtManager
             .collateralTokenConfig(newCollateralToken);
 
-        assertEq(_ltv, newLtv);
-        assertEq(_liquidationThreshold, newLiquidationThreshold);
-
+        assertEq(configFromContract.ltv, newLtv);
+        assertEq(configFromContract.liquidationThreshold, newLiquidationThreshold);
+        assertEq(configFromContract.liquidationBonus, newLiquidationBonus);
+        
         assertEq(debtManager.getCollateralTokens().length, 2);
         assertEq(debtManager.getCollateralTokens()[0], address(weETH));
         assertEq(debtManager.getCollateralTokens()[1], newCollateralToken);
@@ -51,10 +67,12 @@ contract DebtManagerCollateralTest is DebtManagerSetup {
         debtManager.unsupportCollateralToken(address(weETH));
         assertEq(debtManager.getCollateralTokens().length, 1);
         assertEq(debtManager.getCollateralTokens()[0], newCollateralToken);
-        (uint256 _ltvWeETH, uint256 _liquidationThresholdWeETH) = debtManager
+
+        IL2DebtManager.CollateralTokenConfig memory configWethFromContract = debtManager
             .collateralTokenConfig(address(weETH));
-        assertEq(_ltvWeETH, 0);
-        assertEq(_liquidationThresholdWeETH, 0);
+        assertEq(configWethFromContract.ltv, 0);
+        assertEq(configWethFromContract.liquidationThreshold, 0);
+        assertEq(configWethFromContract.liquidationBonus, 0);
 
         vm.stopPrank();
     }
@@ -62,29 +80,44 @@ contract DebtManagerCollateralTest is DebtManagerSetup {
     function test_OnlyAdminCanSupportOrUnsupportCollateral() public {
         address newCollateralToken = address(usdc);
 
+        IL2DebtManager.CollateralTokenConfig memory collateralTokenConfig;
+        collateralTokenConfig.ltv = newLtv;
+        collateralTokenConfig.liquidationThreshold = newLiquidationThreshold;
+        collateralTokenConfig.liquidationBonus = newLiquidationBonus;
+
         vm.startPrank(alice);
         vm.expectRevert(
-            buildAccessControlRevertData(alice, debtManager.ADMIN_ROLE())
+            buildAccessControlRevertData(alice, ADMIN_ROLE)
         );
-        debtManager.supportCollateralToken(newCollateralToken, 1, 1);
+        debtManager.supportCollateralToken(newCollateralToken, collateralTokenConfig);
         vm.expectRevert(
-            buildAccessControlRevertData(alice, debtManager.ADMIN_ROLE())
+            buildAccessControlRevertData(alice, ADMIN_ROLE)
         );
         debtManager.unsupportCollateralToken(address(weETH));
         vm.stopPrank();
     }
 
     function test_CannotAddCollateralTokenIfAlreadySupported() public {
+        IL2DebtManager.CollateralTokenConfig memory collateralTokenConfig;
+        collateralTokenConfig.ltv = newLtv;
+        collateralTokenConfig.liquidationThreshold = newLiquidationThreshold;
+        collateralTokenConfig.liquidationBonus = newLiquidationBonus;
+
         vm.startPrank(owner);
         vm.expectRevert(IL2DebtManager.AlreadyCollateralToken.selector);
-        debtManager.supportCollateralToken(address(weETH), 1, 1);
+        debtManager.supportCollateralToken(address(weETH), collateralTokenConfig);
         vm.stopPrank();
     }
 
     function test_CannotAddNullAddressAsCollateralToken() public {
+        IL2DebtManager.CollateralTokenConfig memory collateralTokenConfig;
+        collateralTokenConfig.ltv = newLtv;
+        collateralTokenConfig.liquidationThreshold = newLiquidationThreshold;
+        collateralTokenConfig.liquidationBonus = newLiquidationBonus;
+
         vm.startPrank(owner);
         vm.expectRevert(IL2DebtManager.InvalidValue.selector);
-        debtManager.supportCollateralToken(address(0), 1, 1);
+        debtManager.supportCollateralToken(address(0), collateralTokenConfig);
         vm.stopPrank();
     }
 
@@ -93,7 +126,7 @@ contract DebtManagerCollateralTest is DebtManagerSetup {
     {
         uint256 amount = 0.1 ether;
         vm.startPrank(alice);
-        weETH.safeIncreaseAllowance(address(debtManager), amount);
+        IERC20(address(weETH)).safeIncreaseAllowance(address(debtManager), amount);
         debtManager.depositCollateral(address(weETH), alice, amount);
         vm.stopPrank();
 
@@ -155,7 +188,7 @@ contract DebtManagerCollateralTest is DebtManagerSetup {
         assertEq(totalCollateralInUsdcBefore, 0);
 
         vm.startPrank(alice);
-        weETH.safeIncreaseAllowance(address(debtManager), amount);
+        IERC20(address(weETH)).safeIncreaseAllowance(address(debtManager), amount);
 
         debtManager.depositCollateral(address(weETH), alice, amount);
 
@@ -165,7 +198,7 @@ contract DebtManagerCollateralTest is DebtManagerSetup {
         ) = debtManager.collateralOf(alice);
 
         uint256 collateralValueInUsdc = debtManager
-            .convertCollateralTokenToUsdc(address(weETH), amount);
+            .convertCollateralTokenToUsd(address(weETH), amount);
 
         assertEq(collateralsAfter.length, 1);
         assertEq(collateralsAfter[0].token, address(weETH));
@@ -192,17 +225,34 @@ contract DebtManagerCollateralTest is DebtManagerSetup {
     }
 
     function test_CannotDepositCollateralIfTokenNotSupported() public {
+        vm.prank(address(userSafeFactory));
+        cashDataProvider.whitelistUserSafe(notOwner);
+
+        vm.prank(notOwner);
         vm.expectRevert(IL2DebtManager.UnsupportedCollateralToken.selector);
         debtManager.depositCollateral(address(usdc), alice, 1);
+    }
+
+    function test_CannotDepositCollateralOverSupplyCap() public {
+        uint256 amount = supplyCap + 1;
+        deal(address(weETH), alice, amount);
+        vm.startPrank(alice);
+        IERC20(address(weETH)).safeIncreaseAllowance(address(debtManager), amount);
+        vm.expectRevert(IL2DebtManager.SupplyCapBreached.selector);
+        debtManager.depositCollateral(address(weETH), alice, amount);
+        vm.stopPrank();
     }
 
     function test_CannotDepositCollateralIfAllownaceIsInsufficient() public {
         deal(address(weETH), notOwner, 2);
 
-        vm.startPrank(notOwner);
-        weETH.forceApprove(address(debtManager), 1);
+        vm.prank(address(userSafeFactory));
+        cashDataProvider.whitelistUserSafe(notOwner);
 
-        if (!isFork(chainId))
+        vm.startPrank(notOwner);
+        IERC20(address(weETH)).forceApprove(address(debtManager), 1);
+
+        if (!isFork(chainId) || isScroll(chainId))
             vm.expectRevert(
                 abi.encodeWithSelector(
                     IERC20Errors.ERC20InsufficientAllowance.selector,
@@ -219,10 +269,13 @@ contract DebtManagerCollateralTest is DebtManagerSetup {
     }
 
     function test_CannotDepositCollateralIfBalanceIsInsufficient() public {
-        vm.startPrank(notOwner);
-        weETH.safeIncreaseAllowance(address(debtManager), 1);
+        vm.prank(address(userSafeFactory));
+        cashDataProvider.whitelistUserSafe(notOwner);
 
-        if (!isFork(chainId))
+        vm.startPrank(notOwner);
+        IERC20(address(weETH)).safeIncreaseAllowance(address(debtManager), 1);
+
+        if (!isFork(chainId) || isScroll(chainId))
             vm.expectRevert(
                 abi.encodeWithSelector(
                     IERC20Errors.ERC20InsufficientBalance.selector,
@@ -235,5 +288,10 @@ contract DebtManagerCollateralTest is DebtManagerSetup {
 
         debtManager.depositCollateral(address(weETH), alice, 1);
         vm.stopPrank();
+    }
+    
+    function test_CannotDepositCollateralIfNotUserSafe() public {
+        vm.expectRevert(IL2DebtManager.OnlyUserSafe.selector);
+        debtManager.depositCollateral(address(weETH), alice, 1);
     }
 }

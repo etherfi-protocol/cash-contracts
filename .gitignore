@@ -11,6 +11,9 @@ out/
 # Docs
 docs/
 
+# Coverage
+report
+
 # Dotenv file
 .env
 

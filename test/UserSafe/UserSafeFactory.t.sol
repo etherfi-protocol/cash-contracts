@@ -11,6 +11,14 @@ import {PriceProvider} from "../../src/oracle/PriceProvider.sol";
 import {CashDataProvider} from "../../src/utils/CashDataProvider.sol";
 import {UserSafeSetup} from "./UserSafeSetup.t.sol";
 
+error OwnableUnauthorizedAccount(address account);
+
+contract UserSafeFactoryV2 is UserSafeFactory {
+    function version() external pure returns (uint256) {
+        return 2;
+    }
+}
+
 contract UserSafeFactoryTest is UserSafeSetup {
     using OwnerLib for address;
 
@@ -20,6 +28,8 @@ contract UserSafeFactoryTest is UserSafeSetup {
     bytes bobBytes = abi.encode(bob);
 
     UserSafe bobSafe;
+    bytes saltData = bytes("bobSafe");
+
 
     function setUp() public override {
         super.setUp();
@@ -30,8 +40,10 @@ contract UserSafeFactoryTest is UserSafeSetup {
             thirdPartyRecoverySigner
         );
 
+        vm.prank(owner);
         bobSafe = UserSafe(
             factory.createUserSafe(
+                saltData,
                 abi.encodeWithSelector(
                     // initialize(bytes,uint256, uint256)
                     0x32b218ac,
@@ -46,18 +58,110 @@ contract UserSafeFactoryTest is UserSafeSetup {
     }
 
     function test_Deploy() public view {
+        address deterministicAddress = factory.getUserSafeAddress(
+            saltData, 
+            abi.encodeWithSelector(
+                // initialize(bytes,uint256, uint256)
+                0x32b218ac,
+                bobBytes,
+                defaultSpendingLimit,
+                collateralLimit
+            ));
+
+        assertEq(deterministicAddress, address(bobSafe));
         assertEq(aliceSafe.owner().ethAddr, alice);
         assertEq(bobSafe.owner().ethAddr, bob);
     }
 
-    function test_Upgrade() public {
+    function test_UpgradeUserSafeImpl() public {
         vm.prank(owner);
-        factory.upgradeTo(address(implV2));
+        factory.upgradeUserSafeImpl(address(implV2));
 
         UserSafeV2Mock aliceSafeV2 = UserSafeV2Mock(address(aliceSafe));
         UserSafeV2Mock bobSafeV2 = UserSafeV2Mock(address(bobSafe));
 
         assertEq(aliceSafeV2.version(), 2);
         assertEq(bobSafeV2.version(), 2);
+    }
+
+    function test_UpgradeUserSafeFactory() public {
+        UserSafeFactoryV2 factoryV2 = new UserSafeFactoryV2();
+         
+        vm.prank(owner);
+        factory.upgradeToAndCall(address(factoryV2), "");
+
+        assertEq(UserSafeFactoryV2(address(factory)).version(), 2);
+    }
+
+    function test_OnlyOwnerCanUpgradeUserSafeImpl() public {
+        vm.prank(notOwner);
+        vm.expectRevert(buildAccessControlRevertData(notOwner, DEFAULT_ADMIN_ROLE));
+        factory.upgradeUserSafeImpl(address(implV2));
+    }
+
+    function test_OnlyOwnerCanUpgradeFactoryImpl() public {
+        vm.prank(notOwner);
+        vm.expectRevert(buildAccessControlRevertData(notOwner, DEFAULT_ADMIN_ROLE));
+        factory.upgradeToAndCall(address(1), "");
+    }
+
+    function test_OnlyAdminCanCreateUserSafe() public {
+        vm.prank(notOwner);
+        vm.expectRevert(buildAccessControlRevertData(notOwner, ADMIN_ROLE));
+        factory.createUserSafe(
+            saltData,
+            abi.encodeWithSelector(
+                // initialize(bytes,uint256, uint256)
+                0x32b218ac,
+                hex"112345",
+                defaultSpendingLimit,
+                collateralLimit
+            )
+        );
+    }
+
+    function test_OnlyAdminCanSetBeacon() public {
+        vm.prank(notOwner);
+        vm.expectRevert(buildAccessControlRevertData(notOwner, ADMIN_ROLE));
+        factory.setBeacon(address(1));
+    }
+
+    function test_SetBeacon() public {
+        address newBeacon = address(1);
+
+        vm.startPrank(owner);
+        vm.expectEmit(true, true, true, true);
+        emit UserSafeFactory.BeaconSet(factory.beacon(), newBeacon);
+        factory.setBeacon(newBeacon);
+        assertEq(factory.beacon(), newBeacon);
+        vm.stopPrank();
+    }
+
+    function test_CannotSetBeaconToAddressZero() public {
+        vm.prank(owner);
+        vm.expectRevert(UserSafeFactory.InvalidValue.selector);
+        factory.setBeacon(address(0));
+    }
+
+    function test_OnlyAdminCanSetCashDataProvider() public {
+        vm.prank(notOwner);
+        vm.expectRevert(buildAccessControlRevertData(notOwner, ADMIN_ROLE));
+        factory.setCashDataProvider(address(1));
+    }
+
+    function test_SetCashDataProvider() public {
+        address newCashDataProvider = address(1);
+        vm.startPrank(owner);
+        vm.expectEmit(true, true, true, true);
+        emit UserSafeFactory.CashDataProviderSet(factory.cashDataProvider(), newCashDataProvider);
+        factory.setCashDataProvider(newCashDataProvider);
+        assertEq(factory.cashDataProvider(), newCashDataProvider);
+        vm.stopPrank();
+    }
+
+    function test_CannotSetCashDataProviderToAddressZero() public {
+        vm.prank(owner);
+        vm.expectRevert(UserSafeFactory.InvalidValue.selector);
+        factory.setCashDataProvider(address(0));
     }
 }

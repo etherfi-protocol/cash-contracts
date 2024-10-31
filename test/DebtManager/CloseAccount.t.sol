@@ -16,7 +16,7 @@ contract DebtManagerCloseAccountTest is DebtManagerSetup {
     function setUp() public override {
         super.setUp();
 
-        collateralValueInUsdc = debtManager.convertCollateralTokenToUsdc(
+        collateralValueInUsdc = debtManager.convertCollateralTokenToUsd(
             address(weETH),
             collateralAmount
         );
@@ -27,7 +27,7 @@ contract DebtManagerCloseAccountTest is DebtManagerSetup {
         deal(address(usdc), address(debtManager), 1 ether);
 
         vm.startPrank(alice);
-        weETH.safeIncreaseAllowance(address(debtManager), collateralAmount);
+        IERC20(address(weETH)).safeIncreaseAllowance(address(debtManager), collateralAmount);
         debtManager.depositCollateral(address(weETH), alice, collateralAmount);
         vm.stopPrank();
     }
@@ -40,7 +40,7 @@ contract DebtManagerCloseAccountTest is DebtManagerSetup {
             amount: collateralAmount
         });
 
-        uint256 aliceCollateralBefore = debtManager.getCollateralValueInUsdc(
+        uint256 aliceCollateralBefore = debtManager.getCollateralValueInUsd(
             alice
         );
 
@@ -51,16 +51,21 @@ contract DebtManagerCloseAccountTest is DebtManagerSetup {
         debtManager.closeAccount();
         vm.stopPrank();
 
-        uint256 aliceCollateralAfter = debtManager.getCollateralValueInUsdc(
+        uint256 aliceCollateralAfter = debtManager.getCollateralValueInUsd(
             alice
         );
         assertEq(
             aliceCollateralBefore,
-            debtManager.convertCollateralTokenToUsdc(
+            debtManager.convertCollateralTokenToUsd(
                 address(weETH),
                 collateralAmount
             )
         );
         assertEq(aliceCollateralAfter, 0);
+    }
+
+    function test_CannotCloseAccountIfNotUserSafe() public {
+        vm.expectRevert(IL2DebtManager.OnlyUserSafe.selector);
+        debtManager.closeAccount();
     }
 }

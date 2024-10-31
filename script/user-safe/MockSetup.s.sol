@@ -7,7 +7,10 @@ import {UserSafe} from "../../src/user-safe/UserSafe.sol";
 import {MockERC20} from "../../src/mocks/MockERC20.sol";
 import {MockPriceProvider} from "../../src/mocks/MockPriceProvider.sol";
 import {MockSwapper} from "../../src/mocks/MockSwapper.sol";
-import {IL2DebtManager, L2DebtManager} from "../../src/L2DebtManager.sol";
+import {IL2DebtManager} from "../../src/interfaces/IL2DebtManager.sol";
+import {DebtManagerCore} from "../../src/debt-manager/DebtManagerCore.sol";
+import {DebtManagerAdmin} from "../../src/debt-manager/DebtManagerAdmin.sol";
+import {DebtManagerInitializer} from "../../src/debt-manager/DebtManagerInitializer.sol";
 import {CashDataProvider} from "../../src/utils/CashDataProvider.sol";
 import {Utils, ChainConfig} from "./Utils.sol";
 import {MockAaveAdapter} from "../../src/mocks/MockAaveAdapter.sol";
@@ -20,16 +23,18 @@ contract DeployMockUserSafeSetup is Utils {
     MockSwapper swapper;
     UserSafe userSafeImpl;
     UserSafeFactory userSafeFactory;
-    L2DebtManager debtManager;
+    IL2DebtManager debtManager;
     CashDataProvider cashDataProvider;
     MockAaveAdapter aaveAdapter;
     address etherFiCashMultisig;
     address etherFiWallet;
     address owner;
     uint256 delay = 60;
-    uint256 ltv = 70e18;
-    uint256 liquidationThreshold = 75e18;
-    uint256 borrowApyPerSecond = 634195839675; // 20% APR -> 20e18 / (365 days in seconds)
+    uint80 ltv = 70e18;
+    uint80 liquidationThreshold = 75e18;
+    uint96 liquidationBonus = 5e18; 
+    uint64 borrowApyPerSecond = 634195839675; // 20% APR -> 20e18 / (365 days in seconds)
+    uint256 supplyCap = 1000000 ether;
 
     // Shivam Metamask wallets
     address recoverySigner1 = 0x7fEd99d0aA90423de55e238Eb5F9416FF7Cc58eF;
@@ -64,56 +69,22 @@ contract DeployMockUserSafeSetup is Utils {
         address[] memory borrowTokens = new address[](1);
         borrowTokens[0] = address(usdc);
 
-        IL2DebtManager.CollateralTokenConfigData[]
-            memory collateralTokenConfig = new IL2DebtManager.CollateralTokenConfigData[](
+        DebtManagerCore.CollateralTokenConfig[]
+            memory collateralTokenConfig = new DebtManagerCore.CollateralTokenConfig[](
                 1
             );
-        collateralTokenConfig[0] = IL2DebtManager.CollateralTokenConfigData({
-            ltv: ltv,
-            liquidationThreshold: liquidationThreshold
-        });
-        uint256[] memory borrowApys = new uint256[](1);
-        borrowApys[0] = borrowApyPerSecond;
 
-        address debtManagerImpl = address(
-            new L2DebtManager(address(cashDataProvider))
-        );
+        collateralTokenConfig[0].ltv = ltv;
+        collateralTokenConfig[0].liquidationThreshold = liquidationThreshold;
+        collateralTokenConfig[0].liquidationBonus = liquidationBonus;
+        collateralTokenConfig[0].supplyCap = supplyCap;
 
-        address debtManagerProxy = address(
-            new UUPSProxy(
-                debtManagerImpl,
-                abi.encodeWithSelector(
-                    // initialize(address,address[],(uint256,uint256)[],address[],uint256[])
-                    0xa9e49bef,
-                    owner,
-                    collateralTokens,
-                    collateralTokenConfig,
-                    borrowTokens,
-                    borrowApys
-                )
-            )
-        );
+        address debtManagerCoreImpl = address(new DebtManagerCore());
+        address debtManagerAdminImpl = address(new DebtManagerAdmin());
+        address debtManagerInitializer = address(new DebtManagerInitializer());
+        address debtManagerProxy = address(new UUPSProxy(debtManagerInitializer, ""));
 
-        debtManager = L2DebtManager(debtManagerProxy);
-
-        (bool success, ) = address(cashDataProvider).call(
-            abi.encodeWithSelector(
-                // intiailize(address,uint64,address,address,address,address,address,address,address,address)
-                0xf86fac96,
-                owner,
-                delay,
-                etherFiWallet,
-                etherFiCashMultisig,
-                address(debtManager),
-                address(usdc),
-                address(weETH),
-                address(priceProvider),
-                address(swapper),
-                address(aaveAdapter)
-            )
-        );
-
-        if (!success) revert("Initialize failed on Cash Data Provider");
+        debtManager = IL2DebtManager(address(debtManagerProxy));
 
         userSafeImpl = new UserSafe(
             address(cashDataProvider),
@@ -121,8 +92,48 @@ contract DeployMockUserSafeSetup is Utils {
             recoverySigner2
         );
 
-        userSafeFactory = new UserSafeFactory(address(userSafeImpl), owner);
+        address factoryImpl = address(new UserSafeFactory());
+        
+        userSafeFactory = UserSafeFactory(
+            address(new UUPSProxy(
+                factoryImpl, 
+                abi.encodeWithSelector(
+                    UserSafeFactory.initialize.selector, 
+                    delay,
+                    address(userSafeImpl), 
+                    owner, 
+                    address(cashDataProvider)
+                ))
+            )
+        );
 
+        CashDataProvider(address(cashDataProvider)).initialize(
+            owner,
+            uint64(delay),
+            etherFiWallet,
+            etherFiCashMultisig,
+            address(debtManager),
+            address(priceProvider),
+            address(swapper),
+            address(aaveAdapter),
+            address(userSafeFactory)
+        );
+
+        DebtManagerInitializer(address(debtManager)).initialize(
+            owner,
+            uint48(delay),
+            address(cashDataProvider)
+        );
+        DebtManagerCore(debtManagerProxy).upgradeToAndCall(debtManagerCoreImpl, "");
+        DebtManagerCore debtManagerCore = DebtManagerCore(debtManagerProxy);
+        debtManagerCore.setAdminImpl(debtManagerAdminImpl);
+        DebtManagerAdmin(address(debtManagerCore)).supportCollateralToken(address(weETH), collateralTokenConfig[0]);
+        DebtManagerAdmin(address(debtManagerCore)).supportBorrowToken(
+            address(usdc), 
+            borrowApyPerSecond, 
+            uint128(10 * 10 ** usdc.decimals())
+        );
+        
         string memory parentObject = "parent object";
 
         string memory deployedAddresses = "addresses";
@@ -143,7 +154,12 @@ contract DeployMockUserSafeSetup is Utils {
         );
         vm.serializeAddress(
             deployedAddresses,
-            "userSafeFactory",
+            "userSafeFactoryImpl",
+            address(factoryImpl)
+        );
+        vm.serializeAddress(
+            deployedAddresses,
+            "userSafeFactoryProxy",
             address(userSafeFactory)
         );
         vm.serializeAddress(
@@ -153,8 +169,18 @@ contract DeployMockUserSafeSetup is Utils {
         );
         vm.serializeAddress(
             deployedAddresses,
-            "debtManagerImpl",
-            address(debtManagerImpl)
+            "debtManagerCore",
+            address(debtManagerCoreImpl)
+        );
+        vm.serializeAddress(
+            deployedAddresses,
+            "debtManagerAdminImpl",
+            address(debtManagerAdminImpl)
+        );
+        vm.serializeAddress(
+            deployedAddresses,
+            "debtManagerInitializer",
+            address(debtManagerInitializer)
         );
         vm.serializeAddress(
             deployedAddresses,

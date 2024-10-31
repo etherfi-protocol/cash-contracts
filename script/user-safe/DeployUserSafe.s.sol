@@ -29,8 +29,11 @@ contract DeployUserSafe is Utils {
             )
         );
 
+        bytes memory saltData = abi.encode("ownerSafe", block.timestamp);
+        
         ownerSafe = UserSafe(
             userSafeFactory.createUserSafe(
+                saltData,
                 abi.encodeWithSelector(
                     // initialize(bytes,uint256,uint256)
                     0x32b218ac,

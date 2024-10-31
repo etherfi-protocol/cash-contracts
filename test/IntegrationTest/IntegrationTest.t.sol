@@ -2,17 +2,16 @@
 pragma solidity ^0.8.24;
 
 import {IUserSafe, OwnerLib, UserSafe} from "../../src/user-safe/UserSafe.sol";
-import {MessageHashUtils} from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
-import {IntegrationTestSetup} from "./IntegrationTestSetup.t.sol";
-import {MockERC20} from "../../src/mocks/MockERC20.sol";
+import {IntegrationTestSetup, PriceProvider, MockPriceProvider, MockERC20} from "./IntegrationTestSetup.t.sol";
 import {IL2DebtManager} from "../../src/interfaces/IL2DebtManager.sol";
 import {SafeERC20, IERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 contract IntegrationTest is IntegrationTestSetup {
     using SafeERC20 for IERC20;
 
+    IERC20 weth;
     uint256 collateralAmount = 0.01 ether;
-    uint256 supplyAmount = 1e6;
+    uint256 supplyAmount = 10e6;
     uint256 borrowAmount = 1e6;
 
     function setUp() public override {
@@ -21,6 +20,8 @@ contract IntegrationTest is IntegrationTestSetup {
         if (!isFork(chainId)) {
             /// If not mainnet, give some usdc to debt manager so it can provide debt
             vm.startPrank(owner);
+            weth = IERC20(address(new MockERC20("WETH", "WETH", 18)));
+
             usdc.approve(address(etherFiCashDebtManager), supplyAmount);
             etherFiCashDebtManager.supply(
                 address(owner),
@@ -29,17 +30,49 @@ contract IntegrationTest is IntegrationTestSetup {
             );
             vm.stopPrank();
         } else {
+            vm.startPrank(owner);
+
+            weth = IERC20(chainConfig.weth);
+
+            priceProvider = PriceProvider(
+                address(new MockPriceProvider(mockWeETHPriceInUsd))
+            );
+            cashDataProvider.setPriceProvider(address(priceProvider));
+
+            address newCollateralToken = address(weth);
+            uint80 newLtv = 80e18;
+            uint80 newLiquidationThreshold = 85e18;
+            uint96 newLiquidationBonus = 8.5e18;
+
+            IL2DebtManager.CollateralTokenConfig memory config = IL2DebtManager.CollateralTokenConfig({
+                ltv: newLtv,
+                liquidationThreshold: newLiquidationThreshold,
+                liquidationBonus: newLiquidationBonus,
+                supplyCap: supplyCap
+            });
+
+            etherFiCashDebtManager.supportCollateralToken(
+                newCollateralToken,
+                config
+            );
+
             /// If it is mainnet, supply 0.01 weETH and borrow 1 USDC from Aave
             deal(
                 address(weETH),
                 address(etherFiCashDebtManager),
                 collateralAmount
             );
-            vm.startPrank(owner);
+
+            deal(
+                address(weth),
+                address(etherFiCashDebtManager),
+                collateralAmount
+            );
+            
             etherFiCashDebtManager.fundManagementOperation(
                 uint8(IL2DebtManager.MarketOperationType.SupplyAndBorrow),
                 abi.encode(
-                    address(weETH),
+                    address(weth),
                     collateralAmount,
                     address(usdc),
                     borrowAmount
@@ -54,7 +87,7 @@ contract IntegrationTest is IntegrationTestSetup {
         deal(address(weETH), address(aliceSafe), amount);
 
         uint256 aliceSafeCollateralBefore = etherFiCashDebtManager
-            .getCollateralValueInUsdc(address(aliceSafe));
+            .getCollateralValueInUsd(address(aliceSafe));
         assertEq(aliceSafeCollateralBefore, 0);
 
         uint256 aliceSafeBalBefore = weETH.balanceOf(address(aliceSafe));
@@ -66,10 +99,10 @@ contract IntegrationTest is IntegrationTestSetup {
         aliceSafe.addCollateral(address(weETH), amount);
 
         uint256 aliceSafeCollateralAfter = etherFiCashDebtManager
-            .getCollateralValueInUsdc(address(aliceSafe));
+            .getCollateralValueInUsd(address(aliceSafe));
         assertEq(
             aliceSafeCollateralAfter,
-            etherFiCashDebtManager.convertCollateralTokenToUsdc(
+            etherFiCashDebtManager.convertCollateralTokenToUsd(
                 address(weETH),
                 amount
             )
@@ -91,7 +124,7 @@ contract IntegrationTest is IntegrationTestSetup {
         deal(address(weETH), address(aliceSafe), supplyAmt);
 
         uint256 aliceSafeCollateralBefore = etherFiCashDebtManager
-            .getCollateralValueInUsdc(address(aliceSafe));
+            .getCollateralValueInUsd(address(aliceSafe));
         assertEq(aliceSafeCollateralBefore, 0);
 
         uint256 aliceSafeDebtBefore = etherFiCashDebtManager.borrowingOf(
@@ -121,10 +154,10 @@ contract IntegrationTest is IntegrationTestSetup {
         );
 
         uint256 aliceSafeCollateralAfter = etherFiCashDebtManager
-            .getCollateralValueInUsdc(address(aliceSafe));
+            .getCollateralValueInUsd(address(aliceSafe));
         assertEq(
             aliceSafeCollateralAfter,
-            etherFiCashDebtManager.convertCollateralTokenToUsdc(
+            etherFiCashDebtManager.convertCollateralTokenToUsd(
                 address(weETH),
                 supplyAmt
             )
@@ -267,18 +300,25 @@ contract IntegrationTest is IntegrationTestSetup {
         MockERC20 newCollateralToken = new MockERC20("CollToken", "CTK", 18);
         MockERC20 newBorrowToken = new MockERC20("DebtToken", "DTK", 18);
 
-        uint256 newCollateralLtv = 80e18;
-        uint256 newCollateralLiquidationThreshold = 85e18;
-        uint256 newBorrowTokenApy = 1e18;
+        uint80 newCollateralLtv = 80e18;
+        uint80 newCollateralLiquidationThreshold = 85e18;
+        uint96 newCollateralLiquidationBonus = 5e18;
+        uint64 newBorrowTokenApy = 1e18;
+
+        IL2DebtManager.CollateralTokenConfig memory config;
+        config.ltv = newCollateralLtv;
+        config.liquidationThreshold = newCollateralLiquidationThreshold;
+        config.liquidationBonus = newCollateralLiquidationBonus;
+        config.supplyCap = 1000000 ether;
 
         etherFiCashDebtManager.supportCollateralToken(
             address(newCollateralToken),
-            newCollateralLtv,
-            newCollateralLiquidationThreshold
+            config
         );
         etherFiCashDebtManager.supportBorrowToken(
             address(newBorrowToken),
-            newBorrowTokenApy
+            newBorrowTokenApy,
+            1
         );
         vm.stopPrank();
 
@@ -300,7 +340,7 @@ contract IntegrationTest is IntegrationTestSetup {
         );
 
         assertEq(
-            etherFiCashDebtManager.withdrawableBorrowToken(
+            etherFiCashDebtManager.supplierBalance(
                 alice,
                 address(newBorrowToken)
             ),
@@ -330,7 +370,7 @@ contract IntegrationTest is IntegrationTestSetup {
         );
 
         assertEq(
-            etherFiCashDebtManager.withdrawableBorrowToken(
+            etherFiCashDebtManager.supplierBalance(
                 owner,
                 address(newBorrowToken)
             ),
@@ -356,10 +396,10 @@ contract IntegrationTest is IntegrationTestSetup {
         );
 
         uint256 timeElapsed = 24 * 60 * 60;
-        vm.warp(block.timestamp + 24 * 60 * 60);
+        uint256 expectedInterest = 1 ether * ((newBorrowTokenApy * timeElapsed) / 1e20);
+        
+        vm.warp(block.timestamp + timeElapsed);
 
-        uint256 expectedInterest = (1 ether * newBorrowTokenApy * timeElapsed) /
-            1e20;
         assertEq(
             etherFiCashDebtManager.borrowingOf(
                 address(aliceSafe),
@@ -373,14 +413,14 @@ contract IntegrationTest is IntegrationTestSetup {
         aliceSafe.repay(address(newBorrowToken), 1 ether + expectedInterest);
 
         assertEq(
-            etherFiCashDebtManager.withdrawableBorrowToken(
+            etherFiCashDebtManager.supplierBalance(
                 alice,
                 address(newBorrowToken)
             ),
             newBorrowTokenSupplyAmt + expectedInterest / 2
         );
         assertEq(
-            etherFiCashDebtManager.withdrawableBorrowToken(
+            etherFiCashDebtManager.supplierBalance(
                 owner,
                 address(newBorrowToken)
             ),

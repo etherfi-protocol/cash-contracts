@@ -82,13 +82,13 @@ interface IUserSafe {
         uint256 startTime
     );
     event IsRecoveryActiveSet(bool isActive);
-    event UserSafeRecovered(
-        OwnerLib.OwnerObject oldOwner,
-        OwnerLib.OwnerObject newOwner
-    );
     event SetOwner(
         OwnerLib.OwnerObject oldOwner,
         OwnerLib.OwnerObject newOwner
+    );
+    event SetIncomingOwner(
+        OwnerLib.OwnerObject incomingOwner,
+        uint256 incomingOwnerStartTime
     );
     event UserRecoverySignerSet(
         address oldRecoverySigner,
@@ -112,6 +112,8 @@ interface IUserSafe {
     error RecoverySignersCannotBeSame();
     error InvalidRecoverySignerAddress();
     error UserRecoverySignerIsUnsetCannotUseIndexZero();
+    error IncorrectOutputAmount();
+    error DuplicateTokenFound();
 
     /**
      * @notice Function to fetch the address of the owner of the User Safe.
@@ -344,9 +346,9 @@ interface IUserSafe {
      * @notice Function to repay funds to EtherFiCash Debt Manager.
      * @dev Can only be called by the EtherFi Cash Wallet.
      * @param token Address of token to use for repayment. Can be USDC or the collateral tokens.
-     * @param debtAmountInUsdc Amount of debt to be repaid in USDC.
+     * @param amount Amount of token to be repaid.
      */
-    function repay(address token, uint256 debtAmountInUsdc) external;
+    function repay(address token, uint256 amount) external;
 
     /**
      * @notice Function to withdraw collateral from the Debt Manager.

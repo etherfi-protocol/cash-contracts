@@ -5,12 +5,14 @@ import {Utils, ChainConfig} from "./Utils.sol";
 import {UserSafeFactory} from "../../src/user-safe/UserSafeFactory.sol";
 import {UserSafe} from "../../src/user-safe/UserSafe.sol";
 import {stdJson} from "forge-std/StdJson.sol";
+import {UUPSProxy} from "../../src/UUPSProxy.sol";
 
 contract DeployUserSafeFactory is Utils {
     using stdJson for string;
 
     UserSafeFactory userSafeFactory;
     address userSafeImpl;
+    address cashDataProvider;
     address owner;
 
     function run() public {
@@ -21,8 +23,6 @@ contract DeployUserSafeFactory is Utils {
         // Start broadcast with deployer as the signer
         vm.startBroadcast(deployerPrivateKey);
 
-        // (owner, ownerKey) = makeAddrAndKey("owner");
-
         string memory deployments = readDeploymentFile();
 
         owner = deployer;
@@ -31,7 +31,24 @@ contract DeployUserSafeFactory is Utils {
             string.concat(".", "addresses", ".", "userSafeImpl")
         );
 
-        userSafeFactory = new UserSafeFactory(address(userSafeImpl), owner);
+        cashDataProvider = stdJson.readAddress(
+            deployments,
+            string.concat(".", "addresses", ".", "cashDataProviderProxy")
+        );
+
+        address factoryImpl = address(new UserSafeFactory());
+    
+        userSafeFactory = UserSafeFactory(
+            address(new UUPSProxy(
+                factoryImpl, 
+                abi.encodeWithSelector(
+                    UserSafeFactory.initialize.selector, 
+                    address(userSafeImpl), 
+                    owner, 
+                    address(cashDataProvider)
+                ))
+            )
+        );
 
         vm.stopBroadcast();
     }
