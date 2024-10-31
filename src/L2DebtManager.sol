@@ -764,19 +764,22 @@ contract L2DebtManager is
     /**
      * @inheritdoc IL2DebtManager
      */
-    function depositCollateral(
-        address token,
-        address user,
-        uint256 amount
-    ) external {
-        if (!isCollateralToken(token)) revert UnsupportedCollateralToken();
+   function depositCollateral(
+    address token,
+    address user,
+    uint256 amount
+) external {
+    if (!isCollateralToken(token)) revert UnsupportedCollateralToken();
 
-        IERC20(token).safeTransferFrom(msg.sender, address(this), amount);
-        _totalCollateralAmounts[token] += amount;
-        _userCollateral[user][token] += amount;
+    // Effects: Update state before interacting with external contracts
+    _totalCollateralAmounts[token] += amount;
+    _userCollateral[user][token] += amount;
 
-        emit DepositedCollateral(msg.sender, user, token, amount);
-    }
+    // Interactions: Perform the external call after state updates
+    IERC20(token).safeTransferFrom(msg.sender, address(this), amount);
+
+    emit DepositedCollateral(msg.sender, user, token, amount);
+}
 
     /**
      * @inheritdoc IL2DebtManager
