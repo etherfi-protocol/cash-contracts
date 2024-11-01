@@ -13,8 +13,10 @@ interface ICashDataProvider {
         address newPriceProvider
     );
     event SwapperUpdated(address oldSwapper, address newSwapper);
+    event EtherFiRecoverySafeUpdated(address oldSafe, address newSafe);
     event AaveAdapterUpdated(address oldAdapter, address newAdapter);
     event UserSafeFactoryUpdated(address oldFactory, address newFactory);
+    event UserSafeEventEmitterUpdated(address oldEventEmitter, address newEventEmitter);
     event UserSafeWhitelisted(address userSafe);
     event EtherFiWalletAdded(address wallet);
     event EtherFiWalletRemoved(address wallet);
@@ -72,6 +74,12 @@ interface ICashDataProvider {
      * @return Address of the user safe factory
      */
     function userSafeFactory() external view returns (address);
+
+    /**
+     * @notice Function to fetch the address of the user safe event emitter
+     * @return Address of the user safe event emitter
+     */
+    function userSafeEventEmitter() external view returns (address);
 
     /**
      * @notice Function to check if an account is a user safe
@@ -143,6 +151,12 @@ interface ICashDataProvider {
      */
     function setUserSafeFactory(address factory) external;
     
+    /**
+     * @notice Function to set the addrss of the user safe event emitter.
+     * @param eventEmitter Address of the new event emitter
+     */
+    function setUserSafeEventEmitter(address eventEmitter) external;
+
     /**
      * @notice Function to whitelist user safes
      * @notice Can only be called by the user safe factory

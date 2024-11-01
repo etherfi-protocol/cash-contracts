@@ -14,6 +14,7 @@ struct ChainConfig {
     address swapRouterOpenOcean;
     address aaveV3Pool;
     address aaveV3PoolDataProvider;
+    address stargateUsdcPool;
 }
 
 contract Utils is Script {
@@ -30,63 +31,59 @@ contract Utils is Script {
 
         string memory inputJson = vm.readFile(string.concat(dir, file));
 
-        string memory rpc = stdJson.readString(
+        ChainConfig memory config;
+
+        config.rpc = stdJson.readString(
             inputJson,
             string.concat(".", chainId, ".", "rpc")
         );
 
-        address usdc = stdJson.readAddress(
+        config.usdc = stdJson.readAddress(
             inputJson,
             string.concat(".", chainId, ".", "usdc")
         );
 
-        address weETH = stdJson.readAddress(
+        config.weETH = stdJson.readAddress(
             inputJson,
             string.concat(".", chainId, ".", "weETH")
         );
 
-        address weEthWethOracle = stdJson.readAddress(
+        config.weEthWethOracle = stdJson.readAddress(
             inputJson,
             string.concat(".", chainId, ".", "weEthWethOracle")
         );
 
-        address ethUsdcOracle = stdJson.readAddress(
+        config.ethUsdcOracle = stdJson.readAddress(
             inputJson,
             string.concat(".", chainId, ".", "ethUsdcOracle")
         );
 
-        address swapRouter1InchV6 = stdJson.readAddress(
+        config.swapRouter1InchV6 = stdJson.readAddress(
             inputJson,
             string.concat(".", chainId, ".", "swapRouter1InchV6")
         );
 
-        address swapRouterOpenOcean = stdJson.readAddress(
+        config.swapRouterOpenOcean = stdJson.readAddress(
             inputJson,
             string.concat(".", chainId, ".", "swapRouterOpenOcean")
         );
 
-        address aaveV3Pool = stdJson.readAddress(
+        config.aaveV3Pool = stdJson.readAddress(
             inputJson,
             string.concat(".", chainId, ".", "aaveV3Pool")
         );
 
-        address aaveV3PoolDataProvider = stdJson.readAddress(
+        config.aaveV3PoolDataProvider = stdJson.readAddress(
             inputJson,
             string.concat(".", chainId, ".", "aaveV3PoolDataProvider")
         );
 
-        return
-            ChainConfig({
-                rpc: rpc,
-                usdc: usdc,
-                weETH: weETH,
-                weEthWethOracle: weEthWethOracle,
-                ethUsdcOracle: ethUsdcOracle,
-                swapRouter1InchV6: swapRouter1InchV6,
-                swapRouterOpenOcean: swapRouterOpenOcean,
-                aaveV3Pool: aaveV3Pool,
-                aaveV3PoolDataProvider: aaveV3PoolDataProvider
-            });
+        config.stargateUsdcPool = stdJson.readAddress(
+            inputJson,
+            string.concat(".", chainId, ".", "stargateUsdcPool")
+        );
+
+        return config;
     }
 
     function readDeploymentFile() internal view returns (string memory) {

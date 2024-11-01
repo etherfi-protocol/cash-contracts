@@ -3,7 +3,7 @@ pragma solidity ^0.8.24;
 
 import {Script} from "forge-std/Script.sol";
 import {UserSafeFactory} from "../../src/user-safe/UserSafeFactory.sol";
-import {UserSafe} from "../../src/user-safe/UserSafe.sol";
+import {UserSafe, UserSafeEventEmitter} from "../../src/user-safe/UserSafe.sol";
 import {MockERC20} from "../../src/mocks/MockERC20.sol";
 import {MockPriceProvider} from "../../src/mocks/MockPriceProvider.sol";
 import {MockSwapper} from "../../src/mocks/MockSwapper.sol";
@@ -22,11 +22,12 @@ contract DeployMockUserSafeSetup is Utils {
     MockPriceProvider priceProvider;
     MockSwapper swapper;
     UserSafe userSafeImpl;
+    UserSafeEventEmitter userSafeEventEmitter;
     UserSafeFactory userSafeFactory;
     IL2DebtManager debtManager;
     CashDataProvider cashDataProvider;
     MockAaveAdapter aaveAdapter;
-    address settlementDispatcher;
+    address etherFiCashMultisig;
     address etherFiWallet;
     address owner;
     uint256 delay = 60;
@@ -48,7 +49,7 @@ contract DeployMockUserSafeSetup is Utils {
         vm.startBroadcast(deployerPrivateKey);
 
         etherFiWallet = deployerAddress;
-        settlementDispatcher = deployerAddress;
+        etherFiCashMultisig = deployerAddress;
         owner = deployerAddress;
 
         usdc = MockERC20(deployErc20("USDC", "USDC", 6));
@@ -107,16 +108,30 @@ contract DeployMockUserSafeSetup is Utils {
             )
         );
 
+        address eventEmitterImpl = address(new UserSafeEventEmitter());
+        userSafeEventEmitter = UserSafeEventEmitter(address(
+            new UUPSProxy(
+                eventEmitterImpl,
+                abi.encodeWithSelector(
+                    UserSafeEventEmitter.initialize.selector,
+                    delay,
+                    owner,
+                    address(cashDataProvider)
+                )
+            )
+        ));
+
         CashDataProvider(address(cashDataProvider)).initialize(
             owner,
             uint64(delay),
             etherFiWallet,
-            settlementDispatcher,
+            etherFiCashMultisig,
             address(debtManager),
             address(priceProvider),
             address(swapper),
             address(aaveAdapter),
-            address(userSafeFactory)
+            address(userSafeFactory),
+            address(userSafeEventEmitter)
         );
 
         DebtManagerInitializer(address(debtManager)).initialize(
@@ -164,6 +179,16 @@ contract DeployMockUserSafeSetup is Utils {
         );
         vm.serializeAddress(
             deployedAddresses,
+            "userSafeEventEmitterImpl",
+            address(eventEmitterImpl)
+        );
+        vm.serializeAddress(
+            deployedAddresses,
+            "userSafeEventEmitterProxy",
+            address(userSafeEventEmitter)
+        );
+        vm.serializeAddress(
+            deployedAddresses,
             "debtManagerProxy",
             address(debtManager)
         );
@@ -194,8 +219,8 @@ contract DeployMockUserSafeSetup is Utils {
         );
         vm.serializeAddress(
             deployedAddresses,
-            "settlementDispatcher",
-            address(settlementDispatcher)
+            "etherFiCashMultisig",
+            address(etherFiCashMultisig)
         );
         vm.serializeAddress(
             deployedAddresses,

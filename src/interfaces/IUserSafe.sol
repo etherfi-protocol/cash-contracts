@@ -2,16 +2,9 @@
 pragma solidity ^0.8.24;
 
 import {OwnerLib} from "../libraries/OwnerLib.sol";
+import {SpendingLimit} from "../libraries/SpendingLimitLib.sol";
 
 interface IUserSafe {
-    enum SpendingLimitTypes {
-        None,
-        Daily,
-        Weekly,
-        Monthly,
-        Yearly
-    }
-
     struct Signature {
         uint8 index;
         bytes signature;
@@ -29,81 +22,13 @@ interface IUserSafe {
         uint96 finalizeTime;
     }
 
-    struct SpendingLimitData {
-        SpendingLimitTypes spendingLimitType;
-        uint64 renewalTimestamp;
-        uint256 spendingLimit; // in USD with 6 decimals
-        uint256 usedUpAmount; // in USD with 6 decimals
-    }
-
-    event DepositFunds(address indexed token, uint256 amount);
-    event WithdrawalRequested(
-        address[] tokens,
-        uint256[] amounts,
-        address indexed recipient,
-        uint256 finalizeTimestamp
-    );
-    event WithdrawalAmountUpdated(address indexed token, uint256 amount);
-    event WithdrawalCancelled(
-        address[] tokens,
-        uint256[] amounts,
-        address indexed recipient
-    );
-    event WithdrawalProcessed(
-        address[] tokens,
-        uint256[] amounts,
-        address indexed recipient
-    );
-    event TransferForSpending(address indexed token, uint256 amount);
-    event SwapTransferForSpending(
-        address indexed inputToken,
-        uint256 inputAmount,
-        address indexed outputToken,
-        uint256 outputTokenSent
-    );
-    event AddCollateralToDebtManager(address token, uint256 amount);
-    event BorrowFromDebtManager(address token, uint256 amount);
-    event RepayDebtManager(address token, uint256 debtAmount);
-    event WithdrawCollateralFromDebtManager(address token, uint256 amount);
-    event CloseAccountWithDebtManager();
-    event ResetSpendingLimit(
-        uint8 spendingLimitType,
-        uint256 limitInUsd,
-        uint256 startTime
-    );
-    event UpdateSpendingLimit(
-        uint256 oldLimitInUsd,
-        uint256 newLimitInUsd,
-        uint256 startTime
-    );
-    event SetCollateralLimit(
-        uint256 oldLimitInUsd,
-        uint256 newLimitInUsd,
-        uint256 startTime
-    );
-    event IsRecoveryActiveSet(bool isActive);
-    event SetOwner(
-        OwnerLib.OwnerObject oldOwner,
-        OwnerLib.OwnerObject newOwner
-    );
-    event SetIncomingOwner(
-        OwnerLib.OwnerObject incomingOwner,
-        uint256 incomingOwnerStartTime
-    );
-    event UserRecoverySignerSet(
-        address oldRecoverySigner,
-        address newRecoverySigner
-    );
-
     error InsufficientBalance();
     error ArrayLengthMismatch();
     error CannotWithdrawYet();
     error UnauthorizedCall();
     error InvalidNonce();
     error TransferAmountGreaterThanReceived();
-    error ExceededSpendingLimit();
     error ExceededCollateralLimit();
-    error InvalidSpendingLimitType();
     error UnsupportedToken();
     error RecoveryNotActive();
     error InvalidSignatureIndex();
@@ -113,7 +38,7 @@ interface IUserSafe {
     error InvalidRecoverySignerAddress();
     error UserRecoverySignerIsUnsetCannotUseIndexZero();
     error IncorrectOutputAmount();
-    error DuplicateTokenFound();
+    error AmountZeroWithSixDecimals();
 
     /**
      * @notice Function to fetch the address of the owner of the User Safe.
@@ -162,10 +87,7 @@ interface IUserSafe {
      * @notice This function gives renewed limit based on if the renewal timestamp is in the past.
      * @return Current applicable spending limit
      */
-    function applicableSpendingLimit()
-        external
-        view
-        returns (SpendingLimitData memory);
+    function applicableSpendingLimit() external view returns (SpendingLimit memory);
 
     /**
      * @notice Function to get the current applicable collateral limit.
@@ -175,25 +97,20 @@ interface IUserSafe {
     function applicableCollateralLimit() external view returns (uint256);
 
     /**
+     * @notice Function to fetch if a user can spend. 
+     * @notice This is a utility function for the backend to put checks on spendings.
+     * @param token Address of the token to spend.
+     * @param amount Amount of the token to spend.
+     */
+    function canSpend(address token, uint256 amount) external view returns (bool, string memory);
+
+    /**
      * @notice Function to set the owner of the contract.
      * @param __owner Address of the new owner
      * @param signature Must be a valid signature from the user.
      */
     function setOwner(
         bytes calldata __owner,
-        bytes calldata signature
-    ) external;
-
-    /**
-     * @notice Function to set the spending limit with permit.
-     * @notice This resets the used up amount to 0 and specify a new limit.
-     * @param spendingLimitType Type of spending limit.
-     * @param limitInUsd Spending limit in USD with 6 decimals.
-     * @param signature Must be a valid signature from the user.
-     */
-    function resetSpendingLimit(
-        uint8 spendingLimitType,
-        uint256 limitInUsd,
         bytes calldata signature
     ) external;
 
@@ -210,11 +127,13 @@ interface IUserSafe {
     /**
      * @notice Function to set the spending limit with permit.
      * @notice This does not affect the used up amount and specify a new limit.
-     * @param limitInUsd Spending limit in USD with 6 decimals.
+     * @param dailyLimitInUsd Daily spending limit in USD with 6 decimals.
+     * @param dailyLimitInUsd Monthly spending limit in USD with 6 decimals.
      * @param signature Must be a valid signature from the user.
      */
     function updateSpendingLimit(
-        uint256 limitInUsd,
+        uint256 dailyLimitInUsd,
+        uint256 monthlyLimitInUsd,
         bytes calldata signature
     ) external;
 
@@ -345,8 +264,8 @@ interface IUserSafe {
     /**
      * @notice Function to repay funds to EtherFiCash Debt Manager.
      * @dev Can only be called by the EtherFi Cash Wallet.
-     * @param token Address of token to use for repayment. Can be USDC or the collateral tokens.
-     * @param amount Amount of token to be repaid.
+     * @param token Address of token to use for repayment. Can be USD or the collateral tokens.
+     * @param amount Amount of tokens to be repaid.
      */
     function repay(address token, uint256 amount) external;
 

@@ -4,7 +4,7 @@ pragma solidity ^0.8.24;
 import {Test, console, stdError} from "forge-std/Test.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {UserSafeFactory} from "../../src/user-safe/UserSafeFactory.sol";
-import {UserSafe} from "../../src//user-safe/UserSafe.sol";
+import {UserSafe, UserSafeEventEmitter, SpendingLimit} from "../../src//user-safe/UserSafe.sol";
 import {IL2DebtManager} from "../../src/interfaces/IL2DebtManager.sol";
 import {DebtManagerCore} from "../../src/debt-manager/DebtManagerCore.sol";
 import {DebtManagerAdmin} from "../../src/debt-manager/DebtManagerAdmin.sol";
@@ -42,6 +42,7 @@ contract IntegrationTestSetup is Utils {
 
     UserSafeFactory factory;
     UserSafe impl;
+    UserSafeEventEmitter eventEmitter;
 
     ERC20 usdc;
     ERC20 weETH;
@@ -51,6 +52,8 @@ contract IntegrationTestSetup is Utils {
 
     uint256 mockWeETHPriceInUsd = 3000e6;
     uint256 defaultSpendingLimit = 10000e6;
+    uint256 defaultDailySpendingLimit = 10000e6;
+    uint256 defaultMonthlySpendingLimit = 100000e6;
     uint256 collateralLimit = 10000e6;
     uint64 delay = 10;
     address settlementDispatcher = makeAddr("multisig");
@@ -81,6 +84,7 @@ contract IntegrationTestSetup is Utils {
     uint64 borrowApy = 1000; // 10%
     ChainConfig chainConfig;
     uint256 supplyCap = 10000 ether;
+    int256 timezoneOffset = 4 * 60 * 60; // Dubai timezone
 
     function setUp() public virtual {
         chainId = vm.envString("TEST_CHAIN");
@@ -218,6 +222,19 @@ contract IntegrationTestSetup is Utils {
             )
         );
 
+        address eventEmitterImpl = address(new UserSafeEventEmitter());
+        eventEmitter = UserSafeEventEmitter(address(
+            new UUPSProxy(
+                eventEmitterImpl,
+                abi.encodeWithSelector(
+                    UserSafeEventEmitter.initialize.selector,
+                    delay,
+                    owner,
+                    address(cashDataProvider)
+                )
+            )
+        ));
+
         CashDataProvider(address(cashDataProvider)).initialize(
             owner,
             delay,
@@ -227,7 +244,8 @@ contract IntegrationTestSetup is Utils {
             address(priceProvider),
             address(swapper),
             address(aaveV3Adapter),
-            address(factory)
+            address(factory),
+            address(eventEmitter)
         );
 
         DebtManagerInitializer(address(etherFiCashDebtManager)).initialize(
@@ -254,11 +272,12 @@ contract IntegrationTestSetup is Utils {
             factory.createUserSafe(
                 saltData,
                 abi.encodeWithSelector(
-                    // initialize(bytes,uint256, uint256)
-                    0x32b218ac,
+                    UserSafe.initialize.selector,
                     aliceBytes,
-                    defaultSpendingLimit,
-                    collateralLimit
+                    defaultDailySpendingLimit,
+                    defaultMonthlySpendingLimit,
+                    collateralLimit,
+                    timezoneOffset
                 )
             )
         );

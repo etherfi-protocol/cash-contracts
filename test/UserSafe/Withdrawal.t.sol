@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import {IUserSafe, OwnerLib, UserSafe, UserSafeLib} from "../../src/user-safe/UserSafe.sol";
+import {IUserSafe, OwnerLib, UserSafe, UserSafeLib, UserSafeEventEmitter, ArrayDeDupTransient} from "../../src/user-safe/UserSafe.sol";
 import {MessageHashUtils} from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
 import {UserSafeSetup} from "./UserSafeSetup.t.sol";
 
@@ -51,7 +51,8 @@ contract UserSafeWithdrawalTest is UserSafeSetup {
 
         vm.prank(notOwner);
         vm.expectEmit(true, true, true, true);
-        emit IUserSafe.WithdrawalRequested(
+        emit UserSafeEventEmitter.WithdrawalRequested(
+            address(aliceSafe),
             tokens,
             amounts,
             recipient,
@@ -99,7 +100,7 @@ contract UserSafeWithdrawalTest is UserSafeSetup {
 
         vm.warp(finalizeTime);
         vm.expectEmit(true, true, true, true);
-        emit IUserSafe.WithdrawalProcessed(tokens, amounts, recipient);
+        emit UserSafeEventEmitter.WithdrawalProcessed(address(aliceSafe), tokens, amounts, recipient);
         aliceSafe.processWithdrawal();
 
         uint256 recipientUsdcBalAfter = usdc.balanceOf(recipient);
@@ -156,7 +157,8 @@ contract UserSafeWithdrawalTest is UserSafeSetup {
 
         bytes memory signature = _requestWithdrawal(tokens, amounts, recipient);
         vm.expectEmit(true, true, true, true);
-        emit IUserSafe.WithdrawalRequested(
+        emit UserSafeEventEmitter.WithdrawalRequested(
+            address(aliceSafe),
             tokens,
             amounts,
             recipient,
@@ -187,9 +189,10 @@ contract UserSafeWithdrawalTest is UserSafeSetup {
 
         signature = _requestWithdrawal(newTokens, newAmounts, newRecipient);
         vm.expectEmit(true, true, true, true);
-        emit IUserSafe.WithdrawalCancelled(tokens, amounts, recipient);
+        emit UserSafeEventEmitter.WithdrawalCancelled(address(aliceSafe), tokens, amounts, recipient);
         vm.expectEmit(true, true, true, true);
-        emit IUserSafe.WithdrawalRequested(
+        emit UserSafeEventEmitter.WithdrawalRequested(
+            address(aliceSafe),
             newTokens,
             newAmounts,
             newRecipient,
@@ -294,7 +297,7 @@ contract UserSafeWithdrawalTest is UserSafeSetup {
 
         vm.startPrank(alice);
         bytes memory signature = _requestWithdrawal(tokens, amounts, recipient);
-        vm.expectRevert(IUserSafe.DuplicateTokenFound.selector);
+        vm.expectRevert(ArrayDeDupTransient.DuplicateTokenFound.selector);
         aliceSafe.requestWithdrawal(tokens, amounts, recipient, signature);
         vm.stopPrank();
     }

@@ -11,7 +11,11 @@ import {UUPSUpgradeable, Initializable} from "openzeppelin-contracts-upgradeable
  * @author ether.fi [shivam@ether.fi]
  * @notice Contract which stores necessary data required for Cash contracts
  */
-contract CashDataProvider is ICashDataProvider, UUPSUpgradeable, AccessControlDefaultAdminRulesUpgradeable {
+contract CashDataProvider is
+    ICashDataProvider,
+    UUPSUpgradeable,
+    AccessControlDefaultAdminRulesUpgradeable
+{
     bytes32 public constant ETHER_FI_WALLET_ROLE = keccak256("ETHER_FI_WALLET_ROLE");
     bytes32 public constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
 
@@ -29,7 +33,8 @@ contract CashDataProvider is ICashDataProvider, UUPSUpgradeable, AccessControlDe
     address private _aaveAdapter;
     // Address of user safe factory
     address private _userSafeFactory;
-
+    // Address of user safe event emitter
+    address private _userSafeEventEmitter;
     // Mapping of user safes 
     mapping (address account => bool isUserSafe) private _isUserSafe;
 
@@ -42,12 +47,27 @@ contract CashDataProvider is ICashDataProvider, UUPSUpgradeable, AccessControlDe
         address __priceProvider,
         address __swapper,
         address __aaveAdapter,
-        address __userSafeFactory
+        address __userSafeFactory,
+        address __userSafeEventEmitter
     ) external initializer {
-        __AccessControlDefaultAdminRules_init_unchained(uint48(__delay), __owner);
+        _setInitialValues(__owner, __delay, __etherFiWallet, __settlementDispatcher, __etherFiCashDebtManager, __priceProvider, __swapper, __aaveAdapter, __userSafeFactory, __userSafeEventEmitter);
+    }
+
+    function _setInitialValues(
+        address __owner,
+        uint64 __delay,
+        address __etherFiWallet,
+        address __settlementDispatcher,
+        address __etherFiCashDebtManager,
+        address __priceProvider,
+        address __swapper,
+        address __aaveAdapter,
+        address __userSafeFactory,
+        address __userSafeEventEmitter
+    ) internal {
+        __AccessControlDefaultAdminRules_init(uint48(__delay), __owner);
         _grantRole(ADMIN_ROLE, __owner);
         _grantRole(ETHER_FI_WALLET_ROLE, __etherFiWallet);
-
         _delay = __delay;
         _settlementDispatcher = __settlementDispatcher; 
         _etherFiCashDebtManager = __etherFiCashDebtManager;
@@ -55,6 +75,7 @@ contract CashDataProvider is ICashDataProvider, UUPSUpgradeable, AccessControlDe
         _swapper = __swapper;
         _aaveAdapter = __aaveAdapter;
         _userSafeFactory = __userSafeFactory;
+        _userSafeEventEmitter = __userSafeEventEmitter;
     }
 
     function _authorizeUpgrade(
@@ -115,6 +136,13 @@ contract CashDataProvider is ICashDataProvider, UUPSUpgradeable, AccessControlDe
      */
     function userSafeFactory() external view returns (address) {
         return _userSafeFactory;
+    }
+
+    /**
+     * @inheritdoc ICashDataProvider
+     */
+    function userSafeEventEmitter() external view returns (address) {
+        return _userSafeEventEmitter;
     }
     
     /**
@@ -209,6 +237,15 @@ contract CashDataProvider is ICashDataProvider, UUPSUpgradeable, AccessControlDe
         if (factory == address(0)) revert InvalidValue();
         emit UserSafeFactoryUpdated(_userSafeFactory, factory);
         _userSafeFactory = factory;
+    }
+
+    /**
+     * @inheritdoc ICashDataProvider
+     */
+    function setUserSafeEventEmitter(address eventEmitter) external onlyRole(ADMIN_ROLE) {
+        if (eventEmitter == address(0)) revert InvalidValue();
+        emit UserSafeEventEmitterUpdated(_userSafeEventEmitter, eventEmitter);
+        _userSafeEventEmitter = eventEmitter;
     }
       
     /**

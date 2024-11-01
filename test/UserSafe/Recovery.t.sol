@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import {IUserSafe, OwnerLib, UserSafe, UserSafeLib} from "../../src/user-safe/UserSafe.sol";
+import {IUserSafe, UserSafeEventEmitter, OwnerLib, UserSafe, UserSafeLib} from "../../src/user-safe/UserSafe.sol";
 import {MessageHashUtils} from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
 import {EIP1271SignatureUtils} from "../../src/libraries/EIP1271SignatureUtils.sol";
 import {ERC20, UserSafeSetup} from "./UserSafeSetup.t.sol";
@@ -51,15 +51,6 @@ contract UserSafeRecoveryTest is UserSafeSetup {
         assertEq(aliceSafe.isRecoveryActive(), setValue);
     }
 
-    function test_CanSetUserRecoverySigner() public {
-        _setUserRecoverySigner(userRecoverySigner, bytes4(0));
-        assertEq(aliceSafe.recoverySigners()[0].ethAddr, userRecoverySigner);
-    }
-
-    function test_CannotSetUserRecoverySignerIfAddressZero() public {
-        _setUserRecoverySigner(address(0), IUserSafe.InvalidRecoverySignerAddress.selector);
-    }
-
     function test_CanRecoverWithTwoAuthorizedSignatures() public {
         _setUserRecoverySigner(userRecoverySigner, bytes4(0));
 
@@ -91,7 +82,8 @@ contract UserSafeRecoveryTest is UserSafeSetup {
             assertEq(aliceSafe.owner().y, 0);
 
             vm.expectEmit();
-            emit IUserSafe.SetIncomingOwner(
+            emit UserSafeEventEmitter.IncomingOwnerSet(
+                address(aliceSafe),
                 newOwner.getOwnerObject(),
                 block.timestamp + delay
             );
@@ -151,7 +143,8 @@ contract UserSafeRecoveryTest is UserSafeSetup {
         IUserSafe.Signature[2] memory signatures = _signRecovery(msgHash, 0, 1);
 
         vm.expectEmit();
-        emit IUserSafe.SetIncomingOwner(
+        emit UserSafeEventEmitter.IncomingOwnerSet(
+            address(aliceSafe),
             newOwner.getOwnerObject(),
             block.timestamp + delay
         );
@@ -360,7 +353,7 @@ contract UserSafeRecoveryTest is UserSafeSetup {
         aliceSafe.setOwner(ownerBytes, signature);
     }
 
-    function _setUserRecoverySigner(address signer, bytes4 err) internal {
+    function _setUserRecoverySigner(address signer, bytes4 errorSelector) internal {
         uint256 nonce = aliceSafe.nonce() + 1;
         bytes32 msgHash = keccak256(
             abi.encode(
@@ -378,8 +371,8 @@ contract UserSafeRecoveryTest is UserSafeSetup {
         );
 
         bytes memory signature = abi.encodePacked(r, s, v);
-        
-        if (err != bytes4(0)) vm.expectRevert(err);
+
+        if (errorSelector != bytes4(0)) vm.expectRevert(errorSelector);
         aliceSafe.setUserRecoverySigner(signer, signature);
     }
 }

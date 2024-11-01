@@ -1,12 +1,13 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import {IUserSafe, OwnerLib, UserSafe, UserSafeLib} from "../../src/user-safe/UserSafe.sol";
+import {IUserSafe, UserSafeEventEmitter, OwnerLib, UserSafe, UserSafeLib} from "../../src/user-safe/UserSafe.sol";
 import {MessageHashUtils} from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
 import {UserSafeSetup} from "./UserSafeSetup.t.sol";
 
 contract UserSafeOwnerTest is UserSafeSetup {
     using MessageHashUtils for bytes32;
+    using OwnerLib for bytes;
 
     function test_CanSetEthereumAddrAsOwner() public {
         address newOwner = makeAddr("newOwner");
@@ -15,6 +16,8 @@ contract UserSafeOwnerTest is UserSafeSetup {
         bytes memory signature = _signSetOwner(newOwnerBytes);
 
         vm.prank(alice);
+        vm.expectEmit(true, true, true, true);
+        emit UserSafeEventEmitter.OwnerSet(address(aliceSafe), aliceSafe.owner(), newOwnerBytes.getOwnerObject());
         aliceSafe.setOwner(newOwnerBytes, signature);
 
         assertEq(aliceSafe.owner().ethAddr, newOwner);
@@ -30,6 +33,8 @@ contract UserSafeOwnerTest is UserSafeSetup {
         bytes memory signature = _signSetOwner(newOwnerBytes);
 
         vm.prank(alice);
+        vm.expectEmit(true, true, true, true);
+        emit UserSafeEventEmitter.OwnerSet(address(aliceSafe), aliceSafe.owner(), newOwnerBytes.getOwnerObject());
         aliceSafe.setOwner(newOwnerBytes, signature);
 
         assertEq(aliceSafe.owner().ethAddr, address(0));

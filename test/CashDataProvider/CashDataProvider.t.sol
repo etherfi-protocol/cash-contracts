@@ -25,6 +25,7 @@ contract CashDataProviderTest is Test {
     address aaveAdapter = makeAddr("aaveAdapter");
     address userSafeFactory = makeAddr("userSafeFactory");
     address debtManager = makeAddr("debtManager");
+    address userSafeEventEmitter = makeAddr("userSafeEventEmitter");
 
     function setUp() public {
         vm.startPrank(owner);
@@ -43,7 +44,8 @@ contract CashDataProviderTest is Test {
             priceProvider,
             swapper,
             aaveAdapter,
-            userSafeFactory
+            userSafeFactory,
+            userSafeEventEmitter
         );
 
         cashDataProvider.grantRole(ADMIN_ROLE, admin);
@@ -61,6 +63,7 @@ contract CashDataProviderTest is Test {
         assertEq(cashDataProvider.swapper(), swapper);
         assertEq(cashDataProvider.aaveAdapter(), aaveAdapter);
         assertEq(cashDataProvider.userSafeFactory(), userSafeFactory);
+        assertEq(cashDataProvider.userSafeEventEmitter(), userSafeEventEmitter);
         assertEq(cashDataProvider.hasRole(ADMIN_ROLE, owner), true);
         assertEq(cashDataProvider.hasRole(ADMIN_ROLE, admin), true);
     }

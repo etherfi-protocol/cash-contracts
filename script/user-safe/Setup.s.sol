@@ -3,7 +3,7 @@ pragma solidity ^0.8.24;
 
 import {Script, console} from "forge-std/Script.sol";
 import {UserSafeFactory} from "../../src/user-safe/UserSafeFactory.sol";
-import {UserSafe} from "../../src/user-safe/UserSafe.sol";
+import {UserSafe, UserSafeEventEmitter} from "../../src/user-safe/UserSafe.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {PriceProvider} from "../../src/oracle/PriceProvider.sol";
 import {SwapperOpenOcean} from "../../src/utils/SwapperOpenOcean.sol";
@@ -25,11 +25,12 @@ contract DeployUserSafeSetup is Utils {
     PriceProvider priceProvider;
     SwapperOpenOcean swapper;
     UserSafe userSafeImpl;
+    UserSafeEventEmitter userSafeEventEmitter;
     UserSafeFactory userSafeFactory;
     IL2DebtManager debtManager;
     CashDataProvider cashDataProvider;
     EtherFiCashAaveV3Adapter aaveV3Adapter;
-    address settlementDispatcher;
+    address etherFiCashMultisig;
     address etherFiWallet;
     address owner;
     uint256 delay = 300; // 5 min
@@ -63,7 +64,7 @@ contract DeployUserSafeSetup is Utils {
         supportedBorrowTokens[0] = chainConfig.usdc;
 
         etherFiWallet = deployerAddress;
-        settlementDispatcher = deployerAddress;
+        etherFiCashMultisig = deployerAddress;
         owner = deployerAddress;
 
         usdc = ERC20(chainConfig.usdc);
@@ -162,16 +163,30 @@ contract DeployUserSafeSetup is Utils {
             )
         );
 
+        address eventEmitterImpl = address(new UserSafeEventEmitter());
+        userSafeEventEmitter = UserSafeEventEmitter(address(
+            new UUPSProxy(
+                eventEmitterImpl,
+                abi.encodeWithSelector(
+                    UserSafeEventEmitter.initialize.selector,
+                    delay,
+                    owner,
+                    address(cashDataProvider)
+                )
+            )
+        ));
+
         CashDataProvider(address(cashDataProvider)).initialize(
             owner,
             uint64(delay),
             etherFiWallet,
-            settlementDispatcher,
+            etherFiCashMultisig,
             address(debtManager),
             address(priceProvider),
             address(swapper),
             address(aaveV3Adapter),
-            address(userSafeFactory)
+            address(userSafeFactory),
+            address(userSafeEventEmitter)
         );
 
         DebtManagerInitializer(address(debtManager)).initialize(
@@ -214,8 +229,18 @@ contract DeployUserSafeSetup is Utils {
         );
         vm.serializeAddress(
             deployedAddresses,
-            "userSafeFactory",
+            "userSafeFactoryProxy",
             address(userSafeFactory)
+        );
+        vm.serializeAddress(
+            deployedAddresses,
+            "userSafeEventEmitterImpl",
+            address(eventEmitterImpl)
+        );
+        vm.serializeAddress(
+            deployedAddresses,
+            "userSafeEventEmitterProxy",
+            address(userSafeEventEmitter)
         );
         vm.serializeAddress(
             deployedAddresses,
@@ -249,8 +274,8 @@ contract DeployUserSafeSetup is Utils {
         );
         vm.serializeAddress(
             deployedAddresses,
-            "settlementDispatcher",
-            address(settlementDispatcher)
+            "etherFiCashMultisig",
+            address(etherFiCashMultisig)
         );
         vm.serializeAddress(
             deployedAddresses,
