@@ -29,7 +29,7 @@ contract DeployUserSafeSetup is Utils {
     IL2DebtManager debtManager;
     CashDataProvider cashDataProvider;
     EtherFiCashAaveV3Adapter aaveV3Adapter;
-    address etherFiCashMultisig;
+    address settlementDispatcher;
     address etherFiWallet;
     address owner;
     uint256 delay = 300; // 5 min
@@ -63,7 +63,7 @@ contract DeployUserSafeSetup is Utils {
         supportedBorrowTokens[0] = chainConfig.usdc;
 
         etherFiWallet = deployerAddress;
-        etherFiCashMultisig = deployerAddress;
+        settlementDispatcher = deployerAddress;
         owner = deployerAddress;
 
         usdc = ERC20(chainConfig.usdc);
@@ -166,7 +166,7 @@ contract DeployUserSafeSetup is Utils {
             owner,
             uint64(delay),
             etherFiWallet,
-            etherFiCashMultisig,
+            settlementDispatcher,
             address(debtManager),
             address(priceProvider),
             address(swapper),
@@ -249,8 +249,8 @@ contract DeployUserSafeSetup is Utils {
         );
         vm.serializeAddress(
             deployedAddresses,
-            "etherFiCashMultisig",
-            address(etherFiCashMultisig)
+            "settlementDispatcher",
+            address(settlementDispatcher)
         );
         vm.serializeAddress(
             deployedAddresses,

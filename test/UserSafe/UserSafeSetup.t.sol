@@ -52,7 +52,7 @@ contract UserSafeSetup is Utils {
     uint256 defaultSpendingLimit = 10000e6;
     uint256 collateralLimit = 10000e6;
     uint64 delay = 10;
-    address etherFiCashMultisig = makeAddr("multisig");
+    address settlementDispatcher = makeAddr("settlementDispatcher");
     address etherFiCashDebtManager;
     address etherFiWallet = makeAddr("etherFiWallet");
 
@@ -222,7 +222,7 @@ contract UserSafeSetup is Utils {
             owner,
             delay,
             etherFiWallet,
-            etherFiCashMultisig,
+            settlementDispatcher,
             etherFiCashDebtManager,
             address(priceProvider),
             address(swapper),

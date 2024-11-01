@@ -53,7 +53,7 @@ contract IntegrationTestSetup is Utils {
     uint256 defaultSpendingLimit = 10000e6;
     uint256 collateralLimit = 10000e6;
     uint64 delay = 10;
-    address etherFiCashMultisig = makeAddr("multisig");
+    address settlementDispatcher = makeAddr("multisig");
     address etherFiWallet = makeAddr("etherFiWallet");
 
     address weEthWethOracle;
@@ -222,7 +222,7 @@ contract IntegrationTestSetup is Utils {
             owner,
             delay,
             etherFiWallet,
-            etherFiCashMultisig,
+            settlementDispatcher,
             address(etherFiCashDebtManager),
             address(priceProvider),
             address(swapper),

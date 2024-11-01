@@ -19,7 +19,7 @@ contract CashDataProviderTest is Test {
 
     uint64 delay = 100;
     address etherFiWallet = makeAddr("etherFiWallet");
-    address etherFiCashMultiSig = makeAddr("etherFiCashMultiSig");
+    address settlementDispatcher = makeAddr("settlementDispatcher");
     address priceProvider = makeAddr("priceProvider");
     address swapper = makeAddr("swapper");
     address aaveAdapter = makeAddr("aaveAdapter");
@@ -38,7 +38,7 @@ contract CashDataProviderTest is Test {
             owner,
             delay,
             etherFiWallet,
-            etherFiCashMultiSig,
+            settlementDispatcher,
             debtManager,
             priceProvider,
             swapper,
@@ -55,7 +55,7 @@ contract CashDataProviderTest is Test {
         assertEq(cashDataProvider.owner(), owner);
         assertEq(cashDataProvider.delay(), delay);
         assertEq(cashDataProvider.isEtherFiWallet(etherFiWallet), true);
-        assertEq(cashDataProvider.etherFiCashMultiSig(), etherFiCashMultiSig);
+        assertEq(cashDataProvider.settlementDispatcher(), settlementDispatcher);
         assertEq(cashDataProvider.etherFiCashDebtManager(), debtManager);
         assertEq(cashDataProvider.priceProvider(), priceProvider);
         assertEq(cashDataProvider.swapper(), swapper);
@@ -124,22 +124,22 @@ contract CashDataProviderTest is Test {
         assertEq(cashDataProvider.isEtherFiWallet(etherFiWallet), false);
     }
 
-    function test_SetEtherFiCashMultiSig() public {
+    function test_SetSettlementDispatcher() public {
         address newWallet = makeAddr("newWallet");
         
         vm.prank(notAdmin);
         vm.expectRevert(buildAccessControlRevertData(notAdmin, ADMIN_ROLE));
-        cashDataProvider.setEtherFiCashMultiSig(newWallet);
+        cashDataProvider.setSettlementDispatcher(newWallet);
 
         vm.prank(admin);
         vm.expectRevert(ICashDataProvider.InvalidValue.selector);
-        cashDataProvider.setEtherFiCashMultiSig(address(0));
+        cashDataProvider.setSettlementDispatcher(address(0));
         
         vm.prank(admin);
         vm.expectEmit(true, true, true, true);
-        emit ICashDataProvider.CashMultiSigUpdated(etherFiCashMultiSig, newWallet);
-        cashDataProvider.setEtherFiCashMultiSig(newWallet);
-        assertEq(cashDataProvider.etherFiCashMultiSig(), newWallet);
+        emit ICashDataProvider.SettlementDispatcherUpdated(settlementDispatcher, newWallet);
+        cashDataProvider.setSettlementDispatcher(newWallet);
+        assertEq(cashDataProvider.settlementDispatcher(), newWallet);
     }
 
     function test_SetEtherFiCashDebtManager() public {

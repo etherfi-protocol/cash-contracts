@@ -23,14 +23,14 @@ contract UserSafeTransfersTest is UserSafeSetup {
     function test_TransferForSpendingToCashMultiSig() public {
         uint256 amount = 1000e6;
 
-        uint256 multiSigUsdcBalBefore = usdc.balanceOf(etherFiCashMultisig);
+        uint256 multiSigUsdcBalBefore = usdc.balanceOf(settlementDispatcher);
 
         vm.prank(etherFiWallet);
         vm.expectEmit(true, true, true, true);
         emit IUserSafe.TransferForSpending(address(usdc), amount);
         aliceSafe.transfer(address(usdc), amount);
 
-        uint256 multiSigUsdcBalAfter = usdc.balanceOf(etherFiCashMultisig);
+        uint256 multiSigUsdcBalAfter = usdc.balanceOf(settlementDispatcher);
 
         assertEq(
             aliceSafeUsdcBalanceBefore - usdc.balanceOf(address(aliceSafe)),
@@ -80,7 +80,7 @@ contract UserSafeTransfersTest is UserSafeSetup {
                 inputAmountWeETHToSwap
             );
 
-        uint256 cashMultiSigUsdcBalBefore = usdc.balanceOf(etherFiCashMultisig);
+        uint256 cashMultiSigUsdcBalBefore = usdc.balanceOf(settlementDispatcher);
 
         vm.prank(etherFiWallet);
         vm.expectEmit(true, true, true, true);
@@ -100,7 +100,7 @@ contract UserSafeTransfersTest is UserSafeSetup {
             swapData
         );
 
-        uint256 cashMultiSigUsdcBalAfter = usdc.balanceOf(etherFiCashMultisig);
+        uint256 cashMultiSigUsdcBalAfter = usdc.balanceOf(settlementDispatcher);
 
         assertEq(
             cashMultiSigUsdcBalAfter - cashMultiSigUsdcBalBefore,

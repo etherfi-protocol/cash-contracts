@@ -11,18 +11,14 @@ import {UUPSUpgradeable, Initializable} from "openzeppelin-contracts-upgradeable
  * @author ether.fi [shivam@ether.fi]
  * @notice Contract which stores necessary data required for Cash contracts
  */
-contract CashDataProvider is
-    ICashDataProvider,
-    UUPSUpgradeable,
-    AccessControlDefaultAdminRulesUpgradeable
-{
+contract CashDataProvider is ICashDataProvider, UUPSUpgradeable, AccessControlDefaultAdminRulesUpgradeable {
     bytes32 public constant ETHER_FI_WALLET_ROLE = keccak256("ETHER_FI_WALLET_ROLE");
     bytes32 public constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
 
     // Delay for timelock
     uint64 private _delay;
-    // Address of the Cash MultiSig
-    address private _etherFiCashMultiSig;
+    // Address of the Settlement Dispatcher
+    address private _settlementDispatcher;
     // Address of the Cash Debt Manager
     address private _etherFiCashDebtManager;
     // Address of the price provider
@@ -33,6 +29,7 @@ contract CashDataProvider is
     address private _aaveAdapter;
     // Address of user safe factory
     address private _userSafeFactory;
+
     // Mapping of user safes 
     mapping (address account => bool isUserSafe) private _isUserSafe;
 
@@ -40,19 +37,19 @@ contract CashDataProvider is
         address __owner,
         uint64 __delay,
         address __etherFiWallet,
-        address __etherFiCashMultiSig,
+        address __settlementDispatcher,
         address __etherFiCashDebtManager,
         address __priceProvider,
         address __swapper,
         address __aaveAdapter,
         address __userSafeFactory
     ) external initializer {
-        __AccessControlDefaultAdminRules_init(uint48(__delay), __owner);
+        __AccessControlDefaultAdminRules_init_unchained(uint48(__delay), __owner);
         _grantRole(ADMIN_ROLE, __owner);
         _grantRole(ETHER_FI_WALLET_ROLE, __etherFiWallet);
 
         _delay = __delay;
-        _etherFiCashMultiSig = __etherFiCashMultiSig; 
+        _settlementDispatcher = __settlementDispatcher; 
         _etherFiCashDebtManager = __etherFiCashDebtManager;
         _priceProvider = __priceProvider;
         _swapper = __swapper;
@@ -81,8 +78,8 @@ contract CashDataProvider is
     /**
      * @inheritdoc ICashDataProvider
      */
-    function etherFiCashMultiSig() external view returns (address) {
-        return _etherFiCashMultiSig;
+    function settlementDispatcher() external view returns (address) {
+        return _settlementDispatcher;
     }
 
     /**
@@ -159,11 +156,11 @@ contract CashDataProvider is
     /**
      * @inheritdoc ICashDataProvider
      */
-    function setEtherFiCashMultiSig(address cashMultiSig) external onlyRole(ADMIN_ROLE) {
-        if (cashMultiSig == address(0)) revert InvalidValue();
+    function setSettlementDispatcher(address dispatcher) external onlyRole(ADMIN_ROLE) {
+        if (dispatcher == address(0)) revert InvalidValue();
 
-        emit CashMultiSigUpdated(_etherFiCashMultiSig, cashMultiSig);
-        _etherFiCashMultiSig = cashMultiSig;
+        emit SettlementDispatcherUpdated(_settlementDispatcher, dispatcher);
+        _settlementDispatcher = dispatcher;
     }
 
     /**

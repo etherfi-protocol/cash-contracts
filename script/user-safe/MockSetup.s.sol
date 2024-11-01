@@ -26,7 +26,7 @@ contract DeployMockUserSafeSetup is Utils {
     IL2DebtManager debtManager;
     CashDataProvider cashDataProvider;
     MockAaveAdapter aaveAdapter;
-    address etherFiCashMultisig;
+    address settlementDispatcher;
     address etherFiWallet;
     address owner;
     uint256 delay = 60;
@@ -48,7 +48,7 @@ contract DeployMockUserSafeSetup is Utils {
         vm.startBroadcast(deployerPrivateKey);
 
         etherFiWallet = deployerAddress;
-        etherFiCashMultisig = deployerAddress;
+        settlementDispatcher = deployerAddress;
         owner = deployerAddress;
 
         usdc = MockERC20(deployErc20("USDC", "USDC", 6));
@@ -111,7 +111,7 @@ contract DeployMockUserSafeSetup is Utils {
             owner,
             uint64(delay),
             etherFiWallet,
-            etherFiCashMultisig,
+            settlementDispatcher,
             address(debtManager),
             address(priceProvider),
             address(swapper),
@@ -194,8 +194,8 @@ contract DeployMockUserSafeSetup is Utils {
         );
         vm.serializeAddress(
             deployedAddresses,
-            "etherFiCashMultisig",
-            address(etherFiCashMultisig)
+            "settlementDispatcher",
+            address(settlementDispatcher)
         );
         vm.serializeAddress(
             deployedAddresses,

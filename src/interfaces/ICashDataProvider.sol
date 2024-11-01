@@ -3,7 +3,7 @@ pragma solidity ^0.8.24;
 
 interface ICashDataProvider {
     event DelayUpdated(uint256 oldDelay, uint256 newDelay);
-    event CashMultiSigUpdated(address oldMultiSig, address newMultiSig);
+    event SettlementDispatcherUpdated(address oldDispatcher, address newDispatcher);
     event CashDebtManagerUpdated(
         address oldDebtManager,
         address newDebtManager
@@ -13,7 +13,6 @@ interface ICashDataProvider {
         address newPriceProvider
     );
     event SwapperUpdated(address oldSwapper, address newSwapper);
-    event EtherFiRecoverySafeUpdated(address oldSafe, address newSafe);
     event AaveAdapterUpdated(address oldAdapter, address newAdapter);
     event UserSafeFactoryUpdated(address oldFactory, address newFactory);
     event UserSafeWhitelisted(address userSafe);
@@ -38,10 +37,10 @@ interface ICashDataProvider {
     function isEtherFiWallet(address wallet) external view returns (bool);
 
     /**
-     * @notice Function to fetch the address of the EtherFi Cash MultiSig wallet
-     * @return EtherFi Cash MultiSig wallet address
+     * @notice Function to fetch the address of the Settlement Dispatcher contract
+     * @return Settlement Dispatcher contract address
      */
-    function etherFiCashMultiSig() external view returns (address);
+    function settlementDispatcher() external view returns (address);
 
     /**
      * @notice Function to fetch the address of the EtherFi Cash Debt Manager contract
@@ -104,11 +103,11 @@ interface ICashDataProvider {
     function revokeEtherFiWalletRole(address wallet) external;
 
     /**
-     * @notice Function to set the address of the EtherFi Cash MultiSig wallet
+     * @notice Function to set the address of the Settlement Dispatcher contract
      * @dev Can only be called by the admin of the contract
-     * @param cashMultiSig EtherFi Cash MultiSig wallet address
+     * @param dispatcher Settlement Dispatcher contract address
      */
-    function setEtherFiCashMultiSig(address cashMultiSig) external;
+    function setSettlementDispatcher(address dispatcher) external;
 
     /**
      * @notice Function to set the address of the EtherFi Cash Debt Manager contract
@@ -143,7 +142,7 @@ interface ICashDataProvider {
      * @param factory Address of the new factory
      */
     function setUserSafeFactory(address factory) external;
-
+    
     /**
      * @notice Function to whitelist user safes
      * @notice Can only be called by the user safe factory

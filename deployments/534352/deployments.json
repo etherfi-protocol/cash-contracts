@@ -6,7 +6,7 @@
     "debtManagerCore": "0x632fee2074058Bb91CA0D1e3A6a5dc77EcA60559",
     "debtManagerInitializer": "0x15f3723655A1A3EC1C1c8fDd697262b82f5E8ED2",
     "debtManagerProxy": "0x90da1ABeea650e420bd14bD28418bD613D1786Bb",
-    "etherFiCashMultisig": "0xC81A3cFA2CEC9B3421e13d48bB18bCE38aD1687d",
+    "settlementDispatcher": "0xC81A3cFA2CEC9B3421e13d48bB18bCE38aD1687d",
     "etherFiWallet": "0x7D829d50aAF400B8B29B3b311F4aD70aD819DC6E",
     "owner": "0x7D829d50aAF400B8B29B3b311F4aD70aD819DC6E",
     "priceProvider": "0x602F0736d1DeF684fb215a6dd93c5F9085eD7E55",
