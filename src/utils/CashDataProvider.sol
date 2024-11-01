@@ -11,11 +11,7 @@ import {UUPSUpgradeable, Initializable} from "openzeppelin-contracts-upgradeable
  * @author ether.fi [shivam@ether.fi]
  * @notice Contract which stores necessary data required for Cash contracts
  */
-contract CashDataProvider is
-    ICashDataProvider,
-    UUPSUpgradeable,
-    AccessControlDefaultAdminRulesUpgradeable
-{
+contract CashDataProvider is ICashDataProvider, UUPSUpgradeable, AccessControlDefaultAdminRulesUpgradeable {
     bytes32 public constant ETHER_FI_WALLET_ROLE = keccak256("ETHER_FI_WALLET_ROLE");
     bytes32 public constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
 
@@ -35,47 +31,53 @@ contract CashDataProvider is
     address private _userSafeFactory;
     // Address of user safe event emitter
     address private _userSafeEventEmitter;
+    // Address of the EtherFi Recovery Signer
+    address internal _etherFiRecoverySigner;
+    // Address of the Third Party Recovery Signer
+    address internal _thirdPartyRecoverySigner;
+
     // Mapping of user safes 
     mapping (address account => bool isUserSafe) private _isUserSafe;
 
-    function initialize(
-        address __owner,
-        uint64 __delay,
-        address __etherFiWallet,
-        address __settlementDispatcher,
-        address __etherFiCashDebtManager,
-        address __priceProvider,
-        address __swapper,
-        address __aaveAdapter,
-        address __userSafeFactory,
-        address __userSafeEventEmitter
-    ) external initializer {
-        _setInitialValues(__owner, __delay, __etherFiWallet, __settlementDispatcher, __etherFiCashDebtManager, __priceProvider, __swapper, __aaveAdapter, __userSafeFactory, __userSafeEventEmitter);
-    }
+    function initialize(bytes memory data) external initializer {
+        {
+            (
+                address __owner,
+                uint64 __delay,
+                address __etherFiWallet,
+                address __settlementDispatcher,
+                address __etherFiCashDebtManager,
+                address __priceProvider
+            ) = abi.decode(data, (address, uint64, address, address, address, address));
+            __AccessControlDefaultAdminRules_init_unchained(uint48(__delay), __owner);
+            _grantRole(ADMIN_ROLE, __owner);
+            _grantRole(ETHER_FI_WALLET_ROLE, __etherFiWallet);
 
-    function _setInitialValues(
-        address __owner,
-        uint64 __delay,
-        address __etherFiWallet,
-        address __settlementDispatcher,
-        address __etherFiCashDebtManager,
-        address __priceProvider,
-        address __swapper,
-        address __aaveAdapter,
-        address __userSafeFactory,
-        address __userSafeEventEmitter
-    ) internal {
-        __AccessControlDefaultAdminRules_init(uint48(__delay), __owner);
-        _grantRole(ADMIN_ROLE, __owner);
-        _grantRole(ETHER_FI_WALLET_ROLE, __etherFiWallet);
-        _delay = __delay;
-        _settlementDispatcher = __settlementDispatcher; 
-        _etherFiCashDebtManager = __etherFiCashDebtManager;
-        _priceProvider = __priceProvider;
-        _swapper = __swapper;
-        _aaveAdapter = __aaveAdapter;
-        _userSafeFactory = __userSafeFactory;
-        _userSafeEventEmitter = __userSafeEventEmitter;
+            _delay = __delay;
+            _settlementDispatcher = __settlementDispatcher; 
+            _etherFiCashDebtManager = __etherFiCashDebtManager;
+            _priceProvider = __priceProvider;
+        }
+
+        {
+            ( 
+            , , , , , ,
+            address __swapper,
+            address __aaveAdapter,
+            address __userSafeFactory,
+            address __userSafeEventEmitter,
+            address __etherFiRecoverySigner,
+            address __thirdPartyRecoverySigner
+            ) = abi.decode(data, (address, uint64, address, address, address, address, address, address, address, address, address, address));
+
+            if (__etherFiRecoverySigner == address(0) || __thirdPartyRecoverySigner == address(0)) revert InvalidValue();
+            _swapper = __swapper;
+            _aaveAdapter = __aaveAdapter;
+            _userSafeFactory = __userSafeFactory;
+            _userSafeEventEmitter = __userSafeEventEmitter;
+            _etherFiRecoverySigner = __etherFiRecoverySigner;
+            _thirdPartyRecoverySigner = __thirdPartyRecoverySigner;
+        }
     }
 
     function _authorizeUpgrade(
@@ -143,6 +145,20 @@ contract CashDataProvider is
      */
     function userSafeEventEmitter() external view returns (address) {
         return _userSafeEventEmitter;
+    }
+
+    /**
+     * @inheritdoc ICashDataProvider
+     */
+    function etherFiRecoverySigner() external view returns (address) {
+        return _etherFiRecoverySigner;
+    }
+
+    /**
+     * @inheritdoc ICashDataProvider
+     */
+    function thirdPartyRecoverySigner() external view returns (address) {
+        return _thirdPartyRecoverySigner;
     }
     
     /**
@@ -246,6 +262,26 @@ contract CashDataProvider is
         if (eventEmitter == address(0)) revert InvalidValue();
         emit UserSafeEventEmitterUpdated(_userSafeEventEmitter, eventEmitter);
         _userSafeEventEmitter = eventEmitter;
+    }
+
+    /**
+     * @inheritdoc ICashDataProvider
+     */
+    function setEtherFiRecoverySigner(address recoverySigner) external onlyRole(ADMIN_ROLE) {
+        if (recoverySigner == address(0)) revert InvalidValue();
+        if (_thirdPartyRecoverySigner == recoverySigner) revert RecoverySignersCannotBeSame();
+        emit EtherFiRecoverySignerUpdated(_etherFiRecoverySigner, recoverySigner);
+        _etherFiRecoverySigner = recoverySigner;
+    }
+
+    /**
+     * @inheritdoc ICashDataProvider
+     */
+    function setThirdPartyRecoverySigner(address recoverySigner) external onlyRole(ADMIN_ROLE) {
+        if (recoverySigner == address(0)) revert InvalidValue();
+        if (_etherFiRecoverySigner == recoverySigner) revert RecoverySignersCannotBeSame();
+        emit ThirdPartyRecoverySignerUpdated(_thirdPartyRecoverySigner, recoverySigner);
+        _thirdPartyRecoverySigner = recoverySigner;
     }
       
     /**

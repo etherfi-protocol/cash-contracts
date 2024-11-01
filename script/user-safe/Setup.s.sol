@@ -3,7 +3,6 @@ pragma solidity ^0.8.24;
 
 import {Script, console} from "forge-std/Script.sol";
 import {UserSafeFactory} from "../../src/user-safe/UserSafeFactory.sol";
-import {UserSafe, UserSafeEventEmitter} from "../../src/user-safe/UserSafe.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {PriceProvider} from "../../src/oracle/PriceProvider.sol";
 import {SwapperOpenOcean} from "../../src/utils/SwapperOpenOcean.sol";
@@ -16,7 +15,11 @@ import {Utils, ChainConfig} from "./Utils.sol";
 import {EtherFiCashAaveV3Adapter} from "../../src/adapters/aave-v3/EtherFiCashAaveV3Adapter.sol";
 import {UUPSProxy} from "../../src/UUPSProxy.sol";
 import {IWeETH} from "../../src/interfaces/IWeETH.sol";
-import {IAggregatorV3} from "../../src/interfaces/IAggregatorV3.sol";
+import {IAggregatorV3} from "../../src/interfaces/IAggregatorV3.sol";import {UserSafeCore} from "../../src/user-safe/UserSafeCore.sol";
+import {SettlementDispatcher} from "../../src/settlement-dispatcher/SettlementDispatcher.sol";
+import {UserSafeSetters} from "../../src/user-safe/UserSafeSetters.sol";
+import {UserSafeEventEmitter} from "../../src/user-safe/UserSafeEventEmitter.sol";
+import {IUserSafe} from "../../src/interfaces/IUserSafe.sol";
 
 
 contract DeployUserSafeSetup is Utils {
@@ -24,13 +27,14 @@ contract DeployUserSafeSetup is Utils {
     ERC20 weETH;
     PriceProvider priceProvider;
     SwapperOpenOcean swapper;
-    UserSafe userSafeImpl;
     UserSafeEventEmitter userSafeEventEmitter;
+    UserSafeCore userSafeCoreImpl;
+    UserSafeSetters userSafeSettersImpl;
     UserSafeFactory userSafeFactory;
     IL2DebtManager debtManager;
     CashDataProvider cashDataProvider;
     EtherFiCashAaveV3Adapter aaveV3Adapter;
-    address etherFiCashMultisig;
+    SettlementDispatcher settlementDispatcher;
     address etherFiWallet;
     address owner;
     uint256 delay = 300; // 5 min
@@ -40,6 +44,8 @@ contract DeployUserSafeSetup is Utils {
 
     uint64 borrowApyPerSecond = 634195839675; // 20% APR -> 20e18 / (365 days in seconds)
     uint256 supplyCap = 10000000 ether;
+
+    uint32 optimismDestEid = 30111;
 
     // Shivam Metamask wallets
     address recoverySigner1 = 0x7fEd99d0aA90423de55e238Eb5F9416FF7Cc58eF;
@@ -64,11 +70,29 @@ contract DeployUserSafeSetup is Utils {
         supportedBorrowTokens[0] = chainConfig.usdc;
 
         etherFiWallet = deployerAddress;
-        etherFiCashMultisig = deployerAddress;
         owner = deployerAddress;
 
         usdc = ERC20(chainConfig.usdc);
         weETH = ERC20(chainConfig.weETH);
+
+        address settlementDispatcherImpl = address(new SettlementDispatcher());
+        settlementDispatcher = SettlementDispatcher(payable(address(new UUPSProxy(settlementDispatcherImpl, ""))));
+        address[] memory tokens = new address[](1);
+        tokens[0] = address(usdc);
+        
+        SettlementDispatcher.DestinationData[] memory destDatas = new SettlementDispatcher.DestinationData[](1);
+        destDatas[0] = SettlementDispatcher.DestinationData({
+            destEid: optimismDestEid,
+            destRecipient: deployerAddress,
+            stargate: chainConfig.stargateUsdcPool
+        });
+
+        settlementDispatcher.initialize(
+            uint48(delay),
+            deployerAddress,
+            tokens,
+            destDatas
+        );
 
         PriceProvider.Config memory weETHConfig = PriceProvider.Config({
             oracle: chainConfig.weEthWethOracle,
@@ -142,12 +166,8 @@ contract DeployUserSafeSetup is Utils {
 
         debtManager = IL2DebtManager(address(debtManagerProxy));
 
-        userSafeImpl = new UserSafe(
-            address(cashDataProvider),
-            recoverySigner1,
-            recoverySigner2
-        );
-
+        userSafeCoreImpl = new UserSafeCore(address(cashDataProvider));
+        userSafeSettersImpl = new UserSafeSetters(address(cashDataProvider));
         address factoryImpl = address(new UserSafeFactory());
         
         userSafeFactory = UserSafeFactory(
@@ -156,9 +176,10 @@ contract DeployUserSafeSetup is Utils {
                 abi.encodeWithSelector(
                     UserSafeFactory.initialize.selector, 
                     delay,
-                    address(userSafeImpl), 
                     owner, 
-                    address(cashDataProvider)
+                    address(cashDataProvider),
+                    address(userSafeCoreImpl),
+                    address(userSafeSettersImpl)
                 ))
             )
         );
@@ -176,18 +197,20 @@ contract DeployUserSafeSetup is Utils {
             )
         ));
 
-        CashDataProvider(address(cashDataProvider)).initialize(
+        CashDataProvider(address(cashDataProvider)).initialize(abi.encode(
             owner,
             uint64(delay),
             etherFiWallet,
-            etherFiCashMultisig,
+            settlementDispatcher,
             address(debtManager),
             address(priceProvider),
             address(swapper),
             address(aaveV3Adapter),
             address(userSafeFactory),
-            address(userSafeEventEmitter)
-        );
+            address(userSafeEventEmitter),
+            address(recoverySigner1),
+            address(recoverySigner2)
+        ));
 
         DebtManagerInitializer(address(debtManager)).initialize(
             owner,
@@ -209,7 +232,6 @@ contract DeployUserSafeSetup is Utils {
         string memory deployedAddresses = "addresses";
 
         vm.serializeAddress(deployedAddresses, "usdc", address(usdc));
-
         vm.serializeAddress(deployedAddresses, "weETH", address(weETH));
         vm.serializeAddress(
             deployedAddresses,
@@ -219,8 +241,13 @@ contract DeployUserSafeSetup is Utils {
         vm.serializeAddress(deployedAddresses, "swapper", address(swapper));
         vm.serializeAddress(
             deployedAddresses,
-            "userSafeImpl",
-            address(userSafeImpl)
+            "userSafeCoreImpl",
+            address(userSafeCoreImpl)
+        );
+        vm.serializeAddress(
+            deployedAddresses,
+            "userSafeSettersImpl",
+            address(userSafeSettersImpl)
         );
         vm.serializeAddress(
             deployedAddresses,
@@ -274,8 +301,13 @@ contract DeployUserSafeSetup is Utils {
         );
         vm.serializeAddress(
             deployedAddresses,
-            "etherFiCashMultisig",
-            address(etherFiCashMultisig)
+            "settlementDispatcherProxy",
+            address(settlementDispatcher)
+        );
+        vm.serializeAddress(
+            deployedAddresses,
+            "settlementDispatcherImpl",
+            address(settlementDispatcherImpl)
         );
         vm.serializeAddress(
             deployedAddresses,

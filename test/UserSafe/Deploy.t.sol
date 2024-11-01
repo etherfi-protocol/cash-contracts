@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import {IUserSafe, OwnerLib, UserSafe, SpendingLimit} from "../../src/user-safe/UserSafe.sol";
+import {IUserSafe, OwnerLib, SpendingLimit, UserSafeCore} from "../../src/user-safe/UserSafeCore.sol";
 import {UserSafeSetup} from "./UserSafeSetup.t.sol";
 import {CREATE3} from "solady/utils/CREATE3.sol";
 
@@ -31,7 +31,7 @@ contract UserSafeDeployTest is UserSafeSetup {
         bytes memory salt = abi.encode("safe", block.timestamp);
 
         bytes memory initData = abi.encodeWithSelector(
-            UserSafe.initialize.selector,
+            UserSafeCore.initialize.selector,
             bobBytes,
             defaultDailySpendingLimit,
             defaultMonthlySpendingLimit,
@@ -50,7 +50,7 @@ contract UserSafeDeployTest is UserSafeSetup {
         bytes memory salt = abi.encode("safe", block.timestamp);
 
         bytes memory initData = abi.encodeWithSelector(
-            UserSafe.initialize.selector,
+            UserSafeCore.initialize.selector,
             bobBytes,
             defaultDailySpendingLimit,
             defaultMonthlySpendingLimit,

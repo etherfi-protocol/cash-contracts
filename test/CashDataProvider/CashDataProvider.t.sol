@@ -26,6 +26,8 @@ contract CashDataProviderTest is Test {
     address userSafeFactory = makeAddr("userSafeFactory");
     address debtManager = makeAddr("debtManager");
     address userSafeEventEmitter = makeAddr("userSafeEventEmitter");
+    address recoverySigner1 = makeAddr("recoverySigner1");
+    address recoverySigner2 = makeAddr("recoverySigner2");
 
     function setUp() public {
         vm.startPrank(owner);
@@ -36,6 +38,7 @@ contract CashDataProviderTest is Test {
         );
 
         cashDataProvider.initialize(
+            abi.encode(
             owner,
             delay,
             etherFiWallet,
@@ -45,8 +48,11 @@ contract CashDataProviderTest is Test {
             swapper,
             aaveAdapter,
             userSafeFactory,
-            userSafeEventEmitter
-        );
+            userSafeEventEmitter,
+            recoverySigner1,
+            recoverySigner2
+        ));
+
 
         cashDataProvider.grantRole(ADMIN_ROLE, admin);
 
@@ -127,7 +133,7 @@ contract CashDataProviderTest is Test {
         assertEq(cashDataProvider.isEtherFiWallet(etherFiWallet), false);
     }
 
-    function test_SetSettlementDispatcher() public {
+    function test_SetEtherFiCashMultiSig() public {
         address newWallet = makeAddr("newWallet");
         
         vm.prank(notAdmin);
@@ -233,6 +239,24 @@ contract CashDataProviderTest is Test {
         emit ICashDataProvider.UserSafeFactoryUpdated(userSafeFactory, newWallet);
         cashDataProvider.setUserSafeFactory(newWallet);
         assertEq(cashDataProvider.userSafeFactory(), newWallet);
+    }
+
+    function test_SetUserSafeEventEmitter() public {
+        address newWallet = makeAddr("newWallet");
+    
+        vm.prank(notAdmin);
+        vm.expectRevert(buildAccessControlRevertData(notAdmin, ADMIN_ROLE));
+        cashDataProvider.setUserSafeEventEmitter(newWallet);
+
+        vm.prank(admin);
+        vm.expectRevert(ICashDataProvider.InvalidValue.selector);
+        cashDataProvider.setUserSafeEventEmitter(address(0));
+        
+        vm.prank(admin);
+        vm.expectEmit(true, true, true, true);
+        emit ICashDataProvider.UserSafeEventEmitterUpdated(userSafeEventEmitter, newWallet);
+        cashDataProvider.setUserSafeEventEmitter(newWallet);
+        assertEq(cashDataProvider.userSafeEventEmitter(), newWallet);
     }
 
     function test_WhitelistUserSafe() public {

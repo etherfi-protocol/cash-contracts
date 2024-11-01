@@ -3,12 +3,13 @@ pragma solidity ^0.8.24;
 
 import {Utils, ChainConfig} from "./Utils.sol";
 import {UserSafeFactory} from "../../src/user-safe/UserSafeFactory.sol";
-import {UserSafe} from "../../src/user-safe/UserSafe.sol";
+import {IUserSafe} from "../../src/interfaces/IUserSafe.sol";
 import {stdJson} from "forge-std/StdJson.sol";
+import {UserSafeCore} from "../../src/user-safe/UserSafeCore.sol";
 
 contract DeployUserSafe is Utils {
     UserSafeFactory userSafeFactory;
-    UserSafe ownerSafe;
+    IUserSafe ownerSafe;
     uint256 defaultDailySpendingLimit = 1000e6;
     uint256 defaultMonthlySpendingLimit = 10000e6;
     uint256 collateralLimit = 10000e6;
@@ -30,17 +31,21 @@ contract DeployUserSafe is Utils {
         userSafeFactory = UserSafeFactory(
             stdJson.readAddress(
                 deployments,
-                string.concat(".", "addresses", ".", "userSafeFactory")
+                string.concat(".", "addresses", ".", "userSafeFactoryProxy")
             )
+        );
+        address cashDataProvider = stdJson.readAddress(
+            deployments,
+            string.concat(".", "addresses", ".", "cashDataProviderProxy")
         );
 
         bytes memory saltData = abi.encode("ownerSafe", block.timestamp);
         
-        ownerSafe = UserSafe(
+        ownerSafe = IUserSafe(
             userSafeFactory.createUserSafe(
                 saltData,
                 abi.encodeWithSelector(
-                    UserSafe.initialize.selector,
+                    UserSafeCore.initialize.selector,
                     abi.encode(ownerEoa),
                     defaultDailySpendingLimit,
                     defaultMonthlySpendingLimit,

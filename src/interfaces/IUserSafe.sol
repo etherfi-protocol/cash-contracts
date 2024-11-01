@@ -138,33 +138,6 @@ interface IUserSafe {
     ) external;
 
     /**
-     * @notice Function to receive funds from the user.
-     * @param token Address of the token to receive.
-     * @param amount Amount of the token to receive.
-     */
-    function receiveFunds(address token, uint256 amount) external;
-
-    /**
-     * @notice Function to receive funds with permit from the user.
-     * @param owner Address of the owner of the token.
-     * @param token Address of the token to receive.
-     * @param amount Amount of the token to receive.
-     * @param deadline Must be a timestamp in the future.
-     * @param r Must be a valid r for the `secp256k1` signature from the user.
-     * @param s Must be a valid s for the `secp256k1` signature from the user.
-     * @param v Must be a valid v for the `secp256k1` signature from the user.
-     */
-    function receiveFundsWithPermit(
-        address owner,
-        address token,
-        uint256 amount,
-        uint256 deadline,
-        bytes32 r,
-        bytes32 s,
-        uint8 v
-    ) external;
-
-    /**
      * @notice Function to request withdrawal of funds with permit from this safe.
      * @notice Can be withdrawn with a configurable delay.
      * @param tokens Address of the tokens to withdraw.

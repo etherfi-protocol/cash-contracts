@@ -13,10 +13,11 @@ interface ICashDataProvider {
         address newPriceProvider
     );
     event SwapperUpdated(address oldSwapper, address newSwapper);
-    event EtherFiRecoverySafeUpdated(address oldSafe, address newSafe);
     event AaveAdapterUpdated(address oldAdapter, address newAdapter);
     event UserSafeFactoryUpdated(address oldFactory, address newFactory);
     event UserSafeEventEmitterUpdated(address oldEventEmitter, address newEventEmitter);
+    event EtherFiRecoverySignerUpdated(address oldSigner, address newSigner);
+    event ThirdPartyRecoverySignerUpdated(address oldSigner, address newSigner);
     event UserSafeWhitelisted(address userSafe);
     event EtherFiWalletAdded(address wallet);
     event EtherFiWalletRemoved(address wallet);
@@ -25,6 +26,7 @@ interface ICashDataProvider {
     error OnlyUserSafeFactory();
     error AlreadyAWhitelistedEtherFiWallet();
     error NotAWhitelistedEtherFiWallet();
+    error RecoverySignersCannotBeSame();
 
     /**
      * @notice Function to fetch the timelock delay for tokens from User Safe
@@ -80,6 +82,18 @@ interface ICashDataProvider {
      * @return Address of the user safe event emitter
      */
     function userSafeEventEmitter() external view returns (address);
+
+    /**
+     * @notice Function to fetch the address of the EtherFi recovery signerr
+     * @return Address of the EtherFi recovery signer
+     */
+    function etherFiRecoverySigner() external view returns (address);
+    
+    /**
+     * @notice Function to fetch the address of the third party recovery signerr
+     * @return Address of the third party recovery signer
+     */
+    function thirdPartyRecoverySigner() external view returns (address);
 
     /**
      * @notice Function to check if an account is a user safe
@@ -156,6 +170,19 @@ interface ICashDataProvider {
      * @param eventEmitter Address of the new event emitter
      */
     function setUserSafeEventEmitter(address eventEmitter) external;
+
+    
+    /**
+     * @notice Function to set the addrss of the EtherFi recovery signer.
+     * @param recoverySigner Address of the EtherFi recovery signer
+     */
+    function setEtherFiRecoverySigner(address recoverySigner) external;
+    
+    /**
+     * @notice Function to set the addrss of the third party recovery signer.
+     * @param recoverySigner Address of the third party recovery signer
+     */
+    function setThirdPartyRecoverySigner(address recoverySigner) external;
 
     /**
      * @notice Function to whitelist user safes
