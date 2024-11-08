@@ -30,9 +30,11 @@ contract UserSafeCore is UserSafeStorage {
         int256 __timezoneOffset
     ) external initializer {        
         __ReentrancyGuardTransient_init();
+        __owner.getOwnerObject()._ownerNotZero();
+        
         _isRecoveryActive = true;
         _ownerBytes = __owner;
-        (, SpendingLimit memory newLimit) = _spendingLimit.initialize(
+        SpendingLimit memory newLimit = _spendingLimit.initialize(
             __dailySpendingLimit,
             __monthlySpendingLimit,
             __timezoneOffset

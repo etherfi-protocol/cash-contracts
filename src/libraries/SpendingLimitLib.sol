@@ -23,21 +23,22 @@ library SpendingLimitLib {
     error ExceededDailySpendingLimit();
     error ExceededMonthlySpendingLimit();
     error DailyLimitCannotBeGreaterThanMonthlyLimit();
+    error InvalidTimezoneOffset();
 
     function initialize(
         SpendingLimit storage limit,
         uint256 dailyLimit,
         uint256 monthlyLimit,
         int256 timezoneOffset
-    ) external sanity(dailyLimit, monthlyLimit) returns (SpendingLimit memory, SpendingLimit memory) {
-        SpendingLimit memory dummyLimit;
+    ) external sanity(dailyLimit, monthlyLimit) returns (SpendingLimit memory) {
+        if (timezoneOffset > 24 * 60 * 60 || timezoneOffset < -24 * 60 * 60) revert InvalidTimezoneOffset();
         limit.dailyLimit = dailyLimit;
         limit.monthlyLimit = monthlyLimit;
         limit.timezoneOffset = timezoneOffset;
         limit.dailyRenewalTimestamp = block.timestamp.getStartOfNextDay(limit.timezoneOffset);
         limit.monthlyRenewalTimestamp = block.timestamp.getStartOfNextMonth(limit.timezoneOffset);
 
-        return (dummyLimit, limit);
+        return limit;
     }
 
     function currentLimit(SpendingLimit storage limit) internal {
@@ -53,7 +54,7 @@ library SpendingLimitLib {
         limit.monthlyRenewalTimestamp = finalLimit.monthlyRenewalTimestamp;
         limit.dailyLimitChangeActivationTime = finalLimit.dailyLimitChangeActivationTime;
         limit.monthlyLimitChangeActivationTime = finalLimit.monthlyLimitChangeActivationTime;
-        limit.timezoneOffset = finalLimit.timezoneOffset;
+        // limit.timezoneOffset = finalLimit.timezoneOffset;
     }
 
     function spend(SpendingLimit storage limit, uint256 amount) external {
@@ -147,7 +148,7 @@ library SpendingLimitLib {
             block.timestamp > limit.dailyLimitChangeActivationTime
         ) {
             limit.dailyLimit = limit.newDailyLimit;
-            limit.dailyRenewalTimestamp = uint256(limit.dailyLimitChangeActivationTime).getStartOfNextDay(limit.timezoneOffset);
+            // limit.dailyRenewalTimestamp = uint256(limit.dailyLimitChangeActivationTime).getStartOfNextDay(limit.timezoneOffset);
             limit.newDailyLimit = 0;
             limit.dailyLimitChangeActivationTime = 0;
         }
@@ -156,7 +157,7 @@ library SpendingLimitLib {
             block.timestamp > limit.monthlyLimitChangeActivationTime
         ) {
             limit.monthlyLimit = limit.newMonthlyLimit;
-            limit.monthlyRenewalTimestamp = uint256(limit.monthlyLimitChangeActivationTime).getStartOfNextMonth(limit.timezoneOffset);
+            // limit.monthlyRenewalTimestamp = uint256(limit.monthlyLimitChangeActivationTime).getStartOfNextMonth(limit.timezoneOffset);
             limit.newMonthlyLimit = 0;
             limit.monthlyLimitChangeActivationTime = 0;
         }
