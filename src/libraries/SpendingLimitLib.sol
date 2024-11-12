@@ -81,7 +81,6 @@ library SpendingLimitLib {
             limit.dailyLimitChangeActivationTime = uint64(block.timestamp) + delay;
         } else {
             limit.dailyLimit = newDailyLimit;
-            limit.dailyRenewalTimestamp = uint256(block.timestamp).getStartOfNextDay(limit.timezoneOffset);
             limit.newDailyLimit = 0;
             limit.dailyLimitChangeActivationTime = 0;
         }
@@ -91,7 +90,6 @@ library SpendingLimitLib {
             limit.monthlyLimitChangeActivationTime = uint64(block.timestamp) + delay;
         } else {
             limit.monthlyLimit = newMonthlyLimit;
-            limit.monthlyRenewalTimestamp = uint256(block.timestamp).getStartOfNextMonth(limit.timezoneOffset);
             limit.newMonthlyLimit = 0;
             limit.monthlyLimitChangeActivationTime = 0;
         }
