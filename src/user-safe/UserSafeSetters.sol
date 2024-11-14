@@ -34,6 +34,13 @@ contract UserSafeSetters is UserSafeStorage {
         _setOwner(__owner);
     }
 
+    function setMode(Mode mode, bytes calldata signature) external incrementNonce currentOwner {
+        owner().verifySetModeSig(_nonce, mode, signature);
+        UserSafeEventEmitter(_cashDataProvider.userSafeEventEmitter()).emitSetMode(_mode, mode);
+        _mode = mode;
+    }
+
+
     function updateSpendingLimit(
         uint256 dailyLimitInUsd,
         uint256 monthlyLimitInUsd,

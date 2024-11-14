@@ -21,7 +21,6 @@ import {UserSafeSetters} from "../../src/user-safe/UserSafeSetters.sol";
 import {UserSafeEventEmitter} from "../../src/user-safe/UserSafeEventEmitter.sol";
 import {IUserSafe} from "../../src/interfaces/IUserSafe.sol";
 
-
 contract DeployUserSafeSetup is Utils {
     ERC20 usdc;
     ERC20 weETH;
@@ -54,6 +53,14 @@ contract DeployUserSafeSetup is Utils {
     uint16 aaveV3ReferralCode = 0;
     uint256 interestRateMode = 2; // variable
 
+    address factoryImpl;
+    address eventEmitterImpl;
+    address debtManagerCoreImpl;
+    address debtManagerAdminImpl;
+    address debtManagerInitializer;
+    address cashDataProviderImpl;
+    address settlementDispatcherImpl;
+
     function run() public {
         // Pulling deployer info from the environment
         uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
@@ -75,7 +82,7 @@ contract DeployUserSafeSetup is Utils {
         usdc = ERC20(chainConfig.usdc);
         weETH = ERC20(chainConfig.weETH);
 
-        address settlementDispatcherImpl = address(new SettlementDispatcher());
+        settlementDispatcherImpl = address(new SettlementDispatcher());
         settlementDispatcher = SettlementDispatcher(payable(address(new UUPSProxy(settlementDispatcherImpl, ""))));
         address[] memory tokens = new address[](1);
         tokens[0] = address(usdc);
@@ -139,7 +146,7 @@ contract DeployUserSafeSetup is Utils {
             interestRateMode
         );
 
-        address cashDataProviderImpl = address(new CashDataProvider());
+        cashDataProviderImpl = address(new CashDataProvider());
         cashDataProvider = CashDataProvider(
             address(new UUPSProxy(cashDataProviderImpl, ""))
         );
@@ -159,16 +166,16 @@ contract DeployUserSafeSetup is Utils {
         collateralTokenConfig[0].liquidationBonus = liquidationBonus;
         collateralTokenConfig[0].supplyCap = supplyCap;
 
-        address debtManagerCoreImpl = address(new DebtManagerCore());
-        address debtManagerAdminImpl = address(new DebtManagerAdmin());
-        address debtManagerInitializer = address(new DebtManagerInitializer());
+        debtManagerCoreImpl = address(new DebtManagerCore());
+        debtManagerAdminImpl = address(new DebtManagerAdmin());
+        debtManagerInitializer = address(new DebtManagerInitializer());
         address debtManagerProxy = address(new UUPSProxy(debtManagerInitializer, ""));
 
         debtManager = IL2DebtManager(address(debtManagerProxy));
 
         userSafeCoreImpl = new UserSafeCore(address(cashDataProvider));
         userSafeSettersImpl = new UserSafeSetters(address(cashDataProvider));
-        address factoryImpl = address(new UserSafeFactory());
+        factoryImpl = address(new UserSafeFactory());
         
         userSafeFactory = UserSafeFactory(
             address(new UUPSProxy(
@@ -184,7 +191,7 @@ contract DeployUserSafeSetup is Utils {
             )
         );
 
-        address eventEmitterImpl = address(new UserSafeEventEmitter());
+        eventEmitterImpl = address(new UserSafeEventEmitter());
         userSafeEventEmitter = UserSafeEventEmitter(address(
             new UUPSProxy(
                 eventEmitterImpl,
@@ -227,6 +234,12 @@ contract DeployUserSafeSetup is Utils {
             uint128(10 * 10 ** usdc.decimals())
         );
 
+        saveDeployments();
+
+        vm.stopBroadcast();
+    }
+
+    function saveDeployments() internal {
         string memory parentObject = "parent object";
 
         string memory deployedAddresses = "addresses";
@@ -335,7 +348,5 @@ contract DeployUserSafeSetup is Utils {
         );
 
         writeDeploymentFile(finalJson);
-
-        vm.stopBroadcast();
     }
 }

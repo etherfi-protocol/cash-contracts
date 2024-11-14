@@ -162,7 +162,7 @@ contract TopUpSource is Initializable, UUPSUpgradeable, AccessControlDefaultAdmi
         require(target != address(this), "delegatecall to self");
 
         // solhint-disable-next-line no-inline-assembly
-        assembly {
+        assembly ("memory-safe") {
             // Perform delegatecall to the target contract
             let success := delegatecall(
                 gas(),

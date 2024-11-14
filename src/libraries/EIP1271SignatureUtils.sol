@@ -69,7 +69,7 @@ library EIP1271SignatureUtils {
 
     function isContract(address account) internal view returns (bool) {
         uint256 size;
-        assembly {
+        assembly ("memory-safe") {
             size := extcodesize(account)
         }
         return size > 0;

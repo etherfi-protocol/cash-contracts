@@ -21,6 +21,11 @@ import {UserSafeEventEmitter} from "./UserSafeEventEmitter.sol";
 
 contract UserSafeStorage is Initializable, ReentrancyGuardTransientUpgradeable {
     using OwnerLib for bytes;
+
+    enum Mode {
+        Debit,
+        Credit
+    }
     
     struct Signature {
         uint8 index;
@@ -77,6 +82,8 @@ contract UserSafeStorage is Initializable, ReentrancyGuardTransientUpgradeable {
     SpendingLimit internal _spendingLimit;
     // Boolean to toggle recovery mechanism on or off
     bool internal _isRecoveryActive;
+    // Debit/Credit mode
+    Mode internal _mode;
     
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor(address __cashDataProvider) {

@@ -16,6 +16,7 @@ library UserSafeLib {
     bytes32 public constant SET_COLLATERAL_LIMIT_METHOD =
         keccak256("setCollateralLimit");
     bytes32 public constant SET_OWNER_METHOD = keccak256("setOwner");
+    bytes32 public constant SET_MODE_METHOD = keccak256("setMode");
     bytes32 public constant RECOVERY_METHOD = keccak256("recoverUserSafe");
     bytes32 public constant SET_IS_RECOVERY_ACTIVE_METHOD =
         keccak256("setIsRecoveryActive");
@@ -35,6 +36,25 @@ library UserSafeLib {
                 address(this),
                 nonce,
                 owner
+            )
+        );
+
+        msgHash.verifySig(currentOwner, signature);
+    }
+
+    function verifySetModeSig(
+        OwnerLib.OwnerObject memory currentOwner,
+        uint256 nonce,
+        UserSafeStorage.Mode mode,
+        bytes calldata signature
+    ) internal view {
+        bytes32 msgHash = keccak256(
+            abi.encode(
+                SET_MODE_METHOD,
+                block.chainid,
+                address(this),
+                nonce,
+                mode
             )
         );
 

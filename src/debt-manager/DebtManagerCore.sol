@@ -683,7 +683,7 @@ contract DebtManagerCore is DebtManagerStorage {
 
             if (repayDebtUsdcAmt == 0) {
                 uint256 arrLen = i + 1;
-                assembly {
+                assembly("memory-safe") {
                     mstore(collateral, arrLen)
                 }
 
@@ -778,7 +778,7 @@ contract DebtManagerCore is DebtManagerStorage {
     fallback() external {
         bytes32 slot = adminImplPosition;
         // solhint-disable-next-line no-inline-assembly
-        assembly {
+        assembly("memory-safe") {
             // Copy msg.data. We take full control of memory in this inline assembly
             // block because it will not return to Solidity code. We overwrite the
             // Solidity scratch pad at memory position 0.

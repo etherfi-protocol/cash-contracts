@@ -234,7 +234,7 @@ contract DebtManagerStorage is
     function setAdminImpl(address newImpl) external onlyRole(ADMIN_ROLE) {
         bytes32 position = adminImplPosition;
         // solhint-disable-next-line no-inline-assembly
-        assembly {
+        assembly ("memory-safe") {
             sstore(position, newImpl)
         }
     }

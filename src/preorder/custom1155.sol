@@ -110,7 +110,7 @@ abstract contract CustomERC1155 {
         }
 
         // truncate result
-        assembly {
+        assembly ("memory-safe") {
             mstore(ownedTokens, numOwned)
         }
         return ownedTokens;

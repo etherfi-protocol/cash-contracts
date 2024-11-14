@@ -26,16 +26,6 @@ contract UpgradeUserSafeSetters is Utils {
             string.concat(".", "addresses", ".", "cashDataProviderProxy")
         );
 
-        address recoverySigner1 = stdJson.readAddress(
-            deployments,
-            string.concat(".", "addresses", ".", "recoverySigner1")
-        );
-
-        address recoverySigner2 = stdJson.readAddress(
-            deployments,
-            string.concat(".", "addresses", ".", "recoverySigner2")
-        );
-
         userSafeFactory = UserSafeFactory(
             stdJson.readAddress(
                 deployments,
@@ -44,7 +34,6 @@ contract UpgradeUserSafeSetters is Utils {
         );
 
         userSafeSettersImpl = new UserSafeSetters(address(cashDataProvider));
-
         userSafeFactory.setUserSafeSettersImpl(address(userSafeSettersImpl));
 
         vm.stopBroadcast();

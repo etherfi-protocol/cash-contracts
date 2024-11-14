@@ -6,6 +6,7 @@ import {UUPSUpgradeable, Initializable} from "openzeppelin-contracts-upgradeable
 import {SpendingLimit} from "../libraries/SpendingLimitLib.sol";
 import {OwnerLib} from "../libraries/OwnerLib.sol";
 import {ICashDataProvider} from "../interfaces/ICashDataProvider.sol";
+import {UserSafeStorage} from "./UserSafeStorage.sol";
 
 contract UserSafeEventEmitter is Initializable, UUPSUpgradeable, AccessControlDefaultAdminRulesUpgradeable {
     ICashDataProvider public cashDataProvider;
@@ -22,7 +23,6 @@ contract UserSafeEventEmitter is Initializable, UUPSUpgradeable, AccessControlDe
         cashDataProvider = ICashDataProvider(_cashDataProvider);
     }
 
-    event DepositFunds(address indexed userSafe, address indexed token, uint256 amount);
     event WithdrawalRequested(address indexed userSafe, address[] tokens, uint256[] amounts, address indexed recipient, uint256 finalizeTimestamp);
     event WithdrawalAmountUpdated(address indexed userSafe, address indexed token, uint256 amount);
     event WithdrawalCancelled(address indexed userSafe, address[] tokens, uint256[] amounts, address indexed recipient);
@@ -39,9 +39,10 @@ contract UserSafeEventEmitter is Initializable, UUPSUpgradeable, AccessControlDe
     event IncomingOwnerSet(address indexed userSafe,  OwnerLib.OwnerObject incomingOwner, uint256 incomingOwnerStartTime);
     event UserRecoverySignerSet(address indexed userSafe,  address oldRecoverySigner, address newRecoverySigner);
     event SpendingLimitChanged(address indexed userSafe, SpendingLimit oldLimit, SpendingLimit newLimit);
-
-    function emitDepositFunds(address token, uint256 amount) external onlyUserSafe {
-        emit DepositFunds(msg.sender, token, amount);
+    event ModeSet(address indexed userSafe, UserSafeStorage.Mode prevMode, UserSafeStorage.Mode newMode);
+    
+    function emitSetMode(UserSafeStorage.Mode prevMode, UserSafeStorage.Mode newMode) external onlyUserSafe {
+        emit ModeSet(msg.sender, prevMode, newMode);
     }
 
     function emitWithdrawalRequested(address[] memory tokens, uint256[] memory amounts, address recipient, uint256 finalizeTimestamp) external onlyUserSafe {

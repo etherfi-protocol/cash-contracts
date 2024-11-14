@@ -5,6 +5,11 @@ import {OwnerLib} from "../libraries/OwnerLib.sol";
 import {SpendingLimit} from "../libraries/SpendingLimitLib.sol";
 
 interface IUserSafe {
+    enum Mode {
+        Debit,
+        Credit
+    }
+
     struct Signature {
         uint8 index;
         bytes signature;
@@ -38,6 +43,11 @@ interface IUserSafe {
     error UserRecoverySignerIsUnsetCannotUseIndexZero();
     error IncorrectOutputAmount();
     error AmountZeroWithSixDecimals();
+
+    /**
+     * @notice Function to fetch the current mode of the safe (Debit/Credit)
+     */
+    function mode() external view returns (Mode);
 
     /**
      * @notice Function to fetch the address of the owner of the User Safe.
@@ -105,6 +115,13 @@ interface IUserSafe {
         bytes calldata __owner,
         bytes calldata signature
     ) external;
+
+    /**
+     * @notice Function to set the mode of the user safe (Debit/Credit)
+     * @param mode Debit/Credit mode
+     * @param signature Must be a valid signature from the user.
+     */
+    function setMode(Mode mode, bytes calldata signature) external;
 
     /**
      * @notice Function to set the spending limit with permit.

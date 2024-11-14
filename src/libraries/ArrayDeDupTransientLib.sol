@@ -7,7 +7,7 @@ library ArrayDeDupTransient {
     function checkDuplicates(address[] calldata tokens) internal {
         bytes4 errorSelector = DuplicateTokenFound.selector;
         // Use assembly to interact with transient storage
-        assembly {
+        assembly ("memory-safe") {
             // Iterate through the tokens array
             for { let i := 0 } lt(i, tokens.length) { i := add(i, 1) }
             {

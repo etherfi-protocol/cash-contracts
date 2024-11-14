@@ -33,10 +33,6 @@ contract DeployUserSafe is Utils {
                 string.concat(".", "addresses", ".", "userSafeFactoryProxy")
             )
         );
-        address cashDataProvider = stdJson.readAddress(
-            deployments,
-            string.concat(".", "addresses", ".", "cashDataProviderProxy")
-        );
 
         bytes memory saltData = abi.encode("ownerSafe", block.timestamp);
         

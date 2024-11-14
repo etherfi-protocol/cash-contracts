@@ -55,6 +55,10 @@ contract UserSafeCore is UserSafeStorage {
         return address(_cashDataProvider);
     }
 
+    function mode() external view returns (Mode) {
+        return _mode;
+    }
+
     function pendingWithdrawalRequest()
         public
         view
@@ -383,7 +387,7 @@ contract UserSafeCore is UserSafeStorage {
     fallback() external {
         address transfersImpl = UserSafeFactory(_cashDataProvider.userSafeFactory()).userSafeSettersImpl();
         // solhint-disable-next-line no-inline-assembly
-        assembly {
+        assembly ("memory-safe") {
             // Copy msg.data. We take full control of memory in this inline assembly
             // block because it will not return to Solidity code. We overwrite the
             // Solidity scratch pad at memory position 0.
