@@ -14,6 +14,8 @@ contract StargateAdapter is BridgeAdapterBase {
     // https://docs.layerzero.network/v2/developers/evm/technical-reference/deployed-contracts
     uint32 public constant DEST_EID_SCROLL = 30214;
 
+    error InvalidStargatePool();
+
     function bridge(
         address token,
         uint256 amount,
@@ -24,12 +26,15 @@ contract StargateAdapter is BridgeAdapterBase {
         address stargatePool = abi.decode(additionalData, (address));
         uint256 minAmount = deductSlippage(amount, maxSlippage);
 
-        (uint256 valueToSend, SendParam memory sendParam, MessagingFee memory messagingFee) = 
+        (uint256 valueToSend, SendParam memory sendParam, MessagingFee memory messagingFee, address poolToken) = 
             prepareRideBus(stargatePool, amount, destRecipient, minAmount);
         
         if (address(this).balance < valueToSend) revert InsufficientNativeFee();
         
-        IERC20(token).forceApprove(stargatePool, amount);
+        if (poolToken != address(0)) {
+            if (poolToken != token) revert InvalidStargatePool();
+            IERC20(token).forceApprove(stargatePool, amount);
+        }
         (, , Ticket memory ticket) = IStargate(stargatePool).sendToken{ value: valueToSend }(sendParam, messagingFee, payable(address(this)));
         emit BridgeViaStargate(token, amount, ticket);
     }
@@ -40,7 +45,7 @@ contract StargateAdapter is BridgeAdapterBase {
         uint256 amount,
         address destRecipient,
         uint256 minAmount
-    ) public view returns (uint256 valueToSend, SendParam memory sendParam, MessagingFee memory messagingFee) {
+    ) public view returns (uint256 valueToSend, SendParam memory sendParam, MessagingFee memory messagingFee, address poolToken) {
         sendParam = SendParam({
             dstEid: DEST_EID_SCROLL,
             to: bytes32(uint256(uint160(destRecipient))),
@@ -57,8 +62,8 @@ contract StargateAdapter is BridgeAdapterBase {
 
         messagingFee = IStargate(stargate).quoteSend(sendParam, false);
         valueToSend = messagingFee.nativeFee;
-
-        if (IStargate(stargate).token() == address(0)) {
+        poolToken = IStargate(stargate).token();
+        if (poolToken == address(0)) {
             valueToSend += sendParam.amountLD;
         }
     }
@@ -73,7 +78,7 @@ contract StargateAdapter is BridgeAdapterBase {
         address stargatePool = abi.decode(additionalData, (address));
         uint256 minAmount = deductSlippage(amount, maxSlippage);
 
-        (, , MessagingFee memory messagingFee) = 
+        (, , MessagingFee memory messagingFee, ) = 
             prepareRideBus(stargatePool, amount, destRecipient, minAmount);
 
         return (ETH, messagingFee.nativeFee);
