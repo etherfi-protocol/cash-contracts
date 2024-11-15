@@ -56,7 +56,12 @@ contract UserSafeCore is UserSafeStorage {
     }
 
     function mode() external view returns (Mode) {
+        if (_incomingCreditModeStartTime != 0 && block.timestamp > _incomingCreditModeStartTime) return Mode.Credit;
         return _mode;
+    }
+
+    function incomingCreditModeStartTime() external view returns (uint256) {
+        return _incomingCreditModeStartTime;
     }
 
     function pendingWithdrawalRequest()

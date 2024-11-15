@@ -39,10 +39,10 @@ contract UserSafeEventEmitter is Initializable, UUPSUpgradeable, AccessControlDe
     event IncomingOwnerSet(address indexed userSafe,  OwnerLib.OwnerObject incomingOwner, uint256 incomingOwnerStartTime);
     event UserRecoverySignerSet(address indexed userSafe,  address oldRecoverySigner, address newRecoverySigner);
     event SpendingLimitChanged(address indexed userSafe, SpendingLimit oldLimit, SpendingLimit newLimit);
-    event ModeSet(address indexed userSafe, UserSafeStorage.Mode prevMode, UserSafeStorage.Mode newMode);
+    event ModeSet(address indexed userSafe, UserSafeStorage.Mode prevMode, UserSafeStorage.Mode newMode, uint256 incomingModeStartTime);
     
-    function emitSetMode(UserSafeStorage.Mode prevMode, UserSafeStorage.Mode newMode) external onlyUserSafe {
-        emit ModeSet(msg.sender, prevMode, newMode);
+    function emitSetMode(UserSafeStorage.Mode prevMode, UserSafeStorage.Mode newMode, uint256 incomingModeStartTime) external onlyUserSafe {
+        emit ModeSet(msg.sender, prevMode, newMode, incomingModeStartTime);
     }
 
     function emitWithdrawalRequested(address[] memory tokens, uint256[] memory amounts, address recipient, uint256 finalizeTimestamp) external onlyUserSafe {

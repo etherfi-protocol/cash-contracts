@@ -61,6 +61,7 @@ contract UserSafeStorage is Initializable, ReentrancyGuardTransientUpgradeable {
     error IncorrectOutputAmount();
     error AmountZeroWithSixDecimals();
     error OnlyUserSafeFactory();
+    error ModeAlreadySet();
 
     // Address of the Cash Data Provider
     ICashDataProvider internal immutable _cashDataProvider;
@@ -84,6 +85,8 @@ contract UserSafeStorage is Initializable, ReentrancyGuardTransientUpgradeable {
     bool internal _isRecoveryActive;
     // Debit/Credit mode
     Mode internal _mode;
+    // Incoming time when you switch from Debit -> Credit mode
+    uint256 internal _incomingCreditModeStartTime;
     
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor(address __cashDataProvider) {
@@ -102,5 +105,14 @@ contract UserSafeStorage is Initializable, ReentrancyGuardTransientUpgradeable {
 
     function _getDecimals(address token) internal view returns (uint8) {
         return IERC20Metadata(token).decimals();
+    }
+
+    modifier currentMode() {
+        if (_incomingCreditModeStartTime != 0 && block.timestamp > _incomingCreditModeStartTime) {
+            _mode = Mode.Credit;
+            delete _incomingCreditModeStartTime;
+        }
+        
+        _;
     }
 }

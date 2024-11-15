@@ -34,10 +34,14 @@ contract UserSafeSetters is UserSafeStorage {
         _setOwner(__owner);
     }
 
-    function setMode(Mode mode, bytes calldata signature) external incrementNonce currentOwner {
+    function setMode(Mode mode, bytes calldata signature) external incrementNonce currentOwner currentMode {
+        if (mode == _mode) revert ModeAlreadySet();
         owner().verifySetModeSig(_nonce, mode, signature);
-        UserSafeEventEmitter(_cashDataProvider.userSafeEventEmitter()).emitSetMode(_mode, mode);
-        _mode = mode;
+        if (mode == Mode.Credit) _incomingCreditModeStartTime = block.timestamp + _cashDataProvider.delay();
+        else delete _incomingCreditModeStartTime;
+
+        UserSafeEventEmitter(_cashDataProvider.userSafeEventEmitter()).emitSetMode(_mode, mode, _mode == Mode.Credit ? _incomingCreditModeStartTime : block.timestamp);
+        if (mode == Mode.Debit) _mode = mode;
     }
 
 

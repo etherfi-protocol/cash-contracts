@@ -43,11 +43,17 @@ interface IUserSafe {
     error UserRecoverySignerIsUnsetCannotUseIndexZero();
     error IncorrectOutputAmount();
     error AmountZeroWithSixDecimals();
+    error ModeAlreadySet();
 
     /**
      * @notice Function to fetch the current mode of the safe (Debit/Credit)
      */
     function mode() external view returns (Mode);
+
+    /**
+     * @notice Function to fetch the incoming credit mode start time
+     */
+    function incomingCreditModeStartTime() external view returns (uint256);
 
     /**
      * @notice Function to fetch the address of the owner of the User Safe.
