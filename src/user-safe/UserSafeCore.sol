@@ -26,7 +26,6 @@ contract UserSafeCore is UserSafeStorage {
         bytes calldata __owner,
         uint256 __dailySpendingLimit,
         uint256 __monthlySpendingLimit,
-        uint256 __collateralLimit,
         int256 __timezoneOffset
     ) external initializer {        
         __ReentrancyGuardTransient_init();
@@ -39,18 +38,16 @@ contract UserSafeCore is UserSafeStorage {
             __monthlySpendingLimit,
             __timezoneOffset
         );
-        _collateralLimit = __collateralLimit;
 
-        emitInitializeEvents(newLimit, __owner, __collateralLimit);
+        emitInitializeEvents(newLimit, __owner);
     }
 
-    function emitInitializeEvents(SpendingLimit memory newLimit, bytes memory __owner, uint256 __collateralLimit) internal {
+    function emitInitializeEvents(SpendingLimit memory newLimit, bytes memory __owner) internal {
         OwnerLib.OwnerObject memory dummyOwner;
         SpendingLimit memory dummyLimit;
 
         UserSafeEventEmitter eventEmitter = UserSafeEventEmitter(_cashDataProvider.userSafeEventEmitter());
         eventEmitter.emitSpendingLimitChanged(dummyLimit, newLimit);
-        eventEmitter.emitCollateralLimitSet(0, __collateralLimit, block.timestamp);
         eventEmitter.emitOwnerSet(dummyOwner, __owner.getOwnerObject());
     }
 
@@ -76,15 +73,6 @@ contract UserSafeCore is UserSafeStorage {
         returns (SpendingLimit memory)
     {
         return _spendingLimit.getCurrentLimit();
-    }
-
-    function applicableCollateralLimit() external view returns (uint256) {
-        if (
-            _incomingCollateralLimitStartTime > 0 &&
-            block.timestamp > _incomingCollateralLimitStartTime
-        ) return _incomingCollateralLimit;
-
-        return _collateralLimit;
     }
 
     function recoverySigners()
@@ -289,30 +277,13 @@ contract UserSafeCore is UserSafeStorage {
         _spendingLimit.spend(amount);
     }
 
-    function _checkCollateralLimit(
-        address debtManager,
-        address token,
-        uint256 amountToAdd
-    ) internal {
-        _currentCollateralLimit();
-
-        uint256 currentCollateral = IL2DebtManager(debtManager).getCollateralValueInUsd(address(this));
-        uint256 price = IPriceProvider(_cashDataProvider.priceProvider()).price(token);
-        // amount * price with 6 decimals / 10 ** tokenDecimals will convert the collateral amount to USD amount with 6 decimals
-        amountToAdd = (amountToAdd * price) / 10 ** _getDecimals(token);
-        if (currentCollateral + amountToAdd > _collateralLimit) revert ExceededCollateralLimit();
-    }
-
     function _addCollateral(
         address debtManager,
         address token,
         uint256 amount
     ) internal {
         if (!_isCollateralToken(token)) revert UnsupportedToken();
-
-        _checkCollateralLimit(debtManager, token, amount);
         _updateWithdrawalRequestIfNecessary(token, amount);
-
         IERC20(token).forceApprove(debtManager, amount);
         IL2DebtManager(debtManager).depositCollateral(
             token,

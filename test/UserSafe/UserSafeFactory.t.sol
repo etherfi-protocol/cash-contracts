@@ -45,8 +45,7 @@ contract UserSafeFactoryTest is UserSafeSetup {
                     bobBytes,
                     defaultDailySpendingLimit,
                     defaultMonthlySpendingLimit,
-                    collateralLimit,
-                    timezoneOffset
+                        timezoneOffset
                 )
             )
         );
@@ -62,7 +61,6 @@ contract UserSafeFactoryTest is UserSafeSetup {
                 bobBytes,
                 defaultDailySpendingLimit,
                 defaultMonthlySpendingLimit,
-                collateralLimit,
                 timezoneOffset
             ));
 
@@ -113,7 +111,6 @@ contract UserSafeFactoryTest is UserSafeSetup {
                 hex"112345",
                 defaultDailySpendingLimit,
                 defaultMonthlySpendingLimit,
-                collateralLimit,
                 timezoneOffset
             )
         );

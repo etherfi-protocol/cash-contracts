@@ -26,7 +26,7 @@ contract CashSafeTest is Test {
     uint48 accessControlDelay = 100;
 
     function setUp() public {
-        vm.createSelectFork("https://1rpc.io/scroll");
+        vm.createSelectFork("https://rpc.ankr.com/scroll");
 
         vm.startPrank(owner);
         address settlementDispatcherImpl = address(new SettlementDispatcher());

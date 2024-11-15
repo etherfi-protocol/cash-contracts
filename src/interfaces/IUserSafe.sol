@@ -28,7 +28,6 @@ interface IUserSafe {
     error UnauthorizedCall();
     error InvalidNonce();
     error TransferAmountGreaterThanReceived();
-    error ExceededCollateralLimit();
     error UnsupportedToken();
     error RecoveryNotActive();
     error InvalidSignatureIndex();
@@ -90,13 +89,6 @@ interface IUserSafe {
     function applicableSpendingLimit() external view returns (SpendingLimit memory);
 
     /**
-     * @notice Function to get the current applicable collateral limit.
-     * @notice This function gives incoming collateral limit if it is set and its start time is in the past.
-     * @return Current applicable collateral limit
-     */
-    function applicableCollateralLimit() external view returns (uint256);
-
-    /**
      * @notice Function to fetch if a user can spend. 
      * @notice This is a utility function for the backend to put checks on spendings.
      * @param token Address of the token to spend.
@@ -111,16 +103,6 @@ interface IUserSafe {
      */
     function setOwner(
         bytes calldata __owner,
-        bytes calldata signature
-    ) external;
-
-    /**
-     * @notice Function to set the collateral limit with permit.
-     * @param limitInUsd Collateral limit in USD with 6 decimals.
-     * @param signature Must be a valid signature from the user.
-     */
-    function setCollateralLimit(
-        uint256 limitInUsd,
         bytes calldata signature
     ) external;
 

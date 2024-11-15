@@ -31,7 +31,6 @@ contract UserSafeWebAuthnSignatureTest is UserSafeSetup {
                     passkeyOwner,
                     defaultDailySpendingLimit,
                     defaultMonthlySpendingLimit,
-                    collateralLimit,
                     timezoneOffset
                 )
             )

@@ -45,7 +45,6 @@ contract UserSafeStorage is Initializable, ReentrancyGuardTransientUpgradeable {
     error UnauthorizedCall();
     error InvalidNonce();
     error TransferAmountGreaterThanReceived();
-    error ExceededCollateralLimit();
     error UnsupportedToken();
     error RecoveryNotActive();
     error InvalidSignatureIndex();
@@ -76,13 +75,6 @@ contract UserSafeStorage is Initializable, ReentrancyGuardTransientUpgradeable {
     uint256 internal _nonce;
     // Current spending limit
     SpendingLimit internal _spendingLimit;
-    // Collateral limit
-    uint256 internal _collateralLimit;
-
-    // Incoming collateral limit -> we want a delay between collateral limit changes so we can deduct funds in between to settle account
-    uint256 internal _incomingCollateralLimit;
-    // Incoming collateral limit start timestamp
-    uint256 internal _incomingCollateralLimitStartTime;
     // Boolean to toggle recovery mechanism on or off
     bool internal _isRecoveryActive;
     
@@ -103,16 +95,5 @@ contract UserSafeStorage is Initializable, ReentrancyGuardTransientUpgradeable {
 
     function _getDecimals(address token) internal view returns (uint8) {
         return IERC20Metadata(token).decimals();
-    }
-
-    function _currentCollateralLimit() internal {
-        if (
-            _incomingCollateralLimitStartTime != 0 &&
-            block.timestamp > _incomingCollateralLimitStartTime
-        ) {
-            _collateralLimit = _incomingCollateralLimit;
-            delete _incomingCollateralLimit;
-            delete _incomingCollateralLimitStartTime;
-        }
     }
 }

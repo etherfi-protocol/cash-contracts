@@ -12,7 +12,6 @@ contract DeployUserSafe is Utils {
     IUserSafe ownerSafe;
     uint256 defaultDailySpendingLimit = 1000e6;
     uint256 defaultMonthlySpendingLimit = 10000e6;
-    uint256 collateralLimit = 10000e6;
     int256 timezoneOffset = 4 * 3600; // Dubai Timezone
     address ownerEoa;
 
@@ -49,7 +48,6 @@ contract DeployUserSafe is Utils {
                     abi.encode(ownerEoa),
                     defaultDailySpendingLimit,
                     defaultMonthlySpendingLimit,
-                    collateralLimit,
                     timezoneOffset
                 )
             )

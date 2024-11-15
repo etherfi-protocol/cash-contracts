@@ -54,14 +54,6 @@ contract UserSafeSetters is UserSafeStorage {
         UserSafeEventEmitter(_cashDataProvider.userSafeEventEmitter()).emitSpendingLimitChanged(oldLimit, newLimit);
     }
 
-    function setCollateralLimit(
-        uint256 limitInUsd,
-        bytes calldata signature
-    ) external incrementNonce currentOwner {
-        owner().verifySetCollateralLimitSig(_nonce, limitInUsd, signature);
-        _setCollateralLimit(limitInUsd);
-    }
-
     function requestWithdrawal(
         address[] calldata tokens,
         uint256[] calldata amounts,
@@ -101,23 +93,6 @@ contract UserSafeSetters is UserSafeStorage {
         Signature[2] calldata signatures
     ) external onlyWhenRecoveryActive incrementNonce currentOwner {
         _recoverUserSafe(signatures, newOwner);
-    }
-
-    function _setCollateralLimit(uint256 limitInUsd) internal {
-        _currentCollateralLimit();
-        UserSafeEventEmitter eventEmitter = UserSafeEventEmitter(_cashDataProvider.userSafeEventEmitter());
-
-        if (limitInUsd > _collateralLimit) {
-            delete _incomingCollateralLimitStartTime;
-            delete _incomingCollateralLimit;
-
-            eventEmitter.emitCollateralLimitSet(_collateralLimit, limitInUsd, block.timestamp);
-            _collateralLimit = limitInUsd;
-        } else {
-            _incomingCollateralLimitStartTime = block.timestamp + _cashDataProvider.delay();
-            _incomingCollateralLimit = limitInUsd;
-            eventEmitter.emitCollateralLimitSet(_collateralLimit, limitInUsd, _incomingCollateralLimitStartTime);
-        }
     }
 
     function _requestWithdrawal(

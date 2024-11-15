@@ -35,7 +35,6 @@ contract UserSafeDeployTest is UserSafeSetup {
             bobBytes,
             defaultDailySpendingLimit,
             defaultMonthlySpendingLimit,
-            collateralLimit,
             timezoneOffset
         );
         
@@ -54,7 +53,6 @@ contract UserSafeDeployTest is UserSafeSetup {
             bobBytes,
             defaultDailySpendingLimit,
             defaultMonthlySpendingLimit,
-            collateralLimit,
             timezoneOffset
         );
         

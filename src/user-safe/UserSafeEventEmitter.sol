@@ -34,7 +34,6 @@ contract UserSafeEventEmitter is Initializable, UUPSUpgradeable, AccessControlDe
     event RepayDebtManager(address indexed userSafe, address indexed token, uint256 debtAmount);
     event WithdrawCollateralFromDebtManager(address indexed userSafe, address indexed token, uint256 amount);
     event CloseAccountWithDebtManager(address indexed userSafe);
-    event CollateralLimitSet(address indexed userSafe, uint256 oldLimitInUsd, uint256 newLimitInUsd, uint256 startTime);
     event IsRecoveryActiveSet(address indexed userSafe, bool isActive);
     event OwnerSet(address indexed userSafe, OwnerLib.OwnerObject oldOwner, OwnerLib.OwnerObject newOwner);
     event IncomingOwnerSet(address indexed userSafe,  OwnerLib.OwnerObject incomingOwner, uint256 incomingOwnerStartTime);
@@ -87,10 +86,6 @@ contract UserSafeEventEmitter is Initializable, UUPSUpgradeable, AccessControlDe
 
     function emitCloseAccountWithDebtManager() external onlyUserSafe {
         emit CloseAccountWithDebtManager(msg.sender);
-    }
-
-    function emitCollateralLimitSet(uint256 oldLimitInUsd, uint256 newLimitInUsd, uint256 startTime) external onlyUserSafe {
-        emit CollateralLimitSet(msg.sender, oldLimitInUsd, newLimitInUsd, startTime);
     }
 
     function emitIsRecoveryActiveSet(bool isActive) external onlyUserSafe {

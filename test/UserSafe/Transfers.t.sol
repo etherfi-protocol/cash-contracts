@@ -220,9 +220,6 @@ contract UserSafeTransfersTest is UserSafeSetup {
 
     function test_CannotAddCollateralIfBalanceIsInsufficient() public {
         uint256 amount = aliceSafeWeETHBalanceBefore + 1;
-        vm.prank(alice);
-        _setCollateralLimit(amount);
-
         vm.warp(block.timestamp + delay + 1);
         vm.prank(etherFiWallet);
         vm.expectRevert(IUserSafe.InsufficientBalance.selector);
@@ -268,26 +265,5 @@ contract UserSafeTransfersTest is UserSafeSetup {
         bytes memory signature = abi.encodePacked(r, s, v);
 
         aliceSafe.updateSpendingLimit(dailyLimitInUsd, monthlyLimitInUsd, signature);
-    }
-
-    function _setCollateralLimit(uint256 newCollateralLimit) internal {
-        uint256 nonce = aliceSafe.nonce() + 1;
-
-        bytes32 msgHash = keccak256(
-            abi.encode(
-                UserSafeLib.SET_COLLATERAL_LIMIT_METHOD,
-                block.chainid,
-                address(aliceSafe),
-                nonce,
-                newCollateralLimit
-            )
-        );
-
-        (uint8 v, bytes32 r, bytes32 s) = vm.sign(
-            alicePk,
-            msgHash.toEthSignedMessageHash()
-        );
-        bytes memory signature = abi.encodePacked(r, s, v);
-        aliceSafe.setCollateralLimit(newCollateralLimit, signature);
     }
 }

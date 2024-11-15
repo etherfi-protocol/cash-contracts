@@ -55,7 +55,6 @@ contract UserSafeSetup is Utils {
     uint256 mockWeETHPriceInUsd = 3000e6;
     uint256 defaultDailySpendingLimit = 10000e6;
     uint256 defaultMonthlySpendingLimit = 100000e6;
-    uint256 collateralLimit = 10000e6;
     uint64 delay = 10;
     address settlementDispatcher = makeAddr("settlementDispatcher");
     address etherFiCashDebtManager;
@@ -277,7 +276,6 @@ contract UserSafeSetup is Utils {
                     aliceBytes,
                     defaultDailySpendingLimit,
                     defaultMonthlySpendingLimit,
-                    collateralLimit,
                     timezoneOffset
                 )
             )

@@ -56,7 +56,6 @@ contract IntegrationTestSetup is Utils {
     uint256 defaultSpendingLimit = 10000e6;
     uint256 defaultDailySpendingLimit = 10000e6;
     uint256 defaultMonthlySpendingLimit = 100000e6;
-    uint256 collateralLimit = 10000e6;
     uint64 delay = 10;
     address settlementDispatcher = makeAddr("multisig");
     address etherFiWallet = makeAddr("etherFiWallet");
@@ -277,7 +276,6 @@ contract IntegrationTestSetup is Utils {
                     aliceBytes,
                     defaultDailySpendingLimit,
                     defaultMonthlySpendingLimit,
-                    collateralLimit,
                     timezoneOffset
                 )
             )
