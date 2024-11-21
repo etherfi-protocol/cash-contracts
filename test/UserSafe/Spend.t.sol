@@ -260,9 +260,8 @@ contract UserSafeSpendTest is Setup {
         if (isFork(chainId)) {
             deal(usdt, address(aliceSafe), 1 ether);
             assets[0] = usdt;
+            swapper.approveAssets(assets);
         } else assets[0] = address(weETH);
-
-        swapper.approveAssets(assets);
 
         uint256 aliceSafeUsdtBalBefore = ERC20(assets[0]).balanceOf(address(aliceSafe));
 

@@ -98,13 +98,12 @@ contract DebtManagerRepayTest is Setup {
     function test_CannotRepayWithUsdcIfBalanceIsInsufficient() public {
         deal(address(usdc), address(aliceSafe), 0);
 
-
         vm.startPrank(etherFiWallet);
         if (!isFork(chainId))
             vm.expectRevert(
                 abi.encodeWithSelector(
                     IERC20Errors.ERC20InsufficientBalance.selector,
-                    alice,
+                    address(aliceSafe),
                     0,
                     1
                 )

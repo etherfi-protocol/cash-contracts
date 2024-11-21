@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import {Setup, MockERC20, UserSafeLib, IUserSafe, PriceProvider, IAggregatorV3} from "../Setup.t.sol";
+import {Setup, MockERC20, UserSafeLib, IUserSafe, PriceProvider, MockPriceProvider, IAggregatorV3} from "../Setup.t.sol";
 import {IL2DebtManager} from "../../src/interfaces/IL2DebtManager.sol";
 import {SafeERC20, IERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IERC20Errors} from "@openzeppelin/contracts/interfaces/draft-IERC6093.sol";
@@ -295,7 +295,7 @@ contract DebtManagerBorrowTest is Setup {
                 isStableToken: true
             });
             priceProvider.setTokenConfig(_tokens, _configs);
-        }
+        } else MockPriceProvider(address(priceProvider)).setStableToken(address(newToken));
 
         IL2DebtManager.CollateralTokenConfig memory collateralTokenConfig;
         collateralTokenConfig.ltv = ltv;
