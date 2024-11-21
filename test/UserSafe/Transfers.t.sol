@@ -83,9 +83,8 @@ contract UserSafeTransfersTest is UserSafeSetup {
         if (isFork(chainId)) {
             deal(usdt, address(aliceSafe), 1 ether);
             assets[0] = usdt;
+            swapper.approveAssets(assets);
         } else assets[0] = address(weETH);
-
-        swapper.approveAssets(assets);
 
         uint256 aliceSafeUsdtBalBefore = ERC20(assets[0]).balanceOf(address(aliceSafe));
 
@@ -98,7 +97,7 @@ contract UserSafeTransfersTest is UserSafeSetup {
                 assets[0],
                 address(usdc),
                 inputAmountToSwap,
-                ERC20(usdt).decimals()
+                ERC20(assets[0]).decimals()
             );
 
         uint256 cashMultiSigUsdcBalBefore = usdc.balanceOf(settlementDispatcher);
