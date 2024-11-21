@@ -13,7 +13,6 @@ interface ICashDataProvider {
         address newPriceProvider
     );
     event SwapperUpdated(address oldSwapper, address newSwapper);
-    event AaveAdapterUpdated(address oldAdapter, address newAdapter);
     event UserSafeFactoryUpdated(address oldFactory, address newFactory);
     event UserSafeEventEmitterUpdated(address oldEventEmitter, address newEventEmitter);
     event EtherFiRecoverySignerUpdated(address oldSigner, address newSigner);
@@ -63,13 +62,6 @@ interface ICashDataProvider {
      * @return Swapper contract address
      */
     function swapper() external view returns (address);
-
-    /**
-     * @notice Function to fetch the address of the Aave adapter
-     * @return Aave adapter address
-     */
-    function aaveAdapter() external view returns (address);
-
 
     /**
      * @notice Function to fetch the address of the user safe factory
@@ -151,13 +143,6 @@ interface ICashDataProvider {
      * @param swapper Swapper contract address
      */
     function setSwapper(address swapper) external;
-
-    /**
-     * @notice Function to set the address of the Aave adapter
-     * @dev Can only be called by the admin of the contract
-     * @param adapter Aave adapter address
-     */
-    function setAaveAdapter(address adapter) external;
 
     /**
      * @notice Function to set the addrss of the user safe factory.

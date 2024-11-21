@@ -1,16 +1,18 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import {DebtManagerSetup} from "./DebtManagerSetup.t.sol";
+import {Setup} from "../Setup.t.sol";
 import {IL2DebtManager} from "../../src/interfaces/IL2DebtManager.sol";
 import {SafeERC20, IERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IERC20Errors} from "@openzeppelin/contracts/interfaces/draft-IERC6093.sol";
 import {stdStorage, StdStorage} from "forge-std/Test.sol";
-import {console} from "forge-std/console.sol";
+import {MessageHashUtils} from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
+import {IUserSafe, OwnerLib, UserSafeLib} from "../../src/user-safe/UserSafeCore.sol";
 
-contract DebtManagerRepayTest is DebtManagerSetup {
+contract DebtManagerRepayTest is Setup {
     using SafeERC20 for IERC20;
     using stdStorage for StdStorage;
+    using MessageHashUtils for bytes32;
 
     uint256 collateralAmount = 0.01 ether;
     uint256 collateralValueInUsdc;
@@ -19,38 +21,57 @@ contract DebtManagerRepayTest is DebtManagerSetup {
     function setUp() public override {
         super.setUp();
 
+        uint256 nonce = aliceSafe.nonce() + 1;
+        bytes32 msgHash = keccak256(
+            abi.encode(
+                UserSafeLib.SET_MODE_METHOD,
+                block.chainid,
+                address(aliceSafe),
+                nonce,
+                IUserSafe.Mode.Credit
+            )
+        );
+
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(
+            alicePk,
+            msgHash.toEthSignedMessageHash()
+        );
+
+        bytes memory signature = abi.encodePacked(r, s, v);
+        aliceSafe.setMode(IUserSafe.Mode.Credit, signature);
+        vm.warp(aliceSafe.incomingCreditModeStartTime() + 1);
+
+        deal(address(usdc), owner, 1 ether);
+        deal(address(weETH), address(aliceSafe), collateralAmount);
+        // so that debt manager has funds for borrowings
+        deal(address(usdc), address(debtManager), 1 ether);
+
         collateralValueInUsdc = debtManager.convertCollateralTokenToUsd(
             address(weETH),
             collateralAmount
         );
 
-        deal(address(usdc), alice, 1 ether);
-        deal(address(weETH), alice, 1000 ether);
+        deal(address(weETH), address(aliceSafe), collateralAmount);
         // so that debt manager has funds for borrowings
         deal(address(usdc), address(debtManager), 1 ether);
 
-        vm.startPrank(alice);
-        IERC20(address(weETH)).safeIncreaseAllowance(address(debtManager), collateralAmount);
-        debtManager.depositCollateral(address(weETH), alice, collateralAmount);
-
-        borrowAmt = debtManager.remainingBorrowingCapacityInUSD(alice) / 2;
-
-        debtManager.borrow(address(usdc), borrowAmt);
+        vm.startPrank(etherFiWallet);
+        borrowAmt = debtManager.remainingBorrowingCapacityInUSD(address(aliceSafe)) / 2;
+        aliceSafe.spend(address(usdc), borrowAmt);
         vm.stopPrank();
     }
 
     function test_RepayWithUsdc() public {
-        uint256 debtAmtBefore = debtManager.borrowingOf(alice, address(usdc));
+        uint256 debtAmtBefore = debtManager.borrowingOf(address(aliceSafe), address(usdc));
         assertGt(debtAmtBefore, 0);
 
         uint256 repayAmt = debtAmtBefore;
-
-        vm.startPrank(alice);
-        IERC20(address(usdc)).forceApprove(address(debtManager), repayAmt);
-        debtManager.repay(alice, address(usdc), repayAmt);
+        deal(address(usdc), address(aliceSafe), repayAmt);
+        vm.startPrank(etherFiWallet);
+        aliceSafe.repay(address(usdc), repayAmt);
         vm.stopPrank();
 
-        uint256 debtAmtAfter = debtManager.borrowingOf(alice, address(usdc));
+        uint256 debtAmtAfter = debtManager.borrowingOf(address(aliceSafe), address(usdc));
         assertEq(debtAmtBefore - debtAmtAfter, repayAmt);
     }
 
@@ -63,46 +84,22 @@ contract DebtManagerRepayTest is DebtManagerSetup {
             timeElapsed) / 1e20;
 
         uint256 debtAmtBefore = borrowAmt + expectedInterest;
-        console.log(debtAmtBefore);
 
-        assertEq(debtManager.borrowingOf(alice, address(usdc)), debtAmtBefore);
+        assertEq(debtManager.borrowingOf(address(aliceSafe), address(usdc)), debtAmtBefore);
         uint256 repayAmt = debtAmtBefore;
-
-        vm.startPrank(alice);
-        IERC20(address(usdc)).forceApprove(address(debtManager), repayAmt);
-        debtManager.repay(alice, address(usdc), repayAmt);
-        vm.stopPrank();
-
-        uint256 debtAmtAfter = debtManager.borrowingOf(alice, address(usdc));
-        console.log(debtAmtAfter);
+        deal(address(usdc), address(aliceSafe), repayAmt);
+        vm.prank(etherFiWallet);
+        aliceSafe.repay(address(usdc), repayAmt);
+        
+        uint256 debtAmtAfter = debtManager.borrowingOf(address(aliceSafe), address(usdc));
         assertEq(debtAmtBefore - debtAmtAfter, repayAmt);
     }
 
-    function test_CannotRepayWithUsdcIfAllowanceIsInsufficient() public {
-        vm.startPrank(alice);
-        IERC20(address(usdc)).forceApprove(address(debtManager), 0);
-
-        if (!isFork(chainId))
-            vm.expectRevert(
-                abi.encodeWithSelector(
-                    IERC20Errors.ERC20InsufficientAllowance.selector,
-                    address(debtManager),
-                    0,
-                    1
-                )
-            );
-        else vm.expectRevert("ERC20: transfer amount exceeds allowance");
-
-        debtManager.repay(alice, address(usdc), 1);
-        vm.stopPrank();
-    }
-
     function test_CannotRepayWithUsdcIfBalanceIsInsufficient() public {
-        deal(address(usdc), alice, 0);
+        deal(address(usdc), address(aliceSafe), 0);
 
-        vm.startPrank(alice);
-        IERC20(address(usdc)).forceApprove(address(debtManager), 1);
 
+        vm.startPrank(etherFiWallet);
         if (!isFork(chainId))
             vm.expectRevert(
                 abi.encodeWithSelector(
@@ -113,12 +110,12 @@ contract DebtManagerRepayTest is DebtManagerSetup {
                 )
             );
         else vm.expectRevert("ERC20: transfer amount exceeds balance");
-        debtManager.repay(alice, address(usdc), 1);
+        aliceSafe.repay(address(usdc), 1);
         vm.stopPrank();
     }
 
     function test_CanRepayForOtherUser() public {
-        uint256 debtAmtBefore = debtManager.borrowingOf(alice, address(usdc));
+        uint256 debtAmtBefore = debtManager.borrowingOf(address(aliceSafe), address(usdc));
         assertGt(debtAmtBefore, 0);
 
         uint256 repayAmt = debtAmtBefore;
@@ -126,10 +123,10 @@ contract DebtManagerRepayTest is DebtManagerSetup {
         vm.startPrank(notOwner);
         deal(address(usdc), notOwner, repayAmt);
         IERC20(address(usdc)).forceApprove(address(debtManager), repayAmt);
-        debtManager.repay(alice, address(usdc), repayAmt);
+        debtManager.repay(address(aliceSafe), address(usdc), repayAmt);
         vm.stopPrank();
 
-        uint256 debtAmtAfter = debtManager.borrowingOf(alice, address(usdc));
+        uint256 debtAmtAfter = debtManager.borrowingOf(address(aliceSafe), address(usdc));
         assertEq(debtAmtBefore - debtAmtAfter, repayAmt);
     }
 }

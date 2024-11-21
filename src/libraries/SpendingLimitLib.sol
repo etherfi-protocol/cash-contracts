@@ -2,6 +2,7 @@
 pragma solidity ^0.8.24;
 
 import {TimeLib} from "./TimeLib.sol";
+import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
 struct SpendingLimit {
     uint256 dailyLimit; // in USD with 6 decimals
@@ -19,6 +20,7 @@ struct SpendingLimit {
 
 library SpendingLimitLib {
     using TimeLib for uint256;
+    using Math for uint256;
 
     error ExceededDailySpendingLimit();
     error ExceededMonthlySpendingLimit();
@@ -30,7 +32,7 @@ library SpendingLimitLib {
         uint256 dailyLimit,
         uint256 monthlyLimit,
         int256 timezoneOffset
-    ) external sanity(dailyLimit, monthlyLimit) returns (SpendingLimit memory) {
+    ) internal sanity(dailyLimit, monthlyLimit) returns (SpendingLimit memory) {
         if (timezoneOffset > 24 * 60 * 60 || timezoneOffset < -24 * 60 * 60) revert InvalidTimezoneOffset();
         limit.dailyLimit = dailyLimit;
         limit.monthlyLimit = monthlyLimit;
@@ -57,7 +59,7 @@ library SpendingLimitLib {
         // limit.timezoneOffset = finalLimit.timezoneOffset;
     }
 
-    function spend(SpendingLimit storage limit, uint256 amount) external {
+    function spend(SpendingLimit storage limit, uint256 amount) internal {
         currentLimit(limit);
 
         if (limit.spentToday + amount > limit.dailyLimit) revert ExceededDailySpendingLimit();
@@ -72,7 +74,7 @@ library SpendingLimitLib {
         uint256 newDailyLimit,
         uint256 newMonthlyLimit,
         uint64 delay
-    ) external sanity(newDailyLimit, newMonthlyLimit) returns (SpendingLimit memory, SpendingLimit memory) {
+    ) internal sanity(newDailyLimit, newMonthlyLimit) returns (SpendingLimit memory, SpendingLimit memory) {
         currentLimit(limit);
         SpendingLimit memory oldLimit = limit;
 
@@ -97,7 +99,29 @@ library SpendingLimitLib {
         return (oldLimit, limit);
     }
 
-    function canSpend(SpendingLimit memory limit, uint256 amount) external view returns (bool, string memory) {
+    function maxCanSpend(SpendingLimit memory limit) internal view returns (uint256) {
+        limit = getCurrentLimit(limit);
+        bool usingIncomingDailyLimit = false;
+        bool usingIncomingMonthlyLimit = false;
+        uint256 applicableDailyLimit = limit.dailyLimit;
+        uint256 applicableMonthlyLimit = limit.monthlyLimit;
+        
+        if (limit.dailyLimitChangeActivationTime != 0) {
+            applicableDailyLimit = limit.newDailyLimit;
+            usingIncomingDailyLimit = true;
+        }
+        if (limit.monthlyLimitChangeActivationTime != 0) {
+            applicableMonthlyLimit = limit.newMonthlyLimit;
+            usingIncomingMonthlyLimit = true;
+        }
+
+        if (limit.spentToday > applicableDailyLimit) return 0;
+        if (limit.spentThisMonth > applicableMonthlyLimit) return 0;
+        
+        return Math.max(applicableDailyLimit - limit.spentToday, applicableMonthlyLimit - limit.spentThisMonth);
+    }
+
+    function canSpend(SpendingLimit memory limit, uint256 amount) internal view returns (bool, string memory) {
         limit = getCurrentLimit(limit);
 
         bool usingIncomingDailyLimit = false;
@@ -117,8 +141,8 @@ library SpendingLimitLib {
         if (limit.spentToday > applicableDailyLimit) {
             if (usingIncomingDailyLimit) return (false, "Incoming daily spending limit already exhausted"); 
             else return (false, "Daily spending limit already exhausted"); 
-        } 
-            
+        }
+
         if (limit.spentThisMonth > applicableMonthlyLimit) {
             if (usingIncomingMonthlyLimit) return (false, "Incoming monthly spending limit already exhausted"); 
             else return (false, "Monthly spending limit already exhausted"); 

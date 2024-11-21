@@ -4,10 +4,10 @@ pragma solidity ^0.8.24;
 import {IUserSafe, OwnerLib, UserSafeLib, UserSafeCore} from "../../src/user-safe/UserSafeCore.sol";
 import {WebAuthn} from "../../src/libraries/WebAuthn.sol";
 import {MessageHashUtils} from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
-import {UserSafeSetup} from "./UserSafeSetup.t.sol";
+import {Setup} from "../Setup.t.sol";
 import {WebAuthnInfo, WebAuthnUtils} from "../WebAuthnUtils.sol";
 
-contract UserSafeWebAuthnSignatureTest is UserSafeSetup {
+contract UserSafeWebAuthnSignatureTest is Setup {
     uint256 passkeyPrivateKey =
         uint256(
             0x03d99692017473e2d631945a812607b23269d85721e0f370b8d3e7d29a874fd2

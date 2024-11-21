@@ -21,10 +21,11 @@ import {UserSafeEventEmitter} from "./UserSafeEventEmitter.sol";
 
 contract UserSafeStorage is Initializable, ReentrancyGuardTransientUpgradeable {
     using OwnerLib for bytes;
+    using SafeERC20 for IERC20;
 
     enum Mode {
-        Debit,
-        Credit
+        Credit,
+        Debit
     }
     
     struct Signature {
@@ -62,7 +63,14 @@ contract UserSafeStorage is Initializable, ReentrancyGuardTransientUpgradeable {
     error AmountZeroWithSixDecimals();
     error OnlyUserSafeFactory();
     error ModeAlreadySet();
+    error NotACollateralToken();
+    error OnlyDebtManager();
+    error SwapAndSpendOnlyInDebitMode();
+    error CollateralTokensBalancesZero();
+    error OutputLessThanMinAmount();
+    error CanSpendFailed(string message);
 
+    uint256 public constant HUNDRED_PERCENT = 100e18;
     // Address of the Cash Data Provider
     ICashDataProvider internal immutable _cashDataProvider;
     // Address of the recovery signer set by the user
@@ -103,8 +111,138 @@ contract UserSafeStorage is Initializable, ReentrancyGuardTransientUpgradeable {
         return _ownerBytes.getOwnerObject();
     }
 
+    function _getCollateralBalanceWithTokenSubtracted(address token, uint256 amount, Mode __mode) internal view returns (IL2DebtManager.TokenData[] memory, string memory error) {
+        address[] memory collateralTokens = IL2DebtManager(_cashDataProvider.etherFiCashDebtManager()).getCollateralTokens();
+        uint256 len = collateralTokens.length;
+        IL2DebtManager.TokenData[] memory tokenAmounts = new IL2DebtManager.TokenData[](collateralTokens.length);
+        uint256 m = 0;
+        for (uint256 i = 0; i < len; ) {
+            uint256 balance = IERC20(collateralTokens[i]).balanceOf(address(this)); 
+            uint256 pendingWithdrawalAmount = getPendingWithdrawalAmount(collateralTokens[i]);
+            if (balance != 0) {
+                balance = balance - pendingWithdrawalAmount;
+                if (__mode == Mode.Debit && token == collateralTokens[i]) {
+                    if (balance == 0 || balance < amount) return(new IL2DebtManager.TokenData[](0), "Insufficient effective balance after withdrawal to spend with debit mode");
+                    balance = balance - amount;
+                }
+                tokenAmounts[m] = IL2DebtManager.TokenData({token: collateralTokens[i], amount: balance});
+                unchecked {
+                    ++m;
+                }
+            }
+            unchecked {
+                ++i;
+            }
+        }
+
+        assembly ("memory-safe") {
+            mstore(tokenAmounts, m)
+        }
+
+        return (tokenAmounts, "");
+    }
+
+    function getPendingWithdrawalAmount(address token) public view returns (uint256) {
+        uint256 len = _pendingWithdrawalRequest.tokens.length;
+        uint256 tokenIndex = len;
+        for (uint256 i = 0; i < len; ) {
+            if (_pendingWithdrawalRequest.tokens[i] == token) {
+                tokenIndex = i;
+                break;
+            }
+            unchecked {
+                ++i;
+            }
+        }
+
+        return tokenIndex != len ? _pendingWithdrawalRequest.amounts[tokenIndex] : 0;
+    }
+
+    function getUserTotalCollateral() public view returns (IL2DebtManager.TokenData[] memory) {
+        IL2DebtManager debtManager = IL2DebtManager(_cashDataProvider.etherFiCashDebtManager());
+        address[] memory collateralTokens = debtManager.getCollateralTokens();
+        uint256 len = collateralTokens.length;
+        IL2DebtManager.TokenData[] memory tokenAmounts = new IL2DebtManager.TokenData[](collateralTokens.length);
+        uint256 m = 0;
+        for (uint256 i = 0; i < len; ) {
+            uint256 balance = IERC20(collateralTokens[i]).balanceOf(address(this)); 
+            uint256 pendingWithdrawalAmount = getPendingWithdrawalAmount(collateralTokens[i]);
+            if (balance != 0) {
+                balance = balance - pendingWithdrawalAmount;
+                tokenAmounts[m] = IL2DebtManager.TokenData({token: collateralTokens[i], amount: balance});
+                unchecked {
+                    ++m;
+                }
+            }
+            unchecked {
+                ++i;
+            }
+        }
+
+        assembly ("memory-safe") {
+            mstore(tokenAmounts, m)
+        }
+
+        return tokenAmounts;
+    }
+
+    function getUserCollateralForToken(address token) public view returns (uint256) {
+        IL2DebtManager debtManager = IL2DebtManager(_cashDataProvider.etherFiCashDebtManager());
+        if (!debtManager.isCollateralToken(token)) revert NotACollateralToken();
+        uint256 balance = IERC20(token).balanceOf(address(this)); 
+        uint256 pendingWithdrawalAmount = getPendingWithdrawalAmount(token);
+
+        return balance - pendingWithdrawalAmount;
+    }
+
     function _getDecimals(address token) internal view returns (uint8) {
         return IERC20Metadata(token).decimals();
+    }
+
+    function _cancelOldWithdrawal() internal {
+        if (_pendingWithdrawalRequest.tokens.length > 0) {
+            UserSafeEventEmitter(_cashDataProvider.userSafeEventEmitter()).emitWithdrawalCancelled(
+                _pendingWithdrawalRequest.tokens,
+                _pendingWithdrawalRequest.amounts,
+                _pendingWithdrawalRequest.recipient
+            );
+
+            delete _pendingWithdrawalRequest;
+        }
+    }
+
+    function _swapFunds(
+        address inputTokenToSwap,
+        address outputToken,
+        uint256 inputAmountToSwap,
+        uint256 outputMinAmount,
+        uint256 guaranteedOutputAmount,
+        bytes calldata swapData
+    ) internal returns (uint256) {
+        address swapper = _cashDataProvider.swapper();
+        IERC20(inputTokenToSwap).safeTransfer(
+            address(swapper),
+            inputAmountToSwap
+        );
+        uint256 balBefore = IERC20(outputToken).balanceOf(address(this));
+
+        uint256 outputAmount = ISwapper(swapper).swap(
+            inputTokenToSwap,
+            outputToken,
+            inputAmountToSwap,
+            outputMinAmount,
+            guaranteedOutputAmount,
+            swapData
+        );
+
+        if (
+            IERC20(outputToken).balanceOf(address(this)) !=
+            balBefore + outputAmount
+        ) revert IncorrectOutputAmount();
+
+        if (outputAmount < outputMinAmount) revert OutputLessThanMinAmount();
+
+        return outputAmount;
     }
 
     modifier currentMode() {

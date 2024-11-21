@@ -2,10 +2,10 @@
 pragma solidity ^0.8.24;
 
 import {IUserSafe, OwnerLib, SpendingLimit, UserSafeCore} from "../../src/user-safe/UserSafeCore.sol";
-import {UserSafeSetup} from "./UserSafeSetup.t.sol";
+import {Setup} from "../Setup.t.sol";
 import {CREATE3} from "solady/utils/CREATE3.sol";
 
-contract UserSafeDeployTest is UserSafeSetup {
+contract UserSafeDeployTest is Setup {
     address bob = makeAddr("bob");
     bytes bobBytes = abi.encode(bob);
 

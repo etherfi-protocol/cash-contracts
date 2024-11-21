@@ -25,8 +25,6 @@ contract CashDataProvider is ICashDataProvider, UUPSUpgradeable, AccessControlDe
     address private _priceProvider;
     // Address of the swapper
     address private _swapper;
-    // Address of aave adapter
-    address private _aaveAdapter;
     // Address of user safe factory
     address private _userSafeFactory;
     // Address of user safe event emitter
@@ -63,16 +61,14 @@ contract CashDataProvider is ICashDataProvider, UUPSUpgradeable, AccessControlDe
             ( 
             , , , , , ,
             address __swapper,
-            address __aaveAdapter,
             address __userSafeFactory,
             address __userSafeEventEmitter,
             address __etherFiRecoverySigner,
             address __thirdPartyRecoverySigner
-            ) = abi.decode(data, (address, uint64, address, address, address, address, address, address, address, address, address, address));
+            ) = abi.decode(data, (address, uint64, address, address, address, address, address, address, address, address, address));
 
             if (__etherFiRecoverySigner == address(0) || __thirdPartyRecoverySigner == address(0)) revert InvalidValue();
             _swapper = __swapper;
-            _aaveAdapter = __aaveAdapter;
             _userSafeFactory = __userSafeFactory;
             _userSafeEventEmitter = __userSafeEventEmitter;
             _etherFiRecoverySigner = __etherFiRecoverySigner;
@@ -124,13 +120,6 @@ contract CashDataProvider is ICashDataProvider, UUPSUpgradeable, AccessControlDe
      */
     function swapper() external view returns (address) {
         return _swapper;
-    }
-
-    /**
-     * @inheritdoc ICashDataProvider
-     */
-    function aaveAdapter() external view returns (address) {
-        return _aaveAdapter;
     }
 
     /**
@@ -236,16 +225,7 @@ contract CashDataProvider is ICashDataProvider, UUPSUpgradeable, AccessControlDe
         emit SwapperUpdated(_swapper, swapperAddr);
         _swapper = swapperAddr;
     }
-
-    /**
-     * @inheritdoc ICashDataProvider
-     */
-    function setAaveAdapter(address adapter) external onlyRole(ADMIN_ROLE) {
-        if (adapter == address(0)) revert InvalidValue();
-        emit AaveAdapterUpdated(_aaveAdapter, adapter);
-        _aaveAdapter = adapter;
-    }
-
+    
     /**
      * @inheritdoc ICashDataProvider
      */

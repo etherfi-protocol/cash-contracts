@@ -45,7 +45,6 @@ contract TopUpDestTest is Test {
                         address(0),
                         address(0),
                         address(0),
-                        address(0),
                         userSafeFactory,
                         address(0),
                         makeAddr("recoverySigner1"),

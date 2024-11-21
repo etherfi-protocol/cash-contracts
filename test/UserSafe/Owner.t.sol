@@ -3,9 +3,9 @@ pragma solidity ^0.8.24;
 
 import {IUserSafe, UserSafeEventEmitter, OwnerLib, UserSafeLib} from "../../src/user-safe/UserSafeCore.sol";
 import {MessageHashUtils} from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
-import {UserSafeSetup} from "./UserSafeSetup.t.sol";
+import {Setup} from "../Setup.t.sol";
 
-contract UserSafeOwnerTest is UserSafeSetup {
+contract UserSafeOwnerTest is Setup {
     using MessageHashUtils for bytes32;
     using OwnerLib for bytes;
 

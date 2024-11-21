@@ -38,7 +38,6 @@ contract DeployMockUserSafeSetup is Utils {
     uint80 liquidationThreshold = 75e18;
     uint96 liquidationBonus = 5e18; 
     uint64 borrowApyPerSecond = 634195839675; // 20% APR -> 20e18 / (365 days in seconds)
-    uint256 supplyCap = 1000000 ether;
 
     // Shivam Metamask wallets
     address recoverySigner1 = 0x7fEd99d0aA90423de55e238Eb5F9416FF7Cc58eF;
@@ -57,7 +56,7 @@ contract DeployMockUserSafeSetup is Utils {
 
         usdc = MockERC20(deployErc20("USDC", "USDC", 6));
         weETH = MockERC20(deployErc20("Wrapped eETH", "weETH", 18));
-        priceProvider = new MockPriceProvider(2500e6);
+        priceProvider = new MockPriceProvider(2500e6, address(usdc));
         swapper = new MockSwapper();
         aaveAdapter = new MockAaveAdapter();
 
@@ -75,13 +74,16 @@ contract DeployMockUserSafeSetup is Utils {
 
         DebtManagerCore.CollateralTokenConfig[]
             memory collateralTokenConfig = new DebtManagerCore.CollateralTokenConfig[](
-                1
+                2
             );
 
         collateralTokenConfig[0].ltv = ltv;
         collateralTokenConfig[0].liquidationThreshold = liquidationThreshold;
         collateralTokenConfig[0].liquidationBonus = liquidationBonus;
-        collateralTokenConfig[0].supplyCap = supplyCap;
+
+        collateralTokenConfig[1].ltv = ltv;
+        collateralTokenConfig[1].liquidationThreshold = liquidationThreshold;
+        collateralTokenConfig[1].liquidationBonus = liquidationBonus;
 
         address debtManagerCoreImpl = address(new DebtManagerCore());
         address debtManagerAdminImpl = address(new DebtManagerAdmin());
@@ -145,6 +147,7 @@ contract DeployMockUserSafeSetup is Utils {
         DebtManagerCore debtManagerCore = DebtManagerCore(debtManagerProxy);
         debtManagerCore.setAdminImpl(debtManagerAdminImpl);
         DebtManagerAdmin(address(debtManagerCore)).supportCollateralToken(address(weETH), collateralTokenConfig[0]);
+        DebtManagerAdmin(address(debtManagerCore)).supportCollateralToken(address(usdc), collateralTokenConfig[1]);
         DebtManagerAdmin(address(debtManagerCore)).supportBorrowToken(
             address(usdc), 
             borrowApyPerSecond, 

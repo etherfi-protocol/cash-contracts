@@ -22,7 +22,6 @@ contract CashDataProviderTest is Test {
     address settlementDispatcher = makeAddr("settlementDispatcher");
     address priceProvider = makeAddr("priceProvider");
     address swapper = makeAddr("swapper");
-    address aaveAdapter = makeAddr("aaveAdapter");
     address userSafeFactory = makeAddr("userSafeFactory");
     address debtManager = makeAddr("debtManager");
     address userSafeEventEmitter = makeAddr("userSafeEventEmitter");
@@ -46,7 +45,6 @@ contract CashDataProviderTest is Test {
             debtManager,
             priceProvider,
             swapper,
-            aaveAdapter,
             userSafeFactory,
             userSafeEventEmitter,
             recoverySigner1,
@@ -67,7 +65,6 @@ contract CashDataProviderTest is Test {
         assertEq(cashDataProvider.etherFiCashDebtManager(), debtManager);
         assertEq(cashDataProvider.priceProvider(), priceProvider);
         assertEq(cashDataProvider.swapper(), swapper);
-        assertEq(cashDataProvider.aaveAdapter(), aaveAdapter);
         assertEq(cashDataProvider.userSafeFactory(), userSafeFactory);
         assertEq(cashDataProvider.userSafeEventEmitter(), userSafeEventEmitter);
         assertEq(cashDataProvider.hasRole(ADMIN_ROLE, owner), true);
@@ -203,24 +200,6 @@ contract CashDataProviderTest is Test {
         emit ICashDataProvider.SwapperUpdated(swapper, newWallet);
         cashDataProvider.setSwapper(newWallet);
         assertEq(cashDataProvider.swapper(), newWallet);
-    }
-
-    function test_SetAaveAdapter() public {
-        address newWallet = makeAddr("newWallet");
-    
-        vm.prank(notAdmin);
-        vm.expectRevert(buildAccessControlRevertData(notAdmin, ADMIN_ROLE));
-        cashDataProvider.setAaveAdapter(newWallet);
-
-        vm.prank(admin);
-        vm.expectRevert(ICashDataProvider.InvalidValue.selector);
-        cashDataProvider.setAaveAdapter(address(0));
-        
-        vm.prank(admin);
-        vm.expectEmit(true, true, true, true);
-        emit ICashDataProvider.AaveAdapterUpdated(aaveAdapter, newWallet);
-        cashDataProvider.setAaveAdapter(newWallet);
-        assertEq(cashDataProvider.aaveAdapter(), newWallet);
     }
 
     function test_SetUserSafeFactory() public {

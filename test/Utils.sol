@@ -14,6 +14,7 @@ struct ChainConfig {
     address weETH;
     address weEthWethOracle;
     address ethUsdcOracle;
+    address usdcUsdOracle;
     address swapRouter1InchV6;
     address swapRouterOpenOcean;
     address aaveV3Pool;
@@ -74,6 +75,11 @@ contract Utils is Test {
         config.ethUsdcOracle = stdJson.readAddress(
             inputJson,
             string.concat(".", chainId, ".", "ethUsdcOracle")
+        );
+
+        config.usdcUsdOracle = stdJson.readAddress(
+            inputJson,
+            string.concat(".", chainId, ".", "usdcUsdOracle")
         );
 
         config.swapRouter1InchV6 = stdJson.readAddress(

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import {UserSafeStorage, OwnerLib, ArrayDeDupTransient, UserSafeEventEmitter, UserSafeLib, SpendingLimit, SpendingLimitLib} from "./UserSafeStorage.sol";
+import {UserSafeStorage, OwnerLib, ArrayDeDupTransient, UserSafeEventEmitter, UserSafeLib, SpendingLimit, SpendingLimitLib, IL2DebtManager} from "./UserSafeStorage.sol";
 import {SafeERC20, IERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import {IUserSafe} from "../interfaces/IUserSafe.sol";
@@ -18,6 +18,29 @@ contract UserSafeSetters is UserSafeStorage {
     using ArrayDeDupTransient for address[];
 
     constructor(address __cashDataProvider) UserSafeStorage(__cashDataProvider) {}
+
+    function swap(
+        address inputTokenToSwap,
+        address outputToken,
+        uint256 inputAmountToSwap,
+        uint256 outputMinAmount,
+        uint256 guaranteedOutputAmount,
+        bytes calldata swapData,
+        bytes calldata signature
+    ) external incrementNonce currentOwner {
+        owner().verifySwapSig(
+            _nonce, 
+            inputTokenToSwap,
+            outputToken,
+            inputAmountToSwap,
+            outputMinAmount,
+            guaranteedOutputAmount,
+            swapData,
+            signature
+        );
+        uint256 outputAmount = _swapFunds(inputTokenToSwap, outputToken, inputAmountToSwap, outputMinAmount, guaranteedOutputAmount, swapData);
+        UserSafeEventEmitter(_cashDataProvider.userSafeEventEmitter()).emitSwap(inputTokenToSwap, inputAmountToSwap, outputToken, outputAmount);
+    }
 
     function setOwner(
         bytes calldata __owner,
@@ -81,6 +104,12 @@ contract UserSafeSetters is UserSafeStorage {
             signature
         );
         _requestWithdrawal(tokens, amounts, recipient);
+
+        IL2DebtManager.TokenData[] memory collateralTokenAmounts = getUserTotalCollateral();
+        (uint256 totalMaxBorrow, uint256 totalBorrowings) = 
+            IL2DebtManager(_cashDataProvider.etherFiCashDebtManager()).getBorrowingPowerAndTotalBorrowing(address(this), collateralTokenAmounts);
+
+        if (totalMaxBorrow < totalBorrowings) revert ("Borrowings greater than max borrow after withdrawal");
     }
 
     function setIsRecoveryActive(
@@ -133,18 +162,6 @@ contract UserSafeSetters is UserSafeStorage {
         });
 
         UserSafeEventEmitter(_cashDataProvider.userSafeEventEmitter()).emitWithdrawalRequested(tokens, amounts, recipient, finalTime);
-    }
-
-    function _cancelOldWithdrawal() internal {
-        if (_pendingWithdrawalRequest.tokens.length > 0) {
-            UserSafeEventEmitter(_cashDataProvider.userSafeEventEmitter()).emitWithdrawalCancelled(
-                _pendingWithdrawalRequest.tokens,
-                _pendingWithdrawalRequest.amounts,
-                _pendingWithdrawalRequest.recipient
-            );
-
-            delete _pendingWithdrawalRequest;
-        }
     }
 
     function _setOwner(bytes calldata __owner) internal {

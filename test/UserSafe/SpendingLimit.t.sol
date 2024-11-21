@@ -1,18 +1,18 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import {IUserSafe, UserSafeEventEmitter, OwnerLib, UserSafeLib, SpendingLimit, SpendingLimitLib} from "../../src/user-safe/UserSafeCore.sol";
+import {IUserSafe, UserSafeEventEmitter, OwnerLib, UserSafeLib, UserSafeStorage, SpendingLimit, SpendingLimitLib} from "../../src/user-safe/UserSafeCore.sol";
 import {TimeLib} from "../../src/libraries/TimeLib.sol";
 import {MessageHashUtils} from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
-import {UserSafeSetup} from "./UserSafeSetup.t.sol";
+import {Setup} from "../Setup.t.sol";
 
-contract UserSafeSpendingLimitTest is UserSafeSetup {
+contract UserSafeSpendingLimitTest is Setup {
     using MessageHashUtils for bytes32;
     using TimeLib for uint256;
 
     function test_UpdateSpendingLimit() public {
         vm.prank(alice);
-        usdc.transfer(address(aliceSafe), 1000e6);
+        deal(address(usdc), address(aliceSafe), 1000e6);
 
         uint256 dailySpendingLimitInUsd = 100e6;
         uint256 monthlySpendingLimitInUsd = 1000e6;
@@ -26,7 +26,7 @@ contract UserSafeSpendingLimitTest is UserSafeSetup {
 
         assertEq(usdc.balanceOf(settlementDispatcher), 0);
         vm.prank(etherFiWallet);
-        aliceSafe.transfer(address(usdc), transferAmount);
+        aliceSafe.spend(address(usdc), transferAmount);
         assertEq(usdc.balanceOf(settlementDispatcher), transferAmount);
 
         spendingLimitBefore = aliceSafe.applicableSpendingLimit();
@@ -208,7 +208,7 @@ contract UserSafeSpendingLimitTest is UserSafeSetup {
 
         vm.prank(etherFiWallet);
         vm.expectRevert(SpendingLimitLib.ExceededDailySpendingLimit.selector);
-        aliceSafe.transfer(address(usdc), amount);
+        aliceSafe.spend(address(usdc), amount);
 
         // // so that daily limit should not throw error
         // _updateSpendingLimit(1 ether, defaultMonthlySpendingLimit);
@@ -216,7 +216,7 @@ contract UserSafeSpendingLimitTest is UserSafeSetup {
         // amount = limit.monthlyLimit + 1;
         // vm.prank(etherFiWallet);
         // vm.expectRevert(SpendingLimitLib.ExceededMonthlySpendingLimit.selector);
-        // aliceSafe.transfer(address(usdc), amount);
+        // aliceSafe.spend(address(usdc), amount);
     }
 
     function test_DailySpendingLimitGetsRenewedAutomatically() public {
@@ -228,19 +228,19 @@ contract UserSafeSpendingLimitTest is UserSafeSetup {
         deal(address(usdc), address(aliceSafe), 1 ether);
 
         vm.prank(etherFiWallet);
-        aliceSafe.transfer(address(usdc), amount);
+        aliceSafe.spend(address(usdc), amount);
 
         assertEq(aliceSafe.applicableSpendingLimit().spentToday, amount);
         assertEq(aliceSafe.applicableSpendingLimit().spentThisMonth, amount);
 
         vm.prank(etherFiWallet);
         vm.expectRevert(SpendingLimitLib.ExceededDailySpendingLimit.selector);
-        aliceSafe.transfer(address(usdc), dailyLimit - amount + 1);
+        aliceSafe.spend(address(usdc), dailyLimit - amount + 1);
 
         vm.warp(aliceSafe.applicableSpendingLimit().dailyRenewalTimestamp);
         vm.prank(etherFiWallet);
         vm.expectRevert(SpendingLimitLib.ExceededDailySpendingLimit.selector);
-        aliceSafe.transfer(address(usdc), dailyLimit - amount + 1);
+        aliceSafe.spend(address(usdc), dailyLimit - amount + 1);
 
         vm.warp(aliceSafe.applicableSpendingLimit().dailyRenewalTimestamp + 1);
         // Since the time for renewal is in the past, spentToday should be 0
@@ -250,8 +250,8 @@ contract UserSafeSpendingLimitTest is UserSafeSetup {
         // Since the time for renewal is in the past, we should be able to spend the whole spending limit again
         vm.prank(etherFiWallet);
         vm.expectEmit(true, true, true, true);
-        emit UserSafeEventEmitter.TransferForSpending(address(aliceSafe), address(usdc), dailyLimit);
-        aliceSafe.transfer(address(usdc), dailyLimit);
+        emit UserSafeEventEmitter.Spend(address(aliceSafe), address(usdc), dailyLimit, UserSafeStorage.Mode.Debit);
+        aliceSafe.spend(address(usdc), dailyLimit);
     }
 
     // function test_MonthlySpendingLimitGetsRenewedAutomatically() public {
@@ -266,19 +266,19 @@ contract UserSafeSpendingLimitTest is UserSafeSetup {
     //     deal(address(usdc), address(aliceSafe), 1 ether);
 
     //     vm.prank(etherFiWallet);
-    //     aliceSafe.transfer(address(usdc), amount);
+    //     aliceSafe.spend(address(usdc), amount);
 
     //     assertEq(aliceSafe.applicableSpendingLimit().spentToday, amount);
     //     assertEq(aliceSafe.applicableSpendingLimit().spentThisMonth, amount);
 
     //     vm.prank(etherFiWallet);
     //     vm.expectRevert(SpendingLimitLib.ExceededMonthlySpendingLimit.selector);
-    //     aliceSafe.transfer(address(usdc), monthlyLimit - amount + 1);
+    //     aliceSafe.spend(address(usdc), monthlyLimit - amount + 1);
 
     //     vm.warp(aliceSafe.applicableSpendingLimit().monthlyRenewalTimestamp);
     //     vm.prank(etherFiWallet);
     //     vm.expectRevert(SpendingLimitLib.ExceededMonthlySpendingLimit.selector);
-    //     aliceSafe.transfer(address(usdc), monthlyLimit - amount + 1);
+    //     aliceSafe.spend(address(usdc), monthlyLimit - amount + 1);
 
     //     vm.warp(aliceSafe.applicableSpendingLimit().monthlyRenewalTimestamp + 1);
     //     // Since the time for renewal is in the past, spentToday should be 0
@@ -288,8 +288,8 @@ contract UserSafeSpendingLimitTest is UserSafeSetup {
     //     // Since the time for renewal is in the past, we should be able to spend the whole spending limit again
     //     vm.prank(etherFiWallet);
     //     vm.expectEmit(true, true, true, true);
-    //     emit UserSafeEventEmitter.TransferForSpending(address(aliceSafe), address(usdc), monthlyLimit);
-    //     aliceSafe.transfer(address(usdc), monthlyLimit);
+    //     emit UserSafeEventEmitter.spendForSpending(address(aliceSafe), address(usdc), monthlyLimit);
+    //     aliceSafe.spend(address(usdc), monthlyLimit);
     // }
 
     function _updateSpendingLimit(uint256 dailyLimitInUsd, uint256 monthlyLimitInUsd) internal {

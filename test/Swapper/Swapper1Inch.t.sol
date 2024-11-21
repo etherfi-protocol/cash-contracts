@@ -3,7 +3,6 @@ pragma solidity ^0.8.24;
 
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {Utils, ChainConfig} from "../Utils.sol";
-import {console} from "forge-std/console.sol";
 import {Swapper1InchV6} from "../../src/utils/Swapper1InchV6.sol";
 
 contract Swapper1InchV6Test is Utils {

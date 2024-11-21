@@ -9,19 +9,15 @@ import {UserSafeStorage} from "../user-safe/UserSafeStorage.sol";
 library UserSafeLib {
     using SignatureUtils for bytes32;
 
-    bytes32 public constant REQUEST_WITHDRAWAL_METHOD =
-        keccak256("requestWithdrawal");
-    bytes32 public constant UPDATE_SPENDING_LIMIT_METHOD =
-        keccak256("updateSpendingLimit");
-    bytes32 public constant SET_COLLATERAL_LIMIT_METHOD =
-        keccak256("setCollateralLimit");
+    bytes32 public constant REQUEST_WITHDRAWAL_METHOD = keccak256("requestWithdrawal");
+    bytes32 public constant UPDATE_SPENDING_LIMIT_METHOD = keccak256("updateSpendingLimit");
+    bytes32 public constant SET_COLLATERAL_LIMIT_METHOD = keccak256("setCollateralLimit");
     bytes32 public constant SET_OWNER_METHOD = keccak256("setOwner");
     bytes32 public constant SET_MODE_METHOD = keccak256("setMode");
     bytes32 public constant RECOVERY_METHOD = keccak256("recoverUserSafe");
-    bytes32 public constant SET_IS_RECOVERY_ACTIVE_METHOD =
-        keccak256("setIsRecoveryActive");
-    bytes32 public constant SET_USER_RECOVERY_SIGNER_METHOD =
-        keccak256("setUserRecoverySigner");
+    bytes32 public constant SET_IS_RECOVERY_ACTIVE_METHOD = keccak256("setIsRecoveryActive");
+    bytes32 public constant SET_USER_RECOVERY_SIGNER_METHOD = keccak256("setUserRecoverySigner");
+    bytes32 public constant SWAP_METHOD = keccak256("swap");
 
     function verifySetOwnerSig(
         OwnerLib.OwnerObject memory currentOwner,
@@ -36,6 +32,35 @@ library UserSafeLib {
                 address(this),
                 nonce,
                 owner
+            )
+        );
+
+        msgHash.verifySig(currentOwner, signature);
+    }
+
+    function verifySwapSig(
+        OwnerLib.OwnerObject memory currentOwner,
+        uint256 nonce,
+        address inputTokenToSwap,
+        address outputToken,
+        uint256 inputAmountToSwap,
+        uint256 outputMinAmount,
+        uint256 guaranteedOutputAmount,
+        bytes calldata swapData,
+        bytes calldata signature
+    ) internal view {
+        bytes32 msgHash = keccak256(
+            abi.encode(
+                SWAP_METHOD,
+                block.chainid,
+                address(this),
+                nonce,
+                inputTokenToSwap,
+                outputToken,
+                inputAmountToSwap,
+                outputMinAmount,
+                guaranteedOutputAmount,
+                swapData
             )
         );
 

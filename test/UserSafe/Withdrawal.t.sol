@@ -3,9 +3,9 @@ pragma solidity ^0.8.24;
 
 import {IUserSafe, UserSafeEventEmitter, OwnerLib, UserSafeLib, ArrayDeDupTransient} from "../../src/user-safe/UserSafeCore.sol";
 import {MessageHashUtils} from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
-import {UserSafeSetup} from "./UserSafeSetup.t.sol";
+import {Setup} from "../Setup.t.sol";
 
-contract UserSafeWithdrawalTest is UserSafeSetup {
+contract UserSafeWithdrawalTest is Setup {
     using MessageHashUtils for bytes32;
 
     function test_RequestWithdrawalWithPermit() public {
@@ -257,7 +257,7 @@ contract UserSafeWithdrawalTest is UserSafeSetup {
         vm.stopPrank();
 
         vm.prank(etherFiWallet);
-        aliceSafe.transfer(address(usdc), amountToTransfer);
+        aliceSafe.spend(address(usdc), amountToTransfer);
 
         IUserSafe.WithdrawalRequest memory withdrawalData = aliceSafe
             .pendingWithdrawalRequest();

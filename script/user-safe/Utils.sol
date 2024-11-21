@@ -10,6 +10,7 @@ struct ChainConfig {
     address weETH;
     address weEthWethOracle;
     address ethUsdcOracle;
+    address usdcUsdOracle;
     address swapRouter1InchV6;
     address swapRouterOpenOcean;
     address aaveV3Pool;
@@ -19,6 +20,24 @@ struct ChainConfig {
 
 contract Utils is Script {
     address eth = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
+
+    string internal FACTORY_PROXY = "FactoryProxy";
+    string internal FACTORY_IMPL = "FactoryImpl";
+    string internal SETTLEMENT_DISPATCHER_PROXY = "SettlementDispatcherProxy";
+    string internal SETTLEMENT_DISPATCHER_IMPL = "SettlementDispatcherImpl";
+    string internal PRICE_PROVIDER_PROXY = "PriceProviderProxy";
+    string internal PRICE_PROVIDER_IMPL = "PriceProviderImpl";
+    string internal SWAPPER_OPEN_OCEAN = "SwapperOpenOcean";
+    string internal CASH_DATA_PROVIDER_PROXY = "CashDataProviderProxy";
+    string internal CASH_DATA_PROVIDER_IMPL = "CashDataProviderImpl";
+    string internal DEBT_MANAGER_PROXY = "DebtManagerProxy";
+    string internal DEBT_MANAGER_CORE_IMPL = "DebtManagerCoreImpl";
+    string internal DEBT_MANAGER_ADMIN_IMPL = "DebtManagerAdminImpl";
+    string internal DEBT_MANAGER_INITIALIZER_IMPL = "DebtManagerInitializerImpl";
+    string internal USER_SAFE_CORE_IMPL = "UserSafeCoreImpl";
+    string internal USER_SAFE_SETTERS_IMPL = "UserSafeSettersImpl";
+    string internal USER_SAFE_EVENT_EMITTER_PROXY = "UserSafeEventEmitterProxy";
+    string internal USER_SAFE_EVENT_EMITTER_IMPL = "UserSafeEventEmitterImpl";
 
     function getChainConfig(
         string memory chainId
@@ -56,6 +75,11 @@ contract Utils is Script {
         config.ethUsdcOracle = stdJson.readAddress(
             inputJson,
             string.concat(".", chainId, ".", "ethUsdcOracle")
+        );
+
+        config.usdcUsdOracle = stdJson.readAddress(
+            inputJson,
+            string.concat(".", chainId, ".", "usdcUsdOracle")
         );
 
         config.swapRouter1InchV6 = stdJson.readAddress(
@@ -133,5 +157,9 @@ contract Utils is Script {
         inputs[8] = vm.toString(amount);
 
         return vm.ffi(inputs);
+    }
+
+    function getSalt(string memory contractName) internal pure returns (bytes32) {
+        return keccak256(bytes(contractName));
     }
 }

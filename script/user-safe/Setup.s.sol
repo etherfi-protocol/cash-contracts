@@ -37,9 +37,16 @@ contract DeployUserSafeSetup is Utils {
     address etherFiWallet;
     address owner;
     uint256 delay = 300; // 5 min
-    uint80 ltv = 70e18;
-    uint80 liquidationThreshold = 75e18;
-    uint96 liquidationBonus = 5e18; 
+
+    // weETH
+    uint80 weETH_ltv = 70e18;
+    uint80 weETH_liquidationThreshold = 75e18;
+    uint96 weETH_liquidationBonus = 5e18; 
+    
+    // usdc
+    uint80 usdc_ltv = 90e18;
+    uint80 usdc_liquidationThreshold = 99e18;
+    uint96 usdc_liquidationBonus = 1e18; 
 
     uint64 borrowApyPerSecond = 634195839675; // 20% APR -> 20e18 / (365 days in seconds)
     uint256 supplyCap = 10000000 ether;
@@ -82,8 +89,8 @@ contract DeployUserSafeSetup is Utils {
         usdc = ERC20(chainConfig.usdc);
         weETH = ERC20(chainConfig.weETH);
 
-        settlementDispatcherImpl = address(new SettlementDispatcher());
-        settlementDispatcher = SettlementDispatcher(payable(address(new UUPSProxy(settlementDispatcherImpl, ""))));
+        settlementDispatcherImpl = address(new SettlementDispatcher{salt: getSalt(SETTLEMENT_DISPATCHER_IMPL)}());
+        settlementDispatcher = SettlementDispatcher(payable(address(new UUPSProxy{salt: getSalt(SETTLEMENT_DISPATCHER_PROXY)}(settlementDispatcherImpl, ""))));
         address[] memory tokens = new address[](1);
         tokens[0] = address(usdc);
         
@@ -108,7 +115,8 @@ contract DeployUserSafeSetup is Utils {
             oraclePriceDecimals: IAggregatorV3(chainConfig.weEthWethOracle).decimals(),
             maxStaleness: 1 days,
             dataType: PriceProvider.ReturnType.Int256,
-            isBaseTokenEth: true
+            isBaseTokenEth: true,
+            isStableToken: false
         });
 
         PriceProvider.Config memory ethConfig = PriceProvider.Config({
@@ -118,37 +126,54 @@ contract DeployUserSafeSetup is Utils {
             oraclePriceDecimals: IAggregatorV3(chainConfig.ethUsdcOracle).decimals(),
             maxStaleness: 1 days,
             dataType: PriceProvider.ReturnType.Int256,
-            isBaseTokenEth: false
+            isBaseTokenEth: false,
+            isStableToken: false
         });
 
-        address[] memory initialTokens = new address[](2);
+        PriceProvider.Config memory usdcConfig = PriceProvider.Config({
+            oracle: chainConfig.usdcUsdOracle,
+            priceFunctionCalldata: hex"",
+            isChainlinkType: true,
+            oraclePriceDecimals: IAggregatorV3(chainConfig.usdcUsdOracle).decimals(),
+            maxStaleness: 10 days,
+            dataType: PriceProvider.ReturnType.Int256,
+            isBaseTokenEth: false,
+            isStableToken: true
+        });
+
+        address[] memory initialTokens = new address[](3);
         initialTokens[0] = address(weETH);
         initialTokens[1] = eth;
+        initialTokens[2] = address(usdc);
 
-        PriceProvider.Config[]
-            memory initialTokensConfig = new PriceProvider.Config[](2);
+        PriceProvider.Config[] memory initialTokensConfig = new PriceProvider.Config[](3);
         initialTokensConfig[0] = weETHConfig;
         initialTokensConfig[1] = ethConfig;
+        initialTokensConfig[2] = usdcConfig;
 
-        priceProvider = new PriceProvider(
-            owner,
-            initialTokens,
-            initialTokensConfig
+        address priceProviderImpl = address(new PriceProvider{salt: getSalt(PRICE_PROVIDER_IMPL)}());
+        priceProvider = PriceProvider(
+            address(
+                new UUPSProxy{salt: getSalt(PRICE_PROVIDER_PROXY)}(
+                    priceProviderImpl,
+                    abi.encodeWithSelector(
+                        PriceProvider.initialize.selector,
+                        owner,
+                        initialTokens,
+                        initialTokensConfig
+                    )
+                )
+            )
         );
-        swapper = new SwapperOpenOcean(
+
+        swapper = new SwapperOpenOcean{salt: getSalt(SWAPPER_OPEN_OCEAN)}(
             chainConfig.swapRouterOpenOcean,
             supportedCollateralTokens
         );
-        aaveV3Adapter = new EtherFiCashAaveV3Adapter(
-            chainConfig.aaveV3Pool,
-            chainConfig.aaveV3PoolDataProvider,
-            aaveV3ReferralCode,
-            interestRateMode
-        );
 
-        cashDataProviderImpl = address(new CashDataProvider());
+        cashDataProviderImpl = address(new CashDataProvider{salt: getSalt(CASH_DATA_PROVIDER_IMPL)}());
         cashDataProvider = CashDataProvider(
-            address(new UUPSProxy(cashDataProviderImpl, ""))
+            address(new UUPSProxy{salt: getSalt(CASH_DATA_PROVIDER_PROXY)}(cashDataProviderImpl, ""))
         );
 
         address[] memory collateralTokens = new address[](1);
@@ -158,27 +183,30 @@ contract DeployUserSafeSetup is Utils {
 
         DebtManagerCore.CollateralTokenConfig[]
             memory collateralTokenConfig = new DebtManagerCore.CollateralTokenConfig[](
-                1
+                2
             );
 
-        collateralTokenConfig[0].ltv = ltv;
-        collateralTokenConfig[0].liquidationThreshold = liquidationThreshold;
-        collateralTokenConfig[0].liquidationBonus = liquidationBonus;
-        collateralTokenConfig[0].supplyCap = supplyCap;
+        collateralTokenConfig[0].ltv = weETH_ltv;
+        collateralTokenConfig[0].liquidationThreshold = weETH_liquidationThreshold;
+        collateralTokenConfig[0].liquidationBonus = weETH_liquidationBonus;
 
-        debtManagerCoreImpl = address(new DebtManagerCore());
-        debtManagerAdminImpl = address(new DebtManagerAdmin());
-        debtManagerInitializer = address(new DebtManagerInitializer());
-        address debtManagerProxy = address(new UUPSProxy(debtManagerInitializer, ""));
+        collateralTokenConfig[1].ltv = usdc_ltv;
+        collateralTokenConfig[1].liquidationThreshold = usdc_liquidationThreshold;
+        collateralTokenConfig[1].liquidationBonus = usdc_liquidationBonus;
+
+        debtManagerCoreImpl = address(new DebtManagerCore{salt: getSalt(DEBT_MANAGER_CORE_IMPL)}());
+        debtManagerAdminImpl = address(new DebtManagerAdmin{salt: getSalt(DEBT_MANAGER_ADMIN_IMPL)}());
+        debtManagerInitializer = address(new DebtManagerInitializer{salt: getSalt(DEBT_MANAGER_INITIALIZER_IMPL)}());
+        address debtManagerProxy = address(new UUPSProxy{salt: getSalt(DEBT_MANAGER_PROXY)}(debtManagerInitializer, ""));
 
         debtManager = IL2DebtManager(address(debtManagerProxy));
 
-        userSafeCoreImpl = new UserSafeCore(address(cashDataProvider));
-        userSafeSettersImpl = new UserSafeSetters(address(cashDataProvider));
-        factoryImpl = address(new UserSafeFactory());
+        userSafeCoreImpl = new UserSafeCore{salt: getSalt(USER_SAFE_CORE_IMPL)}(address(cashDataProvider));
+        userSafeSettersImpl = new UserSafeSetters{salt: getSalt(USER_SAFE_SETTERS_IMPL)}(address(cashDataProvider));
+        factoryImpl = address(new UserSafeFactory{salt: getSalt(FACTORY_IMPL)}());
         
         userSafeFactory = UserSafeFactory(
-            address(new UUPSProxy(
+            address(new UUPSProxy{salt: getSalt(FACTORY_PROXY)}(
                 factoryImpl, 
                 abi.encodeWithSelector(
                     UserSafeFactory.initialize.selector, 
@@ -191,9 +219,9 @@ contract DeployUserSafeSetup is Utils {
             )
         );
 
-        eventEmitterImpl = address(new UserSafeEventEmitter());
+        eventEmitterImpl = address(new UserSafeEventEmitter{salt: getSalt(USER_SAFE_EVENT_EMITTER_IMPL)}());
         userSafeEventEmitter = UserSafeEventEmitter(address(
-            new UUPSProxy(
+            new UUPSProxy{salt: getSalt(USER_SAFE_EVENT_EMITTER_PROXY)}(
                 eventEmitterImpl,
                 abi.encodeWithSelector(
                     UserSafeEventEmitter.initialize.selector,
@@ -228,6 +256,7 @@ contract DeployUserSafeSetup is Utils {
         DebtManagerCore debtManagerCore = DebtManagerCore(debtManagerProxy);
         debtManagerCore.setAdminImpl(debtManagerAdminImpl);
         DebtManagerAdmin(address(debtManagerCore)).supportCollateralToken(address(weETH), collateralTokenConfig[0]);
+        DebtManagerAdmin(address(debtManagerCore)).supportCollateralToken(address(usdc), collateralTokenConfig[1]);
         DebtManagerAdmin(address(debtManagerCore)).supportBorrowToken(
             address(usdc), 
             borrowApyPerSecond, 

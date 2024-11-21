@@ -3,11 +3,12 @@ pragma solidity ^0.8.24;
 
 import {OwnerLib} from "../libraries/OwnerLib.sol";
 import {SpendingLimit} from "../libraries/SpendingLimitLib.sol";
+import {DebtManagerStorage} from "../debt-manager/DebtManagerStorage.sol";
 
 interface IUserSafe {
     enum Mode {
-        Debit,
-        Credit
+        Credit,
+        Debit
     }
 
     struct Signature {
@@ -44,7 +45,28 @@ interface IUserSafe {
     error IncorrectOutputAmount();
     error AmountZeroWithSixDecimals();
     error ModeAlreadySet();
+    error NotACollateralToken();
+    error OnlyDebtManager();
+    error SwapAndSpendOnlyInDebitMode();
+    error CollateralTokensBalancesZero();
+    error OutputLessThanMinAmount();
+    error CanSpendFailed(string message);
 
+    function maxCanSpend(address token) external view returns (uint256);
+    function swap(
+        address inputTokenToSwap,
+        address outputToken,
+        uint256 inputAmountToSwap,
+        uint256 outputMinAmount,
+        uint256 guaranteedOutputAmount,
+        bytes calldata swapData,
+        bytes calldata signature
+    ) external;
+    function preLiquidate() external;
+    function postLiquidate(address liquidator, DebtManagerStorage.LiquidationTokenData[] memory tokensToSent) external;
+    function getUserTotalCollateral() external view returns (DebtManagerStorage.TokenData[] memory);
+    function getUserCollateralForToken(address token) external view returns (uint256);
+    function getPendingWithdrawalAmount(address token) external view returns (uint256);
     /**
      * @notice Function to fetch the current mode of the safe (Debit/Credit)
      */
@@ -111,6 +133,16 @@ interface IUserSafe {
      * @param amount Amount of the token to spend.
      */
     function canSpend(address token, uint256 amount) external view returns (bool, string memory);
+    function spend(address token, uint256 amount) external;
+    function swapAndSpend(    
+        address inputTokenToSwap,
+        address outputToken,
+        uint256 inputAmountToSwap,
+        uint256 outputMinAmount,
+        uint256 guaranteedOutputAmount,
+        uint256 outputAmountToTransfer,
+        bytes calldata swapData
+    ) external;
 
     /**
      * @notice Function to set the owner of the contract.

@@ -25,6 +25,7 @@ contract DebtManagerStorage is
     ReentrancyGuardTransientUpgradeable
 {
     using Math for uint256;
+
     enum MarketOperationType {
         Supply,
         Borrow,
@@ -51,7 +52,6 @@ contract DebtManagerStorage is
         uint80 ltv;
         uint80 liquidationThreshold;
         uint96 liquidationBonus;
-        uint256 supplyCap;
     }
 
     struct TokenData {
@@ -83,30 +83,24 @@ contract DebtManagerStorage is
     mapping(address borrowToken => BorrowTokenConfig config) internal _borrowTokenConfig;
 
     // Collateral held by the user
-    mapping(address user => mapping(address token => uint256 amount)) internal _userCollateral;
+    // mapping(address user => mapping(address token => uint256 amount)) internal _userCollateral;
     // Total collateral held by the users with the contract
-    mapping(address token => uint256 amount) internal _totalCollateralAmounts;
-    mapping(address token => CollateralTokenConfig config)
-        internal _collateralTokenConfig;
+    // mapping(address token => uint256 amount) internal _totalCollateralAmounts;
+    mapping(address token => CollateralTokenConfig config) internal _collateralTokenConfig;
 
     // Borrowings is in USD with 6 decimals
-    mapping(address user => mapping(address borrowToken => uint256 borrowing))
-        internal _userBorrowings;
+    mapping(address user => mapping(address borrowToken => uint256 borrowing)) internal _userBorrowings;
     // Snapshot of user's interests already paid
-    mapping(address user => mapping(address borrowToken => uint256 interestSnapshot))
-        internal _usersDebtInterestIndexSnapshots;
-
+    mapping(address user => mapping(address borrowToken => uint256 interestSnapshot)) internal _usersDebtInterestIndexSnapshots;
     // Shares have 18 decimals
     mapping(address supplier => mapping(address borrowToken => uint256 shares)) internal _sharesOfBorrowTokens;
 
-
-    event SuppliedUSDC(uint256 amount);
-    event DepositedCollateral(
-        address indexed depositor,
-        address indexed user,
-        address indexed token,
-        uint256 amount
-    );
+    // event DepositedCollateral(
+    //     address indexed depositor,
+    //     address indexed user,
+    //     address indexed token,
+    //     uint256 amount
+    // );
     event Supplied(
         address indexed sender,
         address indexed user,
@@ -130,18 +124,17 @@ contract DebtManagerStorage is
         address indexed collateralToken,
         uint256 beforeCollateralAmount,
         uint256 afterCollateralAmount,
-        uint256 repaidUsdcDebtAmount
+        uint256 repaidUsdDebtAmount
     );
     event RepaidWithCollateral(
         address indexed user,
-        uint256 repaidUsdcDebtAmount,
+        uint256 repaidUsdDebtAmount,
         TokenData[] collateralUsed
     );
     event Liquidated(
         address indexed liquidator,
         address indexed user,
         address indexed debtTokenToLiquidate,
-        TokenData[] beforeCollateralAmount,
         LiquidationTokenData[] userCollateralLiquidated,
         uint256 beforeDebtAmount,
         uint256 debtAmountLiquidated
@@ -166,11 +159,11 @@ contract DebtManagerStorage is
         uint256 totalBorrowingAmtBeforeInterest,
         uint256 totalBorrowingAmtAfterInterest
     );
-    event WithdrawCollateral(
-        address indexed user,
-        address indexed token,
-        uint256 amount
-    );
+    // event WithdrawCollateral(
+    //     address indexed user,
+    //     address indexed token,
+    //     uint256 amount
+    // );
     event AccountClosed(address indexed user, TokenData[] collateralWithdrawal);
     event BorrowTokenConfigSet(address indexed token, BorrowTokenConfig config);
     event CollateralTokenConfigSet(
@@ -221,6 +214,7 @@ contract DebtManagerStorage is
     error SupplyCapBreached();
     error OnlyUserSafe();
     error UserSafeCannotSupplyDebtTokens();
+    error NotAUserSafe();
     
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
@@ -247,8 +241,21 @@ contract DebtManagerStorage is
         address borrowToken
     ) internal view returns (uint256) {
         return
-            _convertFromSixDecimals(borrowToken, totalBorrowingAmount(borrowToken)) +
+            convertUsdToCollateralToken(borrowToken, totalBorrowingAmount(borrowToken)) +
             IERC20(borrowToken).balanceOf(address(this));
+    }
+
+    function convertUsdToCollateralToken(
+        address collateralToken,
+        uint256 debtUsdAmount
+    ) public view returns (uint256) {
+        if (!isCollateralToken(collateralToken))
+            revert UnsupportedCollateralToken();
+        return
+            (debtUsdAmount * 10 ** _getDecimals(collateralToken)) /
+            IPriceProvider(_cashDataProvider.priceProvider()).price(
+                collateralToken
+            );
     }
 
     function totalBorrowingAmount(
@@ -302,13 +309,9 @@ contract DebtManagerStorage is
             borrowToken
         ].totalBorrowingAmount;
 
-        _borrowTokenConfig[borrowToken]
-            .interestIndexSnapshot = debtInterestIndexSnapshot(borrowToken);
-        _borrowTokenConfig[borrowToken]
-            .totalBorrowingAmount = totalBorrowingAmount(borrowToken);
-        _borrowTokenConfig[borrowToken].lastUpdateTimestamp = uint64(
-            block.timestamp
-        );
+        _borrowTokenConfig[borrowToken].interestIndexSnapshot = debtInterestIndexSnapshot(borrowToken);
+        _borrowTokenConfig[borrowToken].totalBorrowingAmount = totalBorrowingAmount(borrowToken);
+        _borrowTokenConfig[borrowToken].lastUpdateTimestamp = uint64(block.timestamp);
 
         if (
             totalBorrowingAmtBeforeInterest !=
@@ -323,9 +326,7 @@ contract DebtManagerStorage is
         if (user != address(0)) {
             uint256 userBorrowingsBefore = _userBorrowings[user][borrowToken];
             _userBorrowings[user][borrowToken] = borrowingOf(user, borrowToken);
-            _usersDebtInterestIndexSnapshots[user][
-                borrowToken
-            ] = _borrowTokenConfig[borrowToken].interestIndexSnapshot;
+            _usersDebtInterestIndexSnapshots[user][borrowToken] = _borrowTokenConfig[borrowToken].interestIndexSnapshot;
 
             if (userBorrowingsBefore != _userBorrowings[user][borrowToken])
                 emit UserInterestAdded(
@@ -379,29 +380,6 @@ contract DebtManagerStorage is
     function isBorrowToken(address token) public view returns (bool) {
         return _borrowTokenIndexPlusOne[token] != 0;
     }
-
-    function _convertToSixDecimals(
-        address token,
-        uint256 amount
-    ) internal view returns (uint256) {
-        uint8 tokenDecimals = _getDecimals(token);
-        return
-            tokenDecimals == 6
-                ? amount
-                : amount.mulDiv(SIX_DECIMALS, 10 ** tokenDecimals, Math.Rounding.Ceil);
-    }
-
-    function _convertFromSixDecimals(
-        address token,
-        uint256 amount
-    ) internal view returns (uint256) {
-        uint8 tokenDecimals = _getDecimals(token);
-        return
-            tokenDecimals == 6
-                ? amount
-                : amount.mulDiv(10 ** tokenDecimals, SIX_DECIMALS, Math.Rounding.Floor);
-    }
-
 
     function _getDecimals(address token) internal view returns (uint8) {
         return IERC20Metadata(token).decimals();

@@ -40,7 +40,17 @@ contract UserSafeEventEmitter is Initializable, UUPSUpgradeable, AccessControlDe
     event UserRecoverySignerSet(address indexed userSafe,  address oldRecoverySigner, address newRecoverySigner);
     event SpendingLimitChanged(address indexed userSafe, SpendingLimit oldLimit, SpendingLimit newLimit);
     event ModeSet(address indexed userSafe, UserSafeStorage.Mode prevMode, UserSafeStorage.Mode newMode, uint256 incomingModeStartTime);
+    event Spend(address indexed userSafe, address indexed token, uint256 amount, UserSafeStorage.Mode mode);
+    event Swap(address indexed userSafe, address indexed inputToken, uint256 inputAmount, address indexed outputToken, uint256 outputAmount);
     
+    function emitSpend(address token, uint256 amount, UserSafeStorage.Mode mode) external onlyUserSafe {
+        emit Spend(msg.sender, token, amount, mode);
+    }
+
+    function emitSwap(address inputToken, uint256 inputAmount, address outputToken, uint256 outputAmount) external onlyUserSafe {
+        emit Swap(msg.sender, inputToken, inputAmount, outputToken, outputAmount);
+    }
+
     function emitSetMode(UserSafeStorage.Mode prevMode, UserSafeStorage.Mode newMode, uint256 incomingModeStartTime) external onlyUserSafe {
         emit ModeSet(msg.sender, prevMode, newMode, incomingModeStartTime);
     }

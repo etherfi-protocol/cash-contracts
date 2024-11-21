@@ -2,7 +2,7 @@
 pragma solidity ^0.8.24;
 
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import {Test, console, stdError} from "forge-std/Test.sol";
+import {Test, stdError} from "forge-std/Test.sol";
 import {SettlementDispatcher, Ticket, MessagingFee, OFTReceipt, SendParam} from "../../src/settlement-dispatcher/SettlementDispatcher.sol";
 import {UUPSProxy} from "../../src/UUPSProxy.sol";
 import {IAccessControl} from "@openzeppelin/contracts/access/IAccessControl.sol";

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import {Test, console, stdError} from "forge-std/Test.sol";
+import {Test, stdError} from "forge-std/Test.sol";
 import {Utils, ChainConfig} from "../script/user-safe/Utils.sol";
 import {DebtManagerCore} from "../src/debt-manager/DebtManagerCore.sol";
 import {stdJson} from "forge-std/StdJson.sol";
