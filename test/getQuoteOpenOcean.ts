@@ -10,7 +10,7 @@ function chainIdToChainName(chainId:string) : string {
 }
 
 const OPEN_OCEAN_API_ENDPOINT =
-  `https://open-api.openocean.finance/v4`;
+  `https://open-api.openocean.finance/v3`;
 const OPEN_OCEAN_ROUTER = "0x6352a56caadC4F1E25CD6c75970Fa768A3304e64";
 const SELECTOR = "0x90411a32"
 
@@ -91,7 +91,8 @@ export const getData = async () => {
   const toAddress = args[4];
   const fromAsset = args[5];
   const toAsset = args[6];
-  const fromAmount = args[7];
+  const fromAmount = args[7]; 
+  const fromAssetDecimals = args[8];
 
   const data = await getOpenOceanSwapData({
     chainId,
@@ -100,6 +101,7 @@ export const getData = async () => {
     fromAsset,
     toAsset,
     fromAmount,
+    fromAssetDecimals
   });
   
   console.log(recodeSwapData(data));
@@ -135,6 +137,7 @@ const getOpenOceanSwapData = async ({
   fromAsset,
   toAsset,
   fromAmount,
+  fromAssetDecimals
 }: {
   chainId: string;
   fromAddress: string;
@@ -142,11 +145,12 @@ const getOpenOceanSwapData = async ({
   fromAsset: string;
   toAsset: string;
   fromAmount: string;
+  fromAssetDecimals: string;
 }) => {
   const params = {
     inTokenAddress: fromAsset,
     outTokenAddress: toAsset,
-    amount: ethers.utils.formatEther(fromAmount.toString()).toString(),
+    amount: ethers.utils.formatUnits(fromAmount.toString(), fromAssetDecimals.toString()).toString(),
     sender: fromAddress,
     account: toAddress,
     slippage: 1,
@@ -155,7 +159,7 @@ const getOpenOceanSwapData = async ({
 
   let retries = 5;
 
-  const API_ENDPOINT = `${OPEN_OCEAN_API_ENDPOINT}/${chainIdToChainName(chainId)}/swap`;
+  const API_ENDPOINT = `${OPEN_OCEAN_API_ENDPOINT}/${chainIdToChainName(chainId)}/swap_quote`;
 
   while (retries > 0) {
     try {

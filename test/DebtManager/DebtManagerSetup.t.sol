@@ -177,8 +177,9 @@ contract DebtManagerSetup is Utils {
 
 
         userSafeFactory = address(1);
+        address eventEmitter = address(1);
 
-        CashDataProvider(address(cashDataProvider)).initialize(
+        CashDataProvider(address(cashDataProvider)).initialize(abi.encode(
             owner,
             delay,
             etherFiWallet,
@@ -187,8 +188,11 @@ contract DebtManagerSetup is Utils {
             address(priceProvider),
             address(swapper),
             address(aaveV3Adapter),
-            userSafeFactory
-        );
+            userSafeFactory,
+            eventEmitter,
+            makeAddr("recoverySigner1"),
+            makeAddr("recoverySigner2")
+        ));
     
         DebtManagerInitializer(address(debtManager)).initialize(
             owner,

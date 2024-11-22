@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import {IUserSafe, OwnerLib, UserSafe} from "../../src/user-safe/UserSafe.sol";
+import {IUserSafe, OwnerLib} from "../../src/user-safe/UserSafeCore.sol";
 import {IntegrationTestSetup, PriceProvider, MockPriceProvider, MockERC20} from "./IntegrationTestSetup.t.sol";
 import {IL2DebtManager} from "../../src/interfaces/IL2DebtManager.sol";
 import {SafeERC20, IERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
@@ -135,7 +135,7 @@ contract IntegrationTest is IntegrationTestSetup {
 
         uint256 aliceSafeWeEthBalBefore = weETH.balanceOf(address(aliceSafe));
         uint256 cashSafeUsdcBalBefore = usdc.balanceOf(
-            address(etherFiCashMultisig)
+            address(settlementDispatcher)
         );
 
         uint256 debtManagerWeEthBalBefore = weETH.balanceOf(
@@ -171,7 +171,7 @@ contract IntegrationTest is IntegrationTestSetup {
 
         uint256 aliceSafeWeEthBalAfter = weETH.balanceOf(address(aliceSafe));
         uint256 cashSafeUsdcBalAfter = usdc.balanceOf(
-            address(etherFiCashMultisig)
+            address(settlementDispatcher)
         );
 
         uint256 debtManagerWeEthBalAfter = weETH.balanceOf(

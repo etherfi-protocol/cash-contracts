@@ -4,15 +4,13 @@ pragma solidity ^0.8.24;
 import {SafeERC20, IERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {SignatureUtils} from "./SignatureUtils.sol";
 import {OwnerLib} from "./OwnerLib.sol";
-import {IUserSafe} from "../interfaces/IUserSafe.sol";
+import {UserSafeStorage} from "../user-safe/UserSafeStorage.sol";
 
 library UserSafeLib {
     using SignatureUtils for bytes32;
 
     bytes32 public constant REQUEST_WITHDRAWAL_METHOD =
         keccak256("requestWithdrawal");
-    bytes32 public constant RESET_SPENDING_LIMIT_METHOD =
-        keccak256("resetSpendingLimit");
     bytes32 public constant UPDATE_SPENDING_LIMIT_METHOD =
         keccak256("updateSpendingLimit");
     bytes32 public constant SET_COLLATERAL_LIMIT_METHOD =
@@ -43,31 +41,11 @@ library UserSafeLib {
         msgHash.verifySig(currentOwner, signature);
     }
 
-    function verifyResetSpendingLimitSig(
-        OwnerLib.OwnerObject memory currentOwner,
-        uint256 nonce,
-        uint8 spendingLimitType,
-        uint256 limitInUsd,
-        bytes calldata signature
-    ) internal view {
-        bytes32 msgHash = keccak256(
-            abi.encode(
-                RESET_SPENDING_LIMIT_METHOD,
-                block.chainid,
-                address(this),
-                nonce,
-                spendingLimitType,
-                limitInUsd
-            )
-        );
-
-        msgHash.verifySig(currentOwner, signature);
-    }
-
     function verifyUpdateSpendingLimitSig(
         OwnerLib.OwnerObject memory currentOwner,
         uint256 nonce,
-        uint256 limitInUsd,
+        uint256 dailyLimitInUsd,
+        uint256 monthlyLimitInUsd,
         bytes calldata signature
     ) internal view {
         bytes32 msgHash = keccak256(
@@ -76,7 +54,8 @@ library UserSafeLib {
                 block.chainid,
                 address(this),
                 nonce,
-                limitInUsd
+                dailyLimitInUsd,
+                monthlyLimitInUsd
             )
         );
 
@@ -165,7 +144,7 @@ library UserSafeLib {
 
     function verifyRecoverSig(
         uint256 nonce,
-        IUserSafe.Signature[2] calldata signatures,
+        UserSafeStorage.Signature[2] calldata signatures,
         OwnerLib.OwnerObject[2] memory recoveryOwners,
         bytes calldata newOwner
     ) internal view {

@@ -3,7 +3,6 @@ pragma solidity ^0.8.24;
 
 import {Script} from "forge-std/Script.sol";
 import {UserSafeFactory} from "../../src/user-safe/UserSafeFactory.sol";
-import {UserSafe} from "../../src/user-safe/UserSafe.sol";
 import {MockERC20} from "../../src/mocks/MockERC20.sol";
 import {MockPriceProvider} from "../../src/mocks/MockPriceProvider.sol";
 import {MockSwapper} from "../../src/mocks/MockSwapper.sol";
@@ -15,18 +14,23 @@ import {CashDataProvider} from "../../src/utils/CashDataProvider.sol";
 import {Utils, ChainConfig} from "./Utils.sol";
 import {MockAaveAdapter} from "../../src/mocks/MockAaveAdapter.sol";
 import {UUPSProxy} from "../../src/UUPSProxy.sol";
+import {UserSafeCore, UserSafeEventEmitter, SpendingLimit} from "../../src/user-safe/UserSafeCore.sol";
+import {UserSafeSetters} from "../../src/user-safe/UserSafeSetters.sol";
+import {IUserSafe} from "../../src/interfaces/IUserSafe.sol";
 
 contract DeployMockUserSafeSetup is Utils {
     MockERC20 usdc;
     MockERC20 weETH;
     MockPriceProvider priceProvider;
     MockSwapper swapper;
-    UserSafe userSafeImpl;
+    UserSafeEventEmitter userSafeEventEmitter;
+    UserSafeCore userSafeCoreImpl;
+    UserSafeSetters userSafeSettersImpl;
     UserSafeFactory userSafeFactory;
     IL2DebtManager debtManager;
     CashDataProvider cashDataProvider;
     MockAaveAdapter aaveAdapter;
-    address etherFiCashMultisig;
+    address settlementDispatcher;
     address etherFiWallet;
     address owner;
     uint256 delay = 60;
@@ -48,7 +52,7 @@ contract DeployMockUserSafeSetup is Utils {
         vm.startBroadcast(deployerPrivateKey);
 
         etherFiWallet = deployerAddress;
-        etherFiCashMultisig = deployerAddress;
+        settlementDispatcher = deployerAddress;
         owner = deployerAddress;
 
         usdc = MockERC20(deployErc20("USDC", "USDC", 6));
@@ -86,12 +90,8 @@ contract DeployMockUserSafeSetup is Utils {
 
         debtManager = IL2DebtManager(address(debtManagerProxy));
 
-        userSafeImpl = new UserSafe(
-            address(cashDataProvider),
-            recoverySigner1,
-            recoverySigner2
-        );
-
+        userSafeCoreImpl = new UserSafeCore(address(cashDataProvider));
+        userSafeSettersImpl = new UserSafeSetters(address(cashDataProvider));
         address factoryImpl = address(new UserSafeFactory());
         
         userSafeFactory = UserSafeFactory(
@@ -100,24 +100,41 @@ contract DeployMockUserSafeSetup is Utils {
                 abi.encodeWithSelector(
                     UserSafeFactory.initialize.selector, 
                     delay,
-                    address(userSafeImpl), 
                     owner, 
-                    address(cashDataProvider)
+                    address(cashDataProvider),
+                    address(userSafeCoreImpl),
+                    address(userSafeSettersImpl)
                 ))
             )
         );
 
-        CashDataProvider(address(cashDataProvider)).initialize(
+        address eventEmitterImpl = address(new UserSafeEventEmitter());
+        userSafeEventEmitter = UserSafeEventEmitter(address(
+            new UUPSProxy(
+                eventEmitterImpl,
+                abi.encodeWithSelector(
+                    UserSafeEventEmitter.initialize.selector,
+                    delay,
+                    owner,
+                    address(cashDataProvider)
+                )
+            )
+        ));
+
+        CashDataProvider(address(cashDataProvider)).initialize(abi.encode(
             owner,
             uint64(delay),
             etherFiWallet,
-            etherFiCashMultisig,
+            address(settlementDispatcher),
             address(debtManager),
             address(priceProvider),
             address(swapper),
             address(aaveAdapter),
-            address(userSafeFactory)
-        );
+            address(userSafeFactory),
+            address(userSafeEventEmitter),
+            recoverySigner1,
+            recoverySigner2
+        ));
 
         DebtManagerInitializer(address(debtManager)).initialize(
             owner,
@@ -149,8 +166,13 @@ contract DeployMockUserSafeSetup is Utils {
         vm.serializeAddress(deployedAddresses, "swapper", address(swapper));
         vm.serializeAddress(
             deployedAddresses,
-            "userSafeImpl",
-            address(userSafeImpl)
+            "userSafeCoreImpl",
+            address(userSafeCoreImpl)
+        );
+        vm.serializeAddress(
+            deployedAddresses,
+            "userSafeSettersImpl",
+            address(userSafeSettersImpl)
         );
         vm.serializeAddress(
             deployedAddresses,
@@ -161,6 +183,16 @@ contract DeployMockUserSafeSetup is Utils {
             deployedAddresses,
             "userSafeFactoryProxy",
             address(userSafeFactory)
+        );
+        vm.serializeAddress(
+            deployedAddresses,
+            "userSafeEventEmitterImpl",
+            address(eventEmitterImpl)
+        );
+        vm.serializeAddress(
+            deployedAddresses,
+            "userSafeEventEmitterProxy",
+            address(userSafeEventEmitter)
         );
         vm.serializeAddress(
             deployedAddresses,
@@ -191,11 +223,6 @@ contract DeployMockUserSafeSetup is Utils {
             deployedAddresses,
             "cashDataProviderImpl",
             address(cashDataProviderImpl)
-        );
-        vm.serializeAddress(
-            deployedAddresses,
-            "etherFiCashMultisig",
-            address(etherFiCashMultisig)
         );
         vm.serializeAddress(
             deployedAddresses,

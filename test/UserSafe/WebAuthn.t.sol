@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import {IUserSafe, OwnerLib, WebAuthn, UserSafe, UserSafeLib} from "../../src/user-safe/UserSafe.sol";
+import {IUserSafe, OwnerLib, UserSafeLib, UserSafeCore} from "../../src/user-safe/UserSafeCore.sol";
+import {WebAuthn} from "../../src/libraries/WebAuthn.sol";
 import {MessageHashUtils} from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
 import {UserSafeSetup} from "./UserSafeSetup.t.sol";
 import {WebAuthnInfo, WebAuthnUtils} from "../WebAuthnUtils.sol";
-import {console} from "forge-std/console.sol";
 
 contract UserSafeWebAuthnSignatureTest is UserSafeSetup {
     uint256 passkeyPrivateKey =
@@ -15,7 +15,7 @@ contract UserSafeWebAuthnSignatureTest is UserSafeSetup {
     bytes passkeyOwner =
         hex"1c05286fe694493eae33312f2d2e0d0abeda8db76238b7a204be1fb87f54ce4228fef61ef4ac300f631657635c28e59bfb2fe71bce1634c81c65642042f6dc4d";
 
-    UserSafe passkeyOwnerSafe;
+    IUserSafe passkeyOwnerSafe;
 
     function setUp() public override {
         super.setUp();
@@ -23,15 +23,16 @@ contract UserSafeWebAuthnSignatureTest is UserSafeSetup {
         bytes memory saltData = bytes("passkeySafe");
 
         vm.prank(owner);
-        passkeyOwnerSafe = UserSafe(
+        passkeyOwnerSafe = IUserSafe(
             factory.createUserSafe(
                 saltData,
                 abi.encodeWithSelector(
-                    // initialize(bytes,uint256, uint256)
-                    0x32b218ac,
+                    UserSafeCore.initialize.selector,
                     passkeyOwner,
-                    defaultSpendingLimit,
-                    collateralLimit
+                    defaultDailySpendingLimit,
+                    defaultMonthlySpendingLimit,
+                    collateralLimit,
+                    timezoneOffset
                 )
             )
         );
@@ -77,8 +78,6 @@ contract UserSafeWebAuthnSignatureTest is UserSafeSetup {
         );
 
         WebAuthnInfo memory webAuthn = WebAuthnUtils.getWebAuthnStruct(msgHash);
-
-        console.logBytes(abi.encode(webAuthn.messageHash));
 
         // a user -> change my spending limit
         // challenge, clientjson

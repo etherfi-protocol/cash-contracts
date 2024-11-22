@@ -4,12 +4,10 @@ pragma solidity ^0.8.24;
 import {Test, console, stdError} from "forge-std/Test.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {UserSafeFactory} from "../../src/user-safe/UserSafeFactory.sol";
-import {UserSafe} from "../../src//user-safe/UserSafe.sol";
 import {IL2DebtManager} from "../../src/interfaces/IL2DebtManager.sol";
 import {DebtManagerCore} from "../../src/debt-manager/DebtManagerCore.sol";
 import {DebtManagerAdmin} from "../../src/debt-manager/DebtManagerAdmin.sol";
 import {DebtManagerInitializer} from "../../src/debt-manager/DebtManagerInitializer.sol";
-import {UserSafeV2Mock} from "../../src/mocks/UserSafeV2Mock.sol";
 import {SwapperOpenOcean} from "../../src/utils/SwapperOpenOcean.sol";
 import {PriceProvider} from "../../src/oracle/PriceProvider.sol";
 import {CashDataProvider} from "../../src/utils/CashDataProvider.sol";
@@ -25,6 +23,9 @@ import {MockAaveAdapter} from "../../src/mocks/MockAaveAdapter.sol";
 import {IWeETH} from "../../src/interfaces/IWeETH.sol";
 import {UUPSProxy} from "../../src/UUPSProxy.sol";
 import {IAggregatorV3} from "../../src/interfaces/IAggregatorV3.sol";
+import {UserSafeCore, UserSafeEventEmitter, SpendingLimit} from "../../src/user-safe/UserSafeCore.sol";
+import {UserSafeSetters} from "../../src/user-safe/UserSafeSetters.sol";
+import {IUserSafe} from "../../src/interfaces/IUserSafe.sol";
 
 contract IntegrationTestSetup is Utils {
     using OwnerLib for address;
@@ -40,8 +41,10 @@ contract IntegrationTestSetup is Utils {
     uint256 thirdPartyRecoverySignerPk;
     address thirdPartyRecoverySigner;
 
+    UserSafeCore userSafeCoreImpl;
+    UserSafeSetters userSafeSettersImpl;
     UserSafeFactory factory;
-    UserSafe impl;
+    UserSafeEventEmitter eventEmitter;
 
     ERC20 usdc;
     ERC20 weETH;
@@ -51,9 +54,11 @@ contract IntegrationTestSetup is Utils {
 
     uint256 mockWeETHPriceInUsd = 3000e6;
     uint256 defaultSpendingLimit = 10000e6;
+    uint256 defaultDailySpendingLimit = 10000e6;
+    uint256 defaultMonthlySpendingLimit = 100000e6;
     uint256 collateralLimit = 10000e6;
     uint64 delay = 10;
-    address etherFiCashMultisig = makeAddr("multisig");
+    address settlementDispatcher = makeAddr("multisig");
     address etherFiWallet = makeAddr("etherFiWallet");
 
     address weEthWethOracle;
@@ -63,7 +68,7 @@ contract IntegrationTestSetup is Utils {
     address alice;
     uint256 alicePk;
     bytes aliceBytes;
-    UserSafe aliceSafe;
+    IUserSafe aliceSafe;
 
     IEtherFiCashAaveV3Adapter aaveV3Adapter;
 
@@ -81,6 +86,7 @@ contract IntegrationTestSetup is Utils {
     uint64 borrowApy = 1000; // 10%
     ChainConfig chainConfig;
     uint256 supplyCap = 10000 ether;
+    int256 timezoneOffset = 4 * 60 * 60; // Dubai timezone
 
     function setUp() public virtual {
         chainId = vm.envString("TEST_CHAIN");
@@ -197,12 +203,8 @@ contract IntegrationTestSetup is Utils {
             "thirdPartyRecoverySigner"
         );
 
-        impl = new UserSafe(
-            address(cashDataProvider),
-            etherFiRecoverySigner,
-            thirdPartyRecoverySigner
-        );
-
+        userSafeCoreImpl = new UserSafeCore(address(cashDataProvider));
+        userSafeSettersImpl = new UserSafeSetters(address(cashDataProvider));
         address factoryImpl = address(new UserSafeFactory());
         
         factory = UserSafeFactory(
@@ -211,24 +213,41 @@ contract IntegrationTestSetup is Utils {
                 abi.encodeWithSelector(
                     UserSafeFactory.initialize.selector, 
                     uint48(delay),
-                    address(impl), 
                     owner, 
-                    address(cashDataProvider)
+                    address(cashDataProvider),
+                    address(userSafeCoreImpl),
+                    address(userSafeSettersImpl)
                 ))
             )
         );
 
-        CashDataProvider(address(cashDataProvider)).initialize(
+        address eventEmitterImpl = address(new UserSafeEventEmitter());
+        eventEmitter = UserSafeEventEmitter(address(
+            new UUPSProxy(
+                eventEmitterImpl,
+                abi.encodeWithSelector(
+                    UserSafeEventEmitter.initialize.selector,
+                    delay,
+                    owner,
+                    address(cashDataProvider)
+                )
+            )
+        ));
+        
+        CashDataProvider(address(cashDataProvider)).initialize(abi.encode(
             owner,
             delay,
             etherFiWallet,
-            etherFiCashMultisig,
+            settlementDispatcher,
             address(etherFiCashDebtManager),
             address(priceProvider),
             address(swapper),
             address(aaveV3Adapter),
-            address(factory)
-        );
+            address(factory),
+            address(eventEmitter),
+            etherFiRecoverySigner,
+            thirdPartyRecoverySigner
+        ));
 
         DebtManagerInitializer(address(etherFiCashDebtManager)).initialize(
             owner,
@@ -250,15 +269,16 @@ contract IntegrationTestSetup is Utils {
 
         bytes memory saltData = bytes("aliceSafe");
 
-        aliceSafe = UserSafe(
+        aliceSafe = IUserSafe(
             factory.createUserSafe(
                 saltData,
                 abi.encodeWithSelector(
-                    // initialize(bytes,uint256, uint256)
-                    0x32b218ac,
+                    UserSafeCore.initialize.selector,
                     aliceBytes,
-                    defaultSpendingLimit,
-                    collateralLimit
+                    defaultDailySpendingLimit,
+                    defaultMonthlySpendingLimit,
+                    collateralLimit,
+                    timezoneOffset
                 )
             )
         );

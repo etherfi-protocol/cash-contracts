@@ -463,7 +463,7 @@ contract DebtManagerCore is DebtManagerStorage {
             revert InsufficientLiquidity();
 
         IERC20(token).safeTransfer(
-            _cashDataProvider.etherFiCashMultiSig(),
+            _cashDataProvider.settlementDispatcher(),
             amount
         );
 

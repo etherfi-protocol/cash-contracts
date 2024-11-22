@@ -17,6 +17,12 @@ report
 # Dotenv file
 .env
 
+# Certora
+.certora_internal 
+
+# Coverage 
+report
+
 # vscode
 .vscode/
 
