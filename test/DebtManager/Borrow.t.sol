@@ -125,13 +125,6 @@ contract DebtManagerBorrowTest is Setup {
         vm.stopPrank();
     }
 
-    function test_CannotAddNullAddressAsBorrowToken() public {
-        vm.startPrank(owner);
-        vm.expectRevert(IL2DebtManager.InvalidValue.selector);
-        debtManager.supportBorrowToken(address(0), 1, 1);
-        vm.stopPrank();
-    }
-
     function test_CannotUnsupportTokenForBorrowIfItIsNotABorrowTokenAlready()
         public
     {
@@ -229,7 +222,7 @@ contract DebtManagerBorrowTest is Setup {
         assertEq(borrowingOfUserBefore, 0);
 
         vm.startPrank(etherFiWallet);
-        aliceSafe.spend(address(usdc), borrowAmt);
+        aliceSafe.spend(txId, address(usdc), borrowAmt);
         vm.stopPrank();
 
         uint256 borrowInUsdc = debtManager.borrowingOf(address(aliceSafe), address(usdc));
@@ -252,7 +245,7 @@ contract DebtManagerBorrowTest is Setup {
         ) / 2;
 
         vm.startPrank(etherFiWallet);
-        aliceSafe.spend(address(usdc), borrowAmt);
+        aliceSafe.spend(txId, address(usdc), borrowAmt);
         vm.stopPrank();
 
         assertEq(debtManager.borrowingOf(address(aliceSafe), address(usdc)), borrowAmt);
@@ -276,13 +269,10 @@ contract DebtManagerBorrowTest is Setup {
         uint64 borrowApy = 1e18;
 
         vm.startPrank(owner);
-        debtManager.supportBorrowToken(address(newToken), borrowApy, 1);
-        
-
         if (isFork(chainId)) {
             address[] memory _tokens = new address[](1);
             _tokens[0] = address(newToken);
-            
+
             PriceProvider.Config[] memory _configs = new PriceProvider.Config[](1); 
             _configs[0] = PriceProvider.Config({
                 oracle: usdcUsdOracle,
@@ -305,6 +295,8 @@ contract DebtManagerBorrowTest is Setup {
             address(newToken),
             collateralTokenConfig
         );
+        debtManager.supportBorrowToken(address(newToken), borrowApy, 1);
+
         vm.stopPrank();
 
         uint256 remainingBorrowCapacityInUsdc = debtManager
@@ -315,6 +307,7 @@ contract DebtManagerBorrowTest is Setup {
 
         vm.prank(etherFiWallet);
         aliceSafe.spend(
+            txId,
             address(newToken),
             (remainingBorrowCapacityInUsdc * 1e12) / 1e6
         );
@@ -331,7 +324,7 @@ contract DebtManagerBorrowTest is Setup {
         ) / 4;
 
         vm.startPrank(etherFiWallet);
-        aliceSafe.spend(address(usdc), borrowAmt);
+        aliceSafe.spend(txId, address(usdc), borrowAmt);
 
         assertEq(debtManager.borrowingOf(address(aliceSafe), address(usdc)), borrowAmt);
 
@@ -349,7 +342,7 @@ contract DebtManagerBorrowTest is Setup {
             expectedTotalBorrowWithInterest
         );
 
-        aliceSafe.spend(address(usdc), borrowAmt);
+        aliceSafe.spend(keccak256("newTxId"), address(usdc), borrowAmt);
 
         assertEq(
             debtManager.borrowingOf(address(aliceSafe), address(usdc)),
@@ -370,10 +363,10 @@ contract DebtManagerBorrowTest is Setup {
             address(aliceSafe)
         );
         vm.startPrank(etherFiWallet);
-        aliceSafe.spend(address(usdc), totalCanBorrow);
+        aliceSafe.spend(txId, address(usdc), totalCanBorrow);
 
         vm.expectRevert("Insufficient borrowing power");
-        aliceSafe.spend(address(usdc), 1);
+        aliceSafe.spend(keccak256("newTxId"), address(usdc), 1);
 
         vm.stopPrank();
     }
@@ -382,7 +375,7 @@ contract DebtManagerBorrowTest is Setup {
         deal(address(usdc), address(debtManager), 0);
         vm.startPrank(etherFiWallet);
         vm.expectRevert(IL2DebtManager.InsufficientLiquidity.selector);
-        aliceSafe.spend(address(usdc), 1);
+        aliceSafe.spend(txId, address(usdc), 1);
         vm.stopPrank();
     }
 
@@ -390,7 +383,7 @@ contract DebtManagerBorrowTest is Setup {
         deal(address(weETH), address(aliceSafe), 0);
         vm.startPrank(etherFiWallet);
         vm.expectRevert("Insufficient borrowing power");
-        aliceSafe.spend(address(usdc), 1);
+        aliceSafe.spend(txId, address(usdc), 1);
         vm.stopPrank();
     }
 

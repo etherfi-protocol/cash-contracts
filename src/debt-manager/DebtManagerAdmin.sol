@@ -39,6 +39,7 @@ contract DebtManagerAdmin is DebtManagerStorage {
         uint64 borrowApy,
         uint128 minShares
     ) external onlyRole(ADMIN_ROLE) {
+        if (!isCollateralToken(token)) revert NotACollateralToken();
         _supportBorrowToken(token);
         _setBorrowTokenConfig(token, borrowApy, minShares);
     }

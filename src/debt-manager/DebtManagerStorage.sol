@@ -26,14 +26,6 @@ contract DebtManagerStorage is
 {
     using Math for uint256;
 
-    enum MarketOperationType {
-        Supply,
-        Borrow,
-        Repay,
-        Withdraw,
-        SupplyAndBorrow
-    }
-
     struct BorrowTokenConfigData {
         uint64 borrowApy;
         uint128 minShares;
@@ -95,12 +87,6 @@ contract DebtManagerStorage is
     // Shares have 18 decimals
     mapping(address supplier => mapping(address borrowToken => uint256 shares)) internal _sharesOfBorrowTokens;
 
-    // event DepositedCollateral(
-    //     address indexed depositor,
-    //     address indexed user,
-    //     address indexed token,
-    //     uint256 amount
-    // );
     event Supplied(
         address indexed sender,
         address indexed user,
@@ -117,19 +103,6 @@ contract DebtManagerStorage is
         address indexed payer,
         address indexed token,
         uint256 amount
-    );
-    event RepaidWithCollateralToken(
-        address indexed user,
-        address indexed payer,
-        address indexed collateralToken,
-        uint256 beforeCollateralAmount,
-        uint256 afterCollateralAmount,
-        uint256 repaidUsdDebtAmount
-    );
-    event RepaidWithCollateral(
-        address indexed user,
-        uint256 repaidUsdDebtAmount,
-        TokenData[] collateralUsed
     );
     event Liquidated(
         address indexed liquidator,
@@ -159,12 +132,6 @@ contract DebtManagerStorage is
         uint256 totalBorrowingAmtBeforeInterest,
         uint256 totalBorrowingAmtAfterInterest
     );
-    // event WithdrawCollateral(
-    //     address indexed user,
-    //     address indexed token,
-    //     uint256 amount
-    // );
-    event AccountClosed(address indexed user, TokenData[] collateralWithdrawal);
     event BorrowTokenConfigSet(address indexed token, BorrowTokenConfig config);
     event CollateralTokenConfigSet(
         address indexed collateralToken,

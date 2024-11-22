@@ -12,8 +12,10 @@ struct ChainConfig {
     address usdc;
     address usdt;
     address weETH;
+    address scr;
     address weEthWethOracle;
     address ethUsdcOracle;
+    address scrUsdOracle;
     address usdcUsdOracle;
     address swapRouter1InchV6;
     address swapRouterOpenOcean;
@@ -25,6 +27,7 @@ contract Utils is Test {
     bytes32 public constant DEFAULT_ADMIN_ROLE = bytes32(0);
     bytes32 public constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
     uint256 public constant HUNDRED_PERCENT = 100e18;
+    uint256 public constant HUNDRED_PERCENT_IN_BPS = 10000;
     uint256 public constant PRECISION = 1e18;
     uint256 public constant SIX_DECIMALS = 1e6;
     address eth = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
@@ -67,6 +70,11 @@ contract Utils is Test {
             string.concat(".", chainId, ".", "weETH")
         );
 
+        config.scr = stdJson.readAddress(
+            inputJson,
+            string.concat(".", chainId, ".", "scr")
+        );
+
         config.weEthWethOracle = stdJson.readAddress(
             inputJson,
             string.concat(".", chainId, ".", "weEthWethOracle")
@@ -75,6 +83,11 @@ contract Utils is Test {
         config.ethUsdcOracle = stdJson.readAddress(
             inputJson,
             string.concat(".", chainId, ".", "ethUsdcOracle")
+        );
+
+        config.scrUsdOracle = stdJson.readAddress(
+            inputJson,
+            string.concat(".", chainId, ".", "scrUsdOracle")
         );
 
         config.usdcUsdOracle = stdJson.readAddress(

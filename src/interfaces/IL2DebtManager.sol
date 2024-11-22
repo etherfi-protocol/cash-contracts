@@ -2,14 +2,6 @@
 pragma solidity ^0.8.24;
 
 interface IL2DebtManager {
-    enum MarketOperationType {
-        Supply,
-        Borrow,
-        Repay,
-        Withdraw,
-        SupplyAndBorrow
-    }
-
     struct BorrowTokenConfigData {
         uint64 borrowApy;
         uint128 minShares;
@@ -41,13 +33,6 @@ interface IL2DebtManager {
         uint256 liquidationBonus;
     }
 
-    event SuppliedUSD(uint256 amount);
-    event DepositedCollateral(
-        address indexed depositor,
-        address indexed user,
-        address indexed token,
-        uint256 amount
-    );
     event Supplied(
         address indexed sender,
         address indexed user,
@@ -57,26 +42,13 @@ interface IL2DebtManager {
     event Borrowed(
         address indexed user,
         address indexed token,
-        uint256 borrowUsdAmount
+        uint256 amount
     );
     event Repaid(
         address indexed user,
         address indexed payer,
         address indexed token,
-        uint256 repaidUsdDebtAmount
-    );
-    event RepaidWithCollateralToken(
-        address indexed user,
-        address indexed payer,
-        address indexed collateralToken,
-        uint256 beforeCollateralAmount,
-        uint256 afterCollateralAmount,
-        uint256 repaidUsdDebtAmount
-    );
-    event RepaidWithCollateral(
-        address indexed user,
-        uint256 repaidUsdDebtAmount,
-        TokenData[] collateralUsed
+        uint256 amount
     );
     event Liquidated(
         address indexed liquidator,
@@ -106,12 +78,6 @@ interface IL2DebtManager {
         uint256 totalBorrowingAmtBeforeInterest,
         uint256 totalBorrowingAmtAfterInterest
     );
-    event WithdrawCollateral(
-        address indexed user,
-        address indexed token,
-        uint256 amount
-    );
-    event AccountClosed(address indexed user, TokenData[] collateralWithdrawal);
     event BorrowTokenConfigSet(address indexed token, BorrowTokenConfig config);
     event CollateralTokenConfigSet(
         address indexed collateralToken,
@@ -297,18 +263,6 @@ interface IL2DebtManager {
     function withdrawBorrowToken(address borrowToken, uint256 amount) external;
 
     /**
-     * @notice Function to deposit collateral into this contract.
-     * @param  token Address of the token to deposit.
-     * @param  user Address of the user safe to deposit collateral for.
-     * @param  amount Amount of the token to deposit.
-     */
-    function depositCollateral(
-        address token,
-        address user,
-        uint256 amount
-    ) external;
-
-    /**
      * @notice Function for users to borrow funds for payment using the deposited collateral.
      * @notice Borrowed tokens are transferred to the `etherFiCashSafe`
      * @param  token Address of the token to borrow.
@@ -327,20 +281,6 @@ interface IL2DebtManager {
         address token,
         uint256 amount
     ) external;
-
-    /**
-     * @notice Function to withdraw collateral from the Debt Manager.
-     * @param  token Address of the collateral token to withdraw.
-     * @param  amount Amount of the collateral token to withdraw.
-     */
-    function withdrawCollateral(address token, uint256 amount) external;
-
-    /**
-     * @notice Function to close account with the Debt Manager.
-     * @notice All the debt should already be repaid before this function can be called.
-     * @notice Withdraws the remaining user's collateral to the User Safe.
-     */
-    function closeAccount() external;
 
     // https://docs.aave.com/faq/liquidations
     /**
@@ -492,17 +432,6 @@ interface IL2DebtManager {
     function getCollateralValueInUsd(
         address user
     ) external view returns (uint256);
-
-    /**
-     * @notice Function to manage funds via supply, borrow, repay and withdraw from market.
-     * @notice Can only be called by an account with FUND_MANAGER_ROLE.
-     * @param marketOperationType Market operation type.
-     * @param data Data for the operation.
-     */
-    function fundManagementOperation(
-        uint8 marketOperationType,
-        bytes calldata data
-    ) external;
 
     /**
      * @notice Function to fetch the user collateral for a particular token.

@@ -57,7 +57,7 @@ contract DebtManagerRepayTest is Setup {
 
         vm.startPrank(etherFiWallet);
         borrowAmt = debtManager.remainingBorrowingCapacityInUSD(address(aliceSafe)) / 2;
-        aliceSafe.spend(address(usdc), borrowAmt);
+        aliceSafe.spend(txId, address(usdc), borrowAmt);
         vm.stopPrank();
     }
 

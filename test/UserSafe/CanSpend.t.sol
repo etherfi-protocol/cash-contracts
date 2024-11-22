@@ -163,7 +163,7 @@ contract UserSafeCanSpendTest is Setup {
         uint256 amountToSpend = 100e6;
         
         vm.prank(etherFiWallet);
-        aliceSafe.spend(address(usdc), defaultDailySpendingLimit - amountToSpend + 1);
+        aliceSafe.spend(txId, address(usdc), defaultDailySpendingLimit - amountToSpend + 1);
         
         (bool canSpend, string memory reason) = aliceSafe.canSpend(address(usdc), amountToSpend);
         assertEq(canSpend, false);
@@ -175,7 +175,7 @@ contract UserSafeCanSpendTest is Setup {
         uint256 amountToSpend = 100e6;
         
         vm.prank(etherFiWallet);
-        aliceSafe.spend(address(usdc), defaultDailySpendingLimit - amountToSpend + 1);
+        aliceSafe.spend(txId, address(usdc), defaultDailySpendingLimit - amountToSpend + 1);
 
         vm.warp(aliceSafe.applicableSpendingLimit().dailyRenewalTimestamp + 1);
         (bool canSpend, string memory reason) = aliceSafe.canSpend(address(usdc), amountToSpend);
@@ -200,7 +200,7 @@ contract UserSafeCanSpendTest is Setup {
 
         vm.warp(block.timestamp + delay + 1);
         vm.prank(etherFiWallet);
-        aliceSafe.spend(address(usdc), 1);
+        aliceSafe.spend(txId, address(usdc), 1);
 
         (bool canSpend, string memory reason) = aliceSafe.canSpend(address(usdc), amountToSpend);
         assertEq(canSpend, false);
@@ -219,7 +219,7 @@ contract UserSafeCanSpendTest is Setup {
 
         vm.warp(block.timestamp + delay + 1);
         vm.prank(etherFiWallet);
-        aliceSafe.spend(address(usdc), 1);
+        aliceSafe.spend(txId, address(usdc), 1);
 
         vm.warp(aliceSafe.applicableSpendingLimit().dailyRenewalTimestamp + 1);
 
@@ -233,7 +233,7 @@ contract UserSafeCanSpendTest is Setup {
 
         uint256 amount = 100e6;
         vm.prank(etherFiWallet);
-        aliceSafe.spend(address(usdc), amount);
+        aliceSafe.spend(txId, address(usdc), amount);
 
         _updateSpendingLimit(amount - 1, 1 ether);
         
@@ -248,7 +248,7 @@ contract UserSafeCanSpendTest is Setup {
 
         uint256 amount = 100e6;
         vm.prank(etherFiWallet);
-        aliceSafe.spend(address(usdc), amount);
+        aliceSafe.spend(txId, address(usdc), amount);
 
         _updateSpendingLimit(amount - 1, 1 ether);
         

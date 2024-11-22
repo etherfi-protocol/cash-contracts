@@ -183,7 +183,7 @@ contract IntegrationTest is Setup {
         vm.stopPrank();
 
         vm.prank(etherFiWallet);
-        aliceSafe.spend(address(newBorrowToken), 1 ether);
+        aliceSafe.spend(txId, address(newBorrowToken), 1 ether);
 
         uint256 timeElapsed = 24 * 60 * 60;
         uint256 expectedInterest = 1 ether * ((newBorrowTokenApy * timeElapsed) / 1e20);

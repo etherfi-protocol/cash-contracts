@@ -2,6 +2,14 @@
 pragma solidity ^0.8.24;
 
 interface ICashDataProvider {
+    enum UserSafeTiers {
+        None,
+        Whale,
+        Chad,
+        Wojak,
+        Pepe
+    }
+
     event DelayUpdated(uint256 oldDelay, uint256 newDelay);
     event SettlementDispatcherUpdated(address oldDispatcher, address newDispatcher);
     event CashDebtManagerUpdated(
@@ -17,6 +25,9 @@ interface ICashDataProvider {
     event UserSafeEventEmitterUpdated(address oldEventEmitter, address newEventEmitter);
     event EtherFiRecoverySignerUpdated(address oldSigner, address newSigner);
     event ThirdPartyRecoverySignerUpdated(address oldSigner, address newSigner);
+    event CashbackDispatcherUpdated(address oldDispatcher, address newDispatcher);
+    event UserSafeTierSet(address indexed userSafe, UserSafeTiers indexed oldTier, UserSafeTiers indexed newTier);
+    event TierCashbackPercentageSet(UserSafeTiers[] tiers, uint256[] cashbackPercentages);
     event UserSafeWhitelisted(address userSafe);
     event EtherFiWalletAdded(address wallet);
     event EtherFiWalletRemoved(address wallet);
@@ -26,6 +37,11 @@ interface ICashDataProvider {
     error AlreadyAWhitelistedEtherFiWallet();
     error NotAWhitelistedEtherFiWallet();
     error RecoverySignersCannotBeSame();
+    error NotAUserSafe();
+    error TierCannotBeNone();
+    error AlreadyInSameTier();
+    error ArrayLengthMismatch();
+    error CashbackPercentageGreaterThanMaxAllowed();
 
     /**
      * @notice Function to fetch the timelock delay for tokens from User Safe
@@ -76,6 +92,12 @@ interface ICashDataProvider {
     function userSafeEventEmitter() external view returns (address);
 
     /**
+     * @notice Function to fetch the address of the cashback dispatcher
+     * @return Address of the cashback dispatcher
+     */
+    function cashbackDispatcher() external view returns (address);
+
+    /**
      * @notice Function to fetch the address of the EtherFi recovery signerr
      * @return Address of the EtherFi recovery signer
      */
@@ -94,6 +116,24 @@ interface ICashDataProvider {
      */
     function isUserSafe(address account) external view returns (bool);
 
+    /**
+     * @notice Function to get the user safe tier
+     * @param safe Address of the user safe
+     * @return Tier for the user
+     */
+    function getUserSafeTier(address safe) external view returns (UserSafeTiers);
+
+    /**
+     * @notice Function to get the cashback percentage for the user safe
+     * @return Cashback percentage for the user
+     */
+    function getUserSafeCashbackPercentage(address safe) external view returns (uint256);
+
+    /**
+     * @notice Function to get the cashback percentage for a tier
+     * @return Tier cashback percentage
+     */
+    function getTierCashbackPercentage(UserSafeTiers tier) external view returns (uint256);
 
     /**
      * @notice Function to set the timelock delay for tokens from User Safe
@@ -145,26 +185,32 @@ interface ICashDataProvider {
     function setSwapper(address swapper) external;
 
     /**
-     * @notice Function to set the addrss of the user safe factory.
+     * @notice Function to set the address of the user safe factory
      * @param factory Address of the new factory
      */
     function setUserSafeFactory(address factory) external;
     
     /**
-     * @notice Function to set the addrss of the user safe event emitter.
+     * @notice Function to set the address of the user safe event emitter
      * @param eventEmitter Address of the new event emitter
      */
     function setUserSafeEventEmitter(address eventEmitter) external;
 
+    /**
+     * @notice Function to set the address of the cashback dispatcher
+     * @param dispatcher Address of the new cashback dispatcher
+     */
+    function setCashbackDispatcher(address dispatcher) external;
+
     
     /**
-     * @notice Function to set the addrss of the EtherFi recovery signer.
+     * @notice Function to set the address of the EtherFi recovery signer
      * @param recoverySigner Address of the EtherFi recovery signer
      */
     function setEtherFiRecoverySigner(address recoverySigner) external;
     
     /**
-     * @notice Function to set the addrss of the third party recovery signer.
+     * @notice Function to set the address of the third party recovery signer
      * @param recoverySigner Address of the third party recovery signer
      */
     function setThirdPartyRecoverySigner(address recoverySigner) external;
@@ -174,5 +220,19 @@ interface ICashDataProvider {
      * @notice Can only be called by the user safe factory
      * @param safe Address of the safe
      */
-    function whitelistUserSafe(address safe) external;    
+    function whitelistUserSafe(address safe) external; 
+
+    /**
+     * @notice Function to set user safe tiers
+     * @param safes Address of the user safes
+     * @param tiers Tier of the user safes
+     */
+    function setUserSafeTier(address[] memory safes, UserSafeTiers[] memory tiers) external;   
+
+    /**
+     * @notice Function to set cashback percentages for different tiers
+     * @param tiers Tiers array
+     * @param cashbackPercentages Cashback percentages in bps 
+     */
+    function setTierCashbackPercentage(UserSafeTiers[] memory tiers, uint256[] memory cashbackPercentages) external;
 }

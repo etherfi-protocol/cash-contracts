@@ -26,7 +26,7 @@ contract UserSafeSpendingLimitTest is Setup {
 
         assertEq(usdc.balanceOf(settlementDispatcher), 0);
         vm.prank(etherFiWallet);
-        aliceSafe.spend(address(usdc), transferAmount);
+        aliceSafe.spend(txId, address(usdc), transferAmount);
         assertEq(usdc.balanceOf(settlementDispatcher), transferAmount);
 
         spendingLimitBefore = aliceSafe.applicableSpendingLimit();
@@ -208,15 +208,7 @@ contract UserSafeSpendingLimitTest is Setup {
 
         vm.prank(etherFiWallet);
         vm.expectRevert(SpendingLimitLib.ExceededDailySpendingLimit.selector);
-        aliceSafe.spend(address(usdc), amount);
-
-        // // so that daily limit should not throw error
-        // _updateSpendingLimit(1 ether, defaultMonthlySpendingLimit);
-
-        // amount = limit.monthlyLimit + 1;
-        // vm.prank(etherFiWallet);
-        // vm.expectRevert(SpendingLimitLib.ExceededMonthlySpendingLimit.selector);
-        // aliceSafe.spend(address(usdc), amount);
+        aliceSafe.spend(txId, address(usdc), amount);
     }
 
     function test_DailySpendingLimitGetsRenewedAutomatically() public {
@@ -228,19 +220,19 @@ contract UserSafeSpendingLimitTest is Setup {
         deal(address(usdc), address(aliceSafe), 1 ether);
 
         vm.prank(etherFiWallet);
-        aliceSafe.spend(address(usdc), amount);
+        aliceSafe.spend(txId, address(usdc), amount);
 
         assertEq(aliceSafe.applicableSpendingLimit().spentToday, amount);
         assertEq(aliceSafe.applicableSpendingLimit().spentThisMonth, amount);
 
         vm.prank(etherFiWallet);
         vm.expectRevert(SpendingLimitLib.ExceededDailySpendingLimit.selector);
-        aliceSafe.spend(address(usdc), dailyLimit - amount + 1);
+        aliceSafe.spend(keccak256("newTxId"), address(usdc), dailyLimit - amount + 1);
 
         vm.warp(aliceSafe.applicableSpendingLimit().dailyRenewalTimestamp);
         vm.prank(etherFiWallet);
         vm.expectRevert(SpendingLimitLib.ExceededDailySpendingLimit.selector);
-        aliceSafe.spend(address(usdc), dailyLimit - amount + 1);
+        aliceSafe.spend(keccak256("newTxId"), address(usdc), dailyLimit - amount + 1);
 
         vm.warp(aliceSafe.applicableSpendingLimit().dailyRenewalTimestamp + 1);
         // Since the time for renewal is in the past, spentToday should be 0
@@ -251,46 +243,8 @@ contract UserSafeSpendingLimitTest is Setup {
         vm.prank(etherFiWallet);
         vm.expectEmit(true, true, true, true);
         emit UserSafeEventEmitter.Spend(address(aliceSafe), address(usdc), dailyLimit, UserSafeStorage.Mode.Debit);
-        aliceSafe.spend(address(usdc), dailyLimit);
+        aliceSafe.spend(keccak256("newTxId"), address(usdc), dailyLimit);
     }
-
-    // function test_MonthlySpendingLimitGetsRenewedAutomatically() public {
-    //     // done so that daily limit should not get exhausted
-    //     _updateSpendingLimit(defaultMonthlySpendingLimit, defaultMonthlySpendingLimit);
-
-    //     SpendingLimit memory spendingLimit = aliceSafe.applicableSpendingLimit();
-
-    //     uint256 monthlyLimit = spendingLimit.monthlyLimit;        
-    //     uint256 amount = monthlyLimit / 2;
-
-    //     deal(address(usdc), address(aliceSafe), 1 ether);
-
-    //     vm.prank(etherFiWallet);
-    //     aliceSafe.spend(address(usdc), amount);
-
-    //     assertEq(aliceSafe.applicableSpendingLimit().spentToday, amount);
-    //     assertEq(aliceSafe.applicableSpendingLimit().spentThisMonth, amount);
-
-    //     vm.prank(etherFiWallet);
-    //     vm.expectRevert(SpendingLimitLib.ExceededMonthlySpendingLimit.selector);
-    //     aliceSafe.spend(address(usdc), monthlyLimit - amount + 1);
-
-    //     vm.warp(aliceSafe.applicableSpendingLimit().monthlyRenewalTimestamp);
-    //     vm.prank(etherFiWallet);
-    //     vm.expectRevert(SpendingLimitLib.ExceededMonthlySpendingLimit.selector);
-    //     aliceSafe.spend(address(usdc), monthlyLimit - amount + 1);
-
-    //     vm.warp(aliceSafe.applicableSpendingLimit().monthlyRenewalTimestamp + 1);
-    //     // Since the time for renewal is in the past, spentToday should be 0
-    //     assertEq(aliceSafe.applicableSpendingLimit().spentToday, 0);
-    //     assertEq(aliceSafe.applicableSpendingLimit().spentThisMonth, 0);
-
-    //     // Since the time for renewal is in the past, we should be able to spend the whole spending limit again
-    //     vm.prank(etherFiWallet);
-    //     vm.expectEmit(true, true, true, true);
-    //     emit UserSafeEventEmitter.spendForSpending(address(aliceSafe), address(usdc), monthlyLimit);
-    //     aliceSafe.spend(address(usdc), monthlyLimit);
-    // }
 
     function _updateSpendingLimit(uint256 dailyLimitInUsd, uint256 monthlyLimitInUsd) internal {
         uint256 nonce = aliceSafe.nonce() + 1;

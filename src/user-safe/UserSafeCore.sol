@@ -11,6 +11,7 @@ import {IL2DebtManager} from "../interfaces/IL2DebtManager.sol";
 import {ISwapper} from "../interfaces/ISwapper.sol";
 import {IPriceProvider} from "../interfaces/IPriceProvider.sol";
 import {UserSafeFactory} from "./UserSafeFactory.sol";
+import {CashbackDispatcher} from "../cashback-dispatcher/CashbackDispatcher.sol";
 
 contract UserSafeCore is UserSafeStorage {
     using OwnerLib for bytes;
@@ -55,6 +56,14 @@ contract UserSafeCore is UserSafeStorage {
 
     function cashDataProvider() external view returns (address) {
         return address(_cashDataProvider);
+    }
+
+    function pendingCashback() external view returns (uint256) {
+        return _pendingCashbackInUsd;
+    }
+
+    function transactionCleared(bytes32 txId) external view returns (bool) {
+        return _transactionCleared[txId];
     }
 
     function mode() external view returns (Mode) {
@@ -167,12 +176,13 @@ contract UserSafeCore is UserSafeStorage {
         return (returnAmt / 10**4) * 10**4; 
     }
 
-    function spend(address token, uint256 amount) external currentMode onlyEtherFiWallet {
-        _spend(token, amount);
+    function spend(bytes32 txId, address token, uint256 amount) external currentMode onlyEtherFiWallet {
+        _spend(txId, token, amount);
         UserSafeEventEmitter(_cashDataProvider.userSafeEventEmitter()).emitSpend(token, amount, _mode);
     }
 
     function swapAndSpend(    
+        bytes32 txId, 
         address inputTokenToSwap,
         address outputToken,
         uint256 inputAmountToSwap,
@@ -186,15 +196,27 @@ contract UserSafeCore is UserSafeStorage {
         UserSafeEventEmitter(_cashDataProvider.userSafeEventEmitter()).emitSwap(inputTokenToSwap, inputAmountToSwap, outputToken, outputAmount);
         
         if (outputAmountToTransfer > 0) {
-            _spend(outputToken, outputAmountToTransfer);
+            _spend(txId, outputToken, outputAmountToTransfer);
             UserSafeEventEmitter(_cashDataProvider.userSafeEventEmitter()).emitSpend(outputToken, outputAmountToTransfer, _mode);
         } else if (!_isBorrowToken(outputToken)) revert UnsupportedToken();
     }
 
-    function _spend(address token, uint256 amount) internal {
+    function retrievePendingCashback() public {
+        if (_pendingCashbackInUsd == 0) return;
+        (address cashbackToken, uint256 cashbackAmount, bool paid) = CashbackDispatcher(_cashDataProvider.cashbackDispatcher()).clearPendingCashback();
+        if (paid) {
+            UserSafeEventEmitter(_cashDataProvider.userSafeEventEmitter()).emitPendingCashbackClearedEvent(cashbackToken, cashbackAmount, _pendingCashbackInUsd);
+            delete _pendingCashbackInUsd;
+        }
+    }
+
+    function _spend(bytes32 txId, address token, uint256 amount) internal {
+        if (_transactionCleared[txId]) revert TransactionAlreadyCleared();
+        _transactionCleared[txId] = true;
+
         if (!_isBorrowToken(token)) revert UnsupportedToken();
         address debtManager = _cashDataProvider.etherFiCashDebtManager();
-        
+
         uint256 amountInUsd = IL2DebtManager(debtManager).convertCollateralTokenToUsd(token, amount);
         if (amountInUsd == 0) revert AmountZeroWithSixDecimals();
 
@@ -214,8 +236,7 @@ contract UserSafeCore is UserSafeStorage {
                 (collateralTokenAmounts, error) = _getCollateralBalanceWithTokenSubtracted(token, amount, _mode);
                 if (bytes(error).length != 0) revert(error);
 
-                (totalMaxBorrow, totalBorrowings) = 
-                    IL2DebtManager(_cashDataProvider.etherFiCashDebtManager()).getBorrowingPowerAndTotalBorrowing(address(this), collateralTokenAmounts);
+                (totalMaxBorrow, totalBorrowings) = IL2DebtManager(debtManager).getBorrowingPowerAndTotalBorrowing(address(this), collateralTokenAmounts);
             }
         }
 
@@ -224,8 +245,14 @@ contract UserSafeCore is UserSafeStorage {
 
         _spendingLimit.spend(amountInUsd);
 
+        retrievePendingCashback();
+        
         if (_mode == Mode.Debit) IERC20(token).safeTransfer(_cashDataProvider.settlementDispatcher(), amount);
-        else IL2DebtManager(_cashDataProvider.etherFiCashDebtManager()).borrow(token, amount);
+        else IL2DebtManager(debtManager).borrow(token, amount);
+
+        (address cashbackToken, uint256 cashbackAmount, uint256 cashbackInUsd, bool paid) = CashbackDispatcher(_cashDataProvider.cashbackDispatcher()).cashback(amountInUsd);
+        UserSafeEventEmitter(_cashDataProvider.userSafeEventEmitter()).emitCashbackEvent(amountInUsd, cashbackToken, cashbackAmount, cashbackInUsd, paid);
+        if (!paid) _pendingCashbackInUsd += cashbackInUsd;
     }
 
     function preLiquidate() external {

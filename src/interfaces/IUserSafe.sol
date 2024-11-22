@@ -16,11 +16,6 @@ interface IUserSafe {
         bytes signature;
     }
 
-    struct FundsDetails {
-        address token;
-        uint256 amount;
-    }
-
     struct WithdrawalRequest {
         address[] tokens;
         uint256[] amounts;
@@ -44,29 +39,16 @@ interface IUserSafe {
     error UserRecoverySignerIsUnsetCannotUseIndexZero();
     error IncorrectOutputAmount();
     error AmountZeroWithSixDecimals();
+    error OnlyUserSafeFactory();
     error ModeAlreadySet();
     error NotACollateralToken();
     error OnlyDebtManager();
     error SwapAndSpendOnlyInDebitMode();
     error CollateralTokensBalancesZero();
     error OutputLessThanMinAmount();
-    error CanSpendFailed(string message);
+    error OnlyCashbackDispatcher();
+    error TransactionAlreadyCleared();
 
-    function maxCanSpend(address token) external view returns (uint256);
-    function swap(
-        address inputTokenToSwap,
-        address outputToken,
-        uint256 inputAmountToSwap,
-        uint256 outputMinAmount,
-        uint256 guaranteedOutputAmount,
-        bytes calldata swapData,
-        bytes calldata signature
-    ) external;
-    function preLiquidate() external;
-    function postLiquidate(address liquidator, DebtManagerStorage.LiquidationTokenData[] memory tokensToSent) external;
-    function getUserTotalCollateral() external view returns (DebtManagerStorage.TokenData[] memory);
-    function getUserCollateralForToken(address token) external view returns (uint256);
-    function getPendingWithdrawalAmount(address token) external view returns (uint256);
     /**
      * @notice Function to fetch the current mode of the safe (Debit/Credit)
      */
@@ -105,6 +87,39 @@ interface IUserSafe {
     function nonce() external view returns (uint256);
 
     /**
+     * @notice Function to fetch if a transaction is already cleared.
+     * @param txId Transaction ID.
+     * @return true it already cleared.
+     */
+    function transactionCleared(bytes32 txId) external view returns (bool);
+
+    /**
+     * @notice Function to fetch the user collateral.
+     * @return The collateral tokens data.
+     */
+    function getUserTotalCollateral() external view returns (DebtManagerStorage.TokenData[] memory);
+
+    /**
+     * @notice Function to fetch the user collateral for a particular token.
+     * @param token Address of the token.
+     * @return Amount of collateral in the token.
+     */
+    function getUserCollateralForToken(address token) external view returns (uint256);
+    
+    /**
+     * @notice Function to fetch the pending withdrawal amount for a particular token.
+     * @param token Address of the token.
+     * @return Pending withdrawal amount.
+     */
+    function getPendingWithdrawalAmount(address token) external view returns (uint256);
+
+    /**
+     * @notice Function to fetch the pending cashback amount in USD.
+     * @return Pending cashback amount in USD.
+     */
+    function pendingCashback() external view returns (uint256);
+
+    /**
      * @notice Function to fetch whether the recovery is active.
      */
     function isRecoveryActive() external view returns (bool);
@@ -133,16 +148,13 @@ interface IUserSafe {
      * @param amount Amount of the token to spend.
      */
     function canSpend(address token, uint256 amount) external view returns (bool, string memory);
-    function spend(address token, uint256 amount) external;
-    function swapAndSpend(    
-        address inputTokenToSwap,
-        address outputToken,
-        uint256 inputAmountToSwap,
-        uint256 outputMinAmount,
-        uint256 guaranteedOutputAmount,
-        uint256 outputAmountToTransfer,
-        bytes calldata swapData
-    ) external;
+
+    /**
+     * @notice Function to fetch the max amount the user can spend in the current mode.
+     * @param token Address of the token to spend.
+     * @return max spend the user can make.
+     */
+    function maxCanSpend(address token) external view returns (uint256);
 
     /**
      * @notice Function to set the owner of the contract.
@@ -230,46 +242,52 @@ interface IUserSafe {
     ) external;
 
     /**
-     * @notice Function to transfer tokens from the User Safe to EtherFiCash Safe.
+     * @notice Function to swap funds inside the user safe.
      * @dev Can only be called by the EtherFi Cash Wallet.
-     * @dev Can only transfer supported tokens.
-     * @param token Address of the token to transfer.
-     * @param amount Amount of tokens to transfer.
+     * @param inputTokenToSwap Address of input token to swap.
+     * @param outputToken Address of the output token of the swap.
+     * @param inputAmountToSwap Amount of input token to swap.
+     * @param outputMinAmount Min output amount of the output token to receive from the swap.
+     * @param guaranteedOutputAmount Guaranteed amount of output token (only for openocean swap).
+     * @param swapData Swap data received from the swapper API.
+     * @param signature Signature from the user.
      */
-    function transfer(address token, uint256 amount) external;
-
-    /**
-     * @notice Function to add collateral to EtherFiCash Debt Manager.
-     * @dev Can only be called by the EtherFi Cash Wallet.
-     * @dev Can only transfer supported tokens.
-     * @param token Address of token to transfer.
-     * @param amount Amount of tokens to transfer.
-     */
-    function addCollateral(address token, uint256 amount) external;
-
-    /**
-     * @notice Function to add collateral to and borrow funds from EtherFiCash Debt Manager.
-     * @dev Can only be called by the EtherFi Cash Wallet.
-     * @dev Can only transfer supported tokens.
-     * @param collateralToken Address of the collateral token.
-     * @param collateralAmount Amount of the collateral token.
-     * @param borrowToken Address of the borrow token.
-     * @param borrowAmount Amount of the borrow token.
-     */
-    function addCollateralAndBorrow(
-        address collateralToken,
-        uint256 collateralAmount,
-        address borrowToken,
-        uint256 borrowAmount
+    function swap(
+        address inputTokenToSwap,
+        address outputToken,
+        uint256 inputAmountToSwap,
+        uint256 outputMinAmount,
+        uint256 guaranteedOutputAmount,
+        bytes calldata swapData,
+        bytes calldata signature
     ) external;
 
     /**
-     * @notice Function to borrow funds from EtherFiCash Debt Manager.
-     * @dev Can only be called by the EtherFi Cash Wallet.
-     * @param token Address of token to borrow.
-     * @param amount Amount of tokens to borrow.
+     * @notice Function called by liquidate function in DebtManager to cancel withdrawals
      */
-    function borrow(address token, uint256 amount) external;
+    function preLiquidate() external;
+
+    /**
+     * @notice Function called by liquidate function in DebtManager to transfer collateral to the liquidator
+     * @param liquidator Address of the liquidator.
+     * @param tokensToSend Tokens to send to the liquidator.
+     */
+    function postLiquidate(address liquidator, DebtManagerStorage.LiquidationTokenData[] memory tokensToSend) external;
+
+    /**
+     * @notice Function to credit the pending cashback from the cashback dispatcher to the user safe.
+     */
+    function retrievePendingCashback() external;
+
+    /**
+     * @notice Function to spend via debit or credit mode.
+     * @dev Can only be called by the EtherFi Cash Wallet.
+     * @dev Can only spend supported tokens.
+     * @param txId Transaction ID.
+     * @param token Address of the token to transfer.
+     * @param amount Amount of tokens to transfer.
+     */
+    function spend(bytes32 txId, address token, uint256 amount) external;
 
     /**
      * @notice Function to repay funds to EtherFiCash Debt Manager.
@@ -280,25 +298,10 @@ interface IUserSafe {
     function repay(address token, uint256 amount) external;
 
     /**
-     * @notice Function to withdraw collateral from the Debt Manager.
-     * @param  token Address of the collateral token to withdraw.
-     * @param  amount Amount of the collateral token to withdraw.
-     */
-    function withdrawCollateralFromDebtManager(
-        address token,
-        uint256 amount
-    ) external;
-
-    /**
-     * @notice Function to close account with the Debt Manager.
-     * @notice Repays all the debt with user's collateral and withdraws the remaining collateral to the User Safe.
-     */
-    function closeAccountWithDebtManager() external;
-
-    /**
      * @notice Function to swap funds to output token and transfer it to EtherFiCash Safe.
      * @dev Can only be called by the EtherFi Cash Wallet.
      * @dev Can only swap to a supported token.
+     * @param txId Transaction ID..
      * @param inputTokenToSwap Address of input token to swap.
      * @param outputToken Address of the output token of the swap.
      * @param inputAmountToSwap Amount of input token to swap.
@@ -307,7 +310,8 @@ interface IUserSafe {
      * @param outputAmountToTransfer Amount of output token to send to the EtherFiCash Safe.
      * @param swapData Swap data received from the swapper API.
      */
-    function swapAndTransfer(
+    function swapAndSpend(    
+        bytes32 txId,
         address inputTokenToSwap,
         address outputToken,
         uint256 inputAmountToSwap,

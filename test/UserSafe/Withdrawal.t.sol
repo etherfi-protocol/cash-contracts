@@ -257,7 +257,7 @@ contract UserSafeWithdrawalTest is Setup {
         vm.stopPrank();
 
         vm.prank(etherFiWallet);
-        aliceSafe.spend(address(usdc), amountToTransfer);
+        aliceSafe.spend(txId, address(usdc), amountToTransfer);
 
         IUserSafe.WithdrawalRequest memory withdrawalData = aliceSafe
             .pendingWithdrawalRequest();

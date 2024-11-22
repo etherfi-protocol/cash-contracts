@@ -16,8 +16,6 @@ import {Utils, ChainConfig} from "./Utils.sol";
 import {MockERC20} from "../src/mocks/MockERC20.sol";
 import {MockPriceProvider} from "../src/mocks/MockPriceProvider.sol";
 import {MockSwapper} from "../src/mocks/MockSwapper.sol";
-import {IPool} from "@aave/interfaces/IPool.sol";
-import {IPoolDataProvider} from "@aave/interfaces/IPoolDataProvider.sol";
 import {IWeETH} from "../src/interfaces/IWeETH.sol";
 import {UUPSProxy} from "../src/UUPSProxy.sol";
 import {IAggregatorV3} from "../src/interfaces/IAggregatorV3.sol";
@@ -25,6 +23,7 @@ import {UserSafeCore, UserSafeStorage, UserSafeEventEmitter, SpendingLimit, User
 import {UserSafeSetters} from "../src/user-safe/UserSafeSetters.sol";
 import {IUserSafe} from "../src/interfaces/IUserSafe.sol";
 import {MessageHashUtils} from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
+import {CashbackDispatcher} from "../src/cashback-dispatcher/CashbackDispatcher.sol";
 
 contract Setup is Utils {
     using OwnerLib for address;
@@ -46,9 +45,11 @@ contract Setup is Utils {
 
     ERC20 usdc;
     ERC20 weETH;
+    ERC20 scr;
     SwapperOpenOcean swapper;
     PriceProvider priceProvider;
     CashDataProvider cashDataProvider;
+    CashbackDispatcher cashbackDispatcher;
 
     uint256 mockWeETHPriceInUsd = 3000e6;
     uint256 defaultDailySpendingLimit = 10000e6;
@@ -61,18 +62,13 @@ contract Setup is Utils {
     address weEthWethOracle;
     address ethUsdcOracle;
     address usdcUsdOracle;
+    address scrUsdOracle;
     address swapRouterOpenOcean;
 
     address alice;
     uint256 alicePk;
     bytes aliceBytes;
     IUserSafe aliceSafe;
-
-    IPool aavePool;
-    IPoolDataProvider aaveV3PoolDataProvider;
-    // Interest rate mode -> Stable: 1, variable: 2
-    uint256 interestRateMode = 2;
-    uint16 aaveReferralCode = 0;
 
     uint80 ltv = 50e18; // 50%
     uint80 liquidationThreshold = 60e18; // 60%
@@ -82,6 +78,7 @@ contract Setup is Utils {
     uint256 supplyCap = 10000 ether;
     int256 timezoneOffset = 4 * 60 * 60; // Dubai timezone
     uint128 minShares;
+    bytes32 txId = keccak256("txId");
 
     function setUp() public virtual {
         chainId = vm.envString("TEST_CHAIN");
@@ -93,6 +90,7 @@ contract Setup is Utils {
         if (!isFork(chainId)) {
             usdc = ERC20(address(new MockERC20("usdc", "usdc", 6)));
             weETH = ERC20(address(new MockERC20("weETH", "weETH", 18)));
+            scr = ERC20(address(new MockERC20("scroll", "scr", 18)));
 
             swapper = SwapperOpenOcean(address(new MockSwapper()));
             priceProvider = PriceProvider(
@@ -104,8 +102,10 @@ contract Setup is Utils {
 
             usdc = ERC20(chainConfig.usdc);
             weETH = ERC20(chainConfig.weETH);
+            scr = ERC20(chainConfig.scr);
             weEthWethOracle = chainConfig.weEthWethOracle;
             ethUsdcOracle = chainConfig.ethUsdcOracle;
+            scrUsdOracle = chainConfig.scrUsdOracle;
             usdcUsdOracle = chainConfig.usdcUsdOracle;
             swapRouterOpenOcean = chainConfig.swapRouterOpenOcean;
 
@@ -145,16 +145,29 @@ contract Setup is Utils {
                 isBaseTokenEth: false,
                 isStableToken: true
             });
+            
+            PriceProvider.Config memory scrollConfig = PriceProvider.Config({
+                oracle: scrUsdOracle,
+                priceFunctionCalldata: hex"",
+                isChainlinkType: true,
+                oraclePriceDecimals: IAggregatorV3(scrUsdOracle).decimals(),
+                maxStaleness: 1 days,
+                dataType: PriceProvider.ReturnType.Int256,
+                isBaseTokenEth: false,
+                isStableToken: false
+            });
 
-            address[] memory initialTokens = new address[](3);
+            address[] memory initialTokens = new address[](4);
             initialTokens[0] = address(weETH);
             initialTokens[1] = eth;
             initialTokens[2] = address(usdc);
+            initialTokens[3] = address(scr);
 
-            PriceProvider.Config[] memory initialTokensConfig = new PriceProvider.Config[](3);
+            PriceProvider.Config[] memory initialTokensConfig = new PriceProvider.Config[](4);
             initialTokensConfig[0] = weETHConfig;
             initialTokensConfig[1] = ethConfig;
             initialTokensConfig[2] = usdcConfig;
+            initialTokensConfig[3] = scrollConfig;
 
             priceProvider = PriceProvider(address(new UUPSProxy(
                 address(new PriceProvider()), 
@@ -170,6 +183,22 @@ contract Setup is Utils {
         address cashDataProviderImpl = address(new CashDataProvider());
         cashDataProvider = CashDataProvider(
             address(new UUPSProxy(cashDataProviderImpl, ""))
+        );
+
+        address cashbackDispatcherImpl = address(new CashbackDispatcher());
+        cashbackDispatcher = CashbackDispatcher(
+            address(
+                new UUPSProxy(
+                    cashbackDispatcherImpl, 
+                    abi.encodeWithSelector(
+                        CashbackDispatcher.initialize.selector,
+                        address(owner),
+                        address(cashDataProvider),
+                        address(priceProvider),
+                        address(scr)
+                    )
+                )
+            )
         );
 
         address[] memory collateralTokens = new address[](2);
@@ -198,13 +227,8 @@ contract Setup is Utils {
 
         debtManager = IL2DebtManager(address(debtManagerProxy));
 
-        (etherFiRecoverySigner, etherFiRecoverySignerPk) = makeAddrAndKey(
-            "etherFiRecoverySigner"
-        );
-
-        (thirdPartyRecoverySigner, thirdPartyRecoverySignerPk) = makeAddrAndKey(
-            "thirdPartyRecoverySigner"
-        );
+        (etherFiRecoverySigner, etherFiRecoverySignerPk) = makeAddrAndKey("etherFiRecoverySigner");
+        (thirdPartyRecoverySigner, thirdPartyRecoverySignerPk) = makeAddrAndKey("thirdPartyRecoverySigner");
 
         userSafeCoreImpl = new UserSafeCore(address(cashDataProvider));
         userSafeSettersImpl = new UserSafeSetters(address(cashDataProvider));
@@ -247,6 +271,7 @@ contract Setup is Utils {
             address(swapper),
             address(factory),
             address(eventEmitter),
+            address(cashbackDispatcher),
             etherFiRecoverySigner,
             thirdPartyRecoverySigner
         ));

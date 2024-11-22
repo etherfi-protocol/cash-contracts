@@ -210,7 +210,7 @@ contract DebtManagerSupplyAndWithdrawTest is Setup {
         uint256 borrowAmt = debtManager.remainingBorrowingCapacityInUSD(
             address(aliceSafe)
         ) / 2;
-        aliceSafe.spend(address(usdc), borrowAmt);
+        aliceSafe.spend(txId, address(usdc), borrowAmt);
 
         // 1 day after, there should be some interest accumulated
         vm.warp(block.timestamp + 24 * 60 * 60);

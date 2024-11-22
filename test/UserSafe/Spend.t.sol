@@ -28,7 +28,7 @@ contract UserSafeSpendTest is Setup {
         vm.prank(etherFiWallet);
         vm.expectEmit(true, true, true, true);
         emit UserSafeEventEmitter.Spend(address(aliceSafe), address(usdc), amount, UserSafeStorage.Mode.Debit);
-        aliceSafe.spend(address(usdc), amount);
+        aliceSafe.spend(txId, address(usdc), amount);
 
         uint256 settlementDispatcherUsdcBalAfter = usdc.balanceOf(settlementDispatcher);
 
@@ -37,6 +37,18 @@ contract UserSafeSpendTest is Setup {
             amount
         );
         assertEq(settlementDispatcherUsdcBalAfter - settlementDispatcherUsdcBalBefore, amount);
+    }
+
+    function test_CannotSpendWithSameTxIdTwice() public {
+        uint256 amount = 1000e6;
+        vm.prank(etherFiWallet);
+        vm.expectEmit(true, true, true, true);
+        emit UserSafeEventEmitter.Spend(address(aliceSafe), address(usdc), amount, UserSafeStorage.Mode.Debit);
+        aliceSafe.spend(txId, address(usdc), amount);
+
+        vm.prank(etherFiWallet);
+        vm.expectRevert(IUserSafe.TransactionAlreadyCleared.selector);
+        aliceSafe.spend(txId, address(usdc), amount);
     }
 
     function test_CanSpendWithDebitFlowIfBorrowIsWithinLimits() public {
@@ -54,14 +66,14 @@ contract UserSafeSpendTest is Setup {
         vm.warp(aliceSafe.incomingCreditModeStartTime() + 1);
 
         vm.prank(etherFiWallet);
-        aliceSafe.spend(address(usdc), borrowAmt);
+        aliceSafe.spend(txId, address(usdc), borrowAmt);
 
         _setMode(IUserSafe.Mode.Debit);
 
         uint256 settlementDispatcherUsdcBalBefore = usdc.balanceOf(settlementDispatcher);
 
         vm.prank(etherFiWallet);
-        aliceSafe.spend(address(usdc), spendDebitAmount);
+        aliceSafe.spend(keccak256("newTxId"), address(usdc), spendDebitAmount);
         
         uint256 settlementDispatcherUsdcBalAfter = usdc.balanceOf(settlementDispatcher);
 
@@ -83,13 +95,13 @@ contract UserSafeSpendTest is Setup {
         vm.warp(aliceSafe.incomingCreditModeStartTime() + 1);
 
         vm.prank(etherFiWallet);
-        aliceSafe.spend(address(usdc), borrowAmt);
+        aliceSafe.spend(txId, address(usdc), borrowAmt);
 
         _setMode(IUserSafe.Mode.Debit);
 
         vm.prank(etherFiWallet);
         vm.expectRevert("Borrowings greater than max borrow after spending");
-        aliceSafe.spend(address(usdc), spendDebitAmount);
+        aliceSafe.spend(bytes32("newTxId"), address(usdc), spendDebitAmount);
     }
 
     function test_CanSpendWithDebitModeEvenIfWithdrawalsBlockTheAmount() external {
@@ -107,7 +119,7 @@ contract UserSafeSpendTest is Setup {
         vm.warp(aliceSafe.incomingCreditModeStartTime() + 1);
 
         vm.prank(etherFiWallet);
-        aliceSafe.spend(address(usdc), borrowAmt);
+        aliceSafe.spend(txId, address(usdc), borrowAmt);
 
         _setMode(IUserSafe.Mode.Debit);
         uint256 maxCanSpendBeforeWithdrawal = aliceSafe.maxCanSpend(address(usdc));
@@ -144,7 +156,7 @@ contract UserSafeSpendTest is Setup {
         uint256 aliceSafeUsdcBalBefore = usdc.balanceOf(address(aliceSafe));
         
         vm.prank(etherFiWallet);
-        aliceSafe.spend(address(usdc), maxCanSpendBeforeWithdrawal);
+        aliceSafe.spend(keccak256("newTxId"), address(usdc), maxCanSpendBeforeWithdrawal);
 
         uint256 settlementDispatcherUsdcBalAfter = usdc.balanceOf(settlementDispatcher);
         uint256 aliceSafeUsdcBalAfter = usdc.balanceOf(address(aliceSafe));
@@ -159,62 +171,66 @@ contract UserSafeSpendTest is Setup {
     }
 
     function test_CanSpendWithCreditModeEvenIfWithdrawalBlocksTheAmount() public {
-        uint256 weETHCollateralAmount = 1 ether;
-        uint256 usdcCollateralAmount = 1000e6;
-        deal(address(weETH), address(aliceSafe), weETHCollateralAmount);
-        deal(address(usdc), address(aliceSafe), usdcCollateralAmount);
-        deal(address(usdc), address(debtManager), 1 ether); 
-        
-        uint256 totalMaxBorrow = debtManager.getMaxBorrowAmount(address(aliceSafe), true);
-        uint256 futureBorrowAmt = 10e6;
-        uint256 borrowAmt = totalMaxBorrow - futureBorrowAmt;
-
-        _setMode(IUserSafe.Mode.Credit);
-        vm.warp(aliceSafe.incomingCreditModeStartTime() + 1);
-
-        vm.prank(etherFiWallet);
-        aliceSafe.spend(address(usdc), borrowAmt);
-        
-        uint256 maxCanWithdraw = 10e6;
+        bytes32 msgHash;
         address[] memory tokens = new address[](1);
-        tokens[0] = address(usdc);
-
         uint256[] memory amounts = new uint256[](1);
-        amounts[0] = maxCanWithdraw;
-
         address recipient = notOwner;
-        uint256 nonce = aliceSafe.nonce() + 1;
+        uint256 futureBorrowAmt;
 
-        bytes32 msgHash = keccak256(
-            abi.encode(
-                UserSafeLib.REQUEST_WITHDRAWAL_METHOD,
-                block.chainid,
-                address(aliceSafe),
-                nonce,
-                tokens,
-                amounts,
-                recipient
-            )
-        );
+        {
+            uint256 weETHCollateralAmount = 1 ether;
+            uint256 usdcCollateralAmount = 1000e6;
+            deal(address(weETH), address(aliceSafe), weETHCollateralAmount);
+            deal(address(usdc), address(aliceSafe), usdcCollateralAmount);
+            deal(address(usdc), address(debtManager), 1 ether); 
+            
+            uint256 totalMaxBorrow = debtManager.getMaxBorrowAmount(address(aliceSafe), true);
+            futureBorrowAmt = 10e6;
+            uint256 borrowAmt = totalMaxBorrow - futureBorrowAmt;
 
-        (uint8 v, bytes32 r, bytes32 s) = vm.sign(
-            alicePk,
-            msgHash.toEthSignedMessageHash()
-        );
-        bytes memory signature = abi.encodePacked(r, s, v);
-        aliceSafe.requestWithdrawal(tokens, amounts, recipient, signature);
+            _setMode(IUserSafe.Mode.Credit);
+            vm.warp(aliceSafe.incomingCreditModeStartTime() + 1);
 
-        uint256 settlementDispatcherUsdcBalBefore = usdc.balanceOf(settlementDispatcher);
+            vm.prank(etherFiWallet);
+            aliceSafe.spend(txId, address(usdc), borrowAmt);
+            
+            uint256 maxCanWithdraw = 10e6;
+            tokens[0] = address(usdc);
+            amounts[0] = maxCanWithdraw;
+            uint256 nonce = aliceSafe.nonce() + 1;
 
-        vm.prank(etherFiWallet);
-        aliceSafe.spend(address(usdc), futureBorrowAmt);
+            msgHash = keccak256(
+                abi.encode(
+                    UserSafeLib.REQUEST_WITHDRAWAL_METHOD,
+                    block.chainid,
+                    address(aliceSafe),
+                    nonce,
+                    tokens,
+                    amounts,
+                    recipient
+                )
+            );
+        }
+        {
+            (uint8 v, bytes32 r, bytes32 s) = vm.sign(
+                alicePk,
+                msgHash.toEthSignedMessageHash()
+            );
+            bytes memory signature = abi.encodePacked(r, s, v);
+            aliceSafe.requestWithdrawal(tokens, amounts, recipient, signature);
 
-        uint256 settlementDispatcherUsdcBalAfter = usdc.balanceOf(settlementDispatcher);
+            uint256 settlementDispatcherUsdcBalBefore = usdc.balanceOf(settlementDispatcher);
 
-        assertEq(settlementDispatcherUsdcBalAfter - settlementDispatcherUsdcBalBefore, futureBorrowAmt);
+            vm.prank(etherFiWallet);
+            aliceSafe.spend(keccak256("newTxId"), address(usdc), futureBorrowAmt);
 
-        uint256 withdrawalAmt = aliceSafe.getPendingWithdrawalAmount(address(usdc));
-        assertEq(withdrawalAmt, 0);
+            uint256 settlementDispatcherUsdcBalAfter = usdc.balanceOf(settlementDispatcher);
+
+            assertEq(settlementDispatcherUsdcBalAfter - settlementDispatcherUsdcBalBefore, futureBorrowAmt);
+
+            uint256 withdrawalAmt = aliceSafe.getPendingWithdrawalAmount(address(usdc));
+            assertEq(withdrawalAmt, 0);
+        }
     }
 
     function test_CannotSpendWithDebitFlowWhenBalanceIsInsufficient() public {
@@ -225,21 +241,21 @@ contract UserSafeSpendTest is Setup {
         vm.warp(block.timestamp + delay + 1);
         vm.prank(etherFiWallet);
         vm.expectRevert("Insufficient balance to spend with Debit flow");
-        aliceSafe.spend(address(usdc), amount);
+        aliceSafe.spend(txId, address(usdc), amount);
     }
 
     function test_OnlyCashWalletCanSpendWithDebitFlow() public {
         uint256 amount = 1000e6;
         vm.prank(notOwner);
         vm.expectRevert(IUserSafe.UnauthorizedCall.selector);
-        aliceSafe.spend(address(usdc), amount);
+        aliceSafe.spend(txId, address(usdc), amount);
     }
 
     function test_CannotSpendWithDebitFlowMoreThanSpendingLimit() public {
         uint256 amount = defaultDailySpendingLimit + 1;
         vm.prank(etherFiWallet);
         vm.expectRevert(SpendingLimitLib.ExceededDailySpendingLimit.selector);
-        aliceSafe.spend(address(usdc), amount);
+        aliceSafe.spend(txId, address(usdc), amount);
         
         // _updateSpendingLimit(1 ether, defaultMonthlySpendingLimit);
 
@@ -281,6 +297,7 @@ contract UserSafeSpendTest is Setup {
 
         vm.prank(etherFiWallet);
         aliceSafe.swapAndSpend(
+            txId,
             assets[0],
             address(usdc),
             inputAmountToSwap,
@@ -310,6 +327,7 @@ contract UserSafeSpendTest is Setup {
         vm.prank(etherFiWallet);
         vm.expectRevert(SpendingLimitLib.ExceededDailySpendingLimit.selector);
         aliceSafe.swapAndSpend(
+            keccak256("newTxId"),
             assets[0],
             address(usdc),
             newInputAmt,
@@ -325,6 +343,7 @@ contract UserSafeSpendTest is Setup {
         vm.prank(etherFiWallet);
         vm.expectRevert();
         aliceSafe.swapAndSpend(
+            txId,
             address(weETH),
             address(usdc),
             inputAmountWeETHToSwap,
@@ -341,7 +360,7 @@ contract UserSafeSpendTest is Setup {
         uint256 amount = 1 ether;
         vm.prank(etherFiWallet);
         vm.expectRevert(IUserSafe.UnsupportedToken.selector);
-        aliceSafe.spend(unsupportedToken, amount);
+        aliceSafe.spend(txId, unsupportedToken, amount);
     }
 
     function _updateSpendingLimit(uint256 dailyLimitInUsd, uint256 monthlyLimitInUsd) internal {

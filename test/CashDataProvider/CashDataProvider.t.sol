@@ -25,6 +25,7 @@ contract CashDataProviderTest is Test {
     address userSafeFactory = makeAddr("userSafeFactory");
     address debtManager = makeAddr("debtManager");
     address userSafeEventEmitter = makeAddr("userSafeEventEmitter");
+    address cashbackDispatcher = makeAddr("cashbackDispatcher");
     address recoverySigner1 = makeAddr("recoverySigner1");
     address recoverySigner2 = makeAddr("recoverySigner2");
 
@@ -47,6 +48,7 @@ contract CashDataProviderTest is Test {
             swapper,
             userSafeFactory,
             userSafeEventEmitter,
+            cashbackDispatcher,
             recoverySigner1,
             recoverySigner2
         ));
@@ -67,6 +69,7 @@ contract CashDataProviderTest is Test {
         assertEq(cashDataProvider.swapper(), swapper);
         assertEq(cashDataProvider.userSafeFactory(), userSafeFactory);
         assertEq(cashDataProvider.userSafeEventEmitter(), userSafeEventEmitter);
+        assertEq(cashDataProvider.cashbackDispatcher(), cashbackDispatcher);
         assertEq(cashDataProvider.hasRole(ADMIN_ROLE, owner), true);
         assertEq(cashDataProvider.hasRole(ADMIN_ROLE, admin), true);
     }
@@ -236,6 +239,24 @@ contract CashDataProviderTest is Test {
         emit ICashDataProvider.UserSafeEventEmitterUpdated(userSafeEventEmitter, newWallet);
         cashDataProvider.setUserSafeEventEmitter(newWallet);
         assertEq(cashDataProvider.userSafeEventEmitter(), newWallet);
+    }
+
+    function test_SetCashbackDispatcher() public {
+        address newDispatcher = makeAddr("newDispatcher");
+    
+        vm.prank(notAdmin);
+        vm.expectRevert(buildAccessControlRevertData(notAdmin, ADMIN_ROLE));
+        cashDataProvider.setCashbackDispatcher(newDispatcher);
+
+        vm.prank(admin);
+        vm.expectRevert(ICashDataProvider.InvalidValue.selector);
+        cashDataProvider.setCashbackDispatcher(address(0));
+        
+        vm.prank(admin);
+        vm.expectEmit(true, true, true, true);
+        emit ICashDataProvider.CashbackDispatcherUpdated(cashbackDispatcher, newDispatcher);
+        cashDataProvider.setCashbackDispatcher(newDispatcher);
+        assertEq(cashDataProvider.cashbackDispatcher(), newDispatcher);
     }
 
     function test_WhitelistUserSafe() public {

@@ -8,8 +8,10 @@ struct ChainConfig {
     string rpc;
     address usdc;
     address weETH;
+    address scr;
     address weEthWethOracle;
     address ethUsdcOracle;
+    address scrUsdOracle;
     address usdcUsdOracle;
     address swapRouter1InchV6;
     address swapRouterOpenOcean;
@@ -25,6 +27,8 @@ contract Utils is Script {
     string internal FACTORY_IMPL = "FactoryImpl";
     string internal SETTLEMENT_DISPATCHER_PROXY = "SettlementDispatcherProxy";
     string internal SETTLEMENT_DISPATCHER_IMPL = "SettlementDispatcherImpl";
+    string internal CASHBACK_DISPATCHER_PROXY = "CashbackDispatcherProxy";
+    string internal CASHBACK_DISPATCHER_IMPL = "CashbackDispatcherImpl";
     string internal PRICE_PROVIDER_PROXY = "PriceProviderProxy";
     string internal PRICE_PROVIDER_IMPL = "PriceProviderImpl";
     string internal SWAPPER_OPEN_OCEAN = "SwapperOpenOcean";
@@ -67,6 +71,11 @@ contract Utils is Script {
             string.concat(".", chainId, ".", "weETH")
         );
 
+        config.scr = stdJson.readAddress(
+            inputJson,
+            string.concat(".", chainId, ".", "scr")
+        );
+
         config.weEthWethOracle = stdJson.readAddress(
             inputJson,
             string.concat(".", chainId, ".", "weEthWethOracle")
@@ -75,6 +84,16 @@ contract Utils is Script {
         config.ethUsdcOracle = stdJson.readAddress(
             inputJson,
             string.concat(".", chainId, ".", "ethUsdcOracle")
+        );
+
+        config.scrUsdOracle = stdJson.readAddress(
+            inputJson,
+            string.concat(".", chainId, ".", "scrUsdOracle")
+        );
+
+        config.usdcUsdOracle = stdJson.readAddress(
+            inputJson,
+            string.concat(".", chainId, ".", "usdcUsdOracle")
         );
 
         config.usdcUsdOracle = stdJson.readAddress(

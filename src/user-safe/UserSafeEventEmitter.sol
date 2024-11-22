@@ -42,7 +42,17 @@ contract UserSafeEventEmitter is Initializable, UUPSUpgradeable, AccessControlDe
     event ModeSet(address indexed userSafe, UserSafeStorage.Mode prevMode, UserSafeStorage.Mode newMode, uint256 incomingModeStartTime);
     event Spend(address indexed userSafe, address indexed token, uint256 amount, UserSafeStorage.Mode mode);
     event Swap(address indexed userSafe, address indexed inputToken, uint256 inputAmount, address indexed outputToken, uint256 outputAmount);
-    
+    event Cashback(address indexed userSafe, uint256 spendingInUsd, address indexed cashbackToken, uint256 cashbackAmount, uint256 cashbackInUsd, bool paid);
+    event PendingCashbackCleared(address indexed userSafe, address indexed cashbackToken, uint256 cashbackAmount, uint256 cashbackInUsd);
+
+    function emitPendingCashbackClearedEvent(address cashbackToken, uint256 cashbackAmount, uint256 cashbackInUsd) external onlyUserSafe {
+        emit PendingCashbackCleared(msg.sender, cashbackToken, cashbackAmount, cashbackInUsd);
+    }
+
+    function emitCashbackEvent(uint256 spendingInUsd, address cashbackToken, uint256 cashbackAmount, uint256 cashbackInUsd, bool paid) external onlyUserSafe {
+        emit Cashback(msg.sender, spendingInUsd, cashbackToken, cashbackAmount, cashbackInUsd, paid);
+    }
+
     function emitSpend(address token, uint256 amount, UserSafeStorage.Mode mode) external onlyUserSafe {
         emit Spend(msg.sender, token, amount, mode);
     }

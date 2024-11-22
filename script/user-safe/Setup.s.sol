@@ -10,20 +10,23 @@ import {IL2DebtManager} from "../../src/interfaces/IL2DebtManager.sol";
 import {DebtManagerCore} from "../../src/debt-manager/DebtManagerCore.sol";
 import {DebtManagerAdmin} from "../../src/debt-manager/DebtManagerAdmin.sol";
 import {DebtManagerInitializer} from "../../src/debt-manager/DebtManagerInitializer.sol";
-import {CashDataProvider} from "../../src/utils/CashDataProvider.sol";
+import {CashDataProvider, ICashDataProvider} from "../../src/utils/CashDataProvider.sol";
 import {Utils, ChainConfig} from "./Utils.sol";
 import {EtherFiCashAaveV3Adapter} from "../../src/adapters/aave-v3/EtherFiCashAaveV3Adapter.sol";
 import {UUPSProxy} from "../../src/UUPSProxy.sol";
 import {IWeETH} from "../../src/interfaces/IWeETH.sol";
-import {IAggregatorV3} from "../../src/interfaces/IAggregatorV3.sol";import {UserSafeCore} from "../../src/user-safe/UserSafeCore.sol";
+import {IAggregatorV3} from "../../src/interfaces/IAggregatorV3.sol";
+import {UserSafeCore} from "../../src/user-safe/UserSafeCore.sol";
 import {SettlementDispatcher} from "../../src/settlement-dispatcher/SettlementDispatcher.sol";
 import {UserSafeSetters} from "../../src/user-safe/UserSafeSetters.sol";
 import {UserSafeEventEmitter} from "../../src/user-safe/UserSafeEventEmitter.sol";
 import {IUserSafe} from "../../src/interfaces/IUserSafe.sol";
+import {CashbackDispatcher} from "../../src/cashback-dispatcher/CashbackDispatcher.sol";
 
 contract DeployUserSafeSetup is Utils {
     ERC20 usdc;
     ERC20 weETH;
+    ERC20 scr;
     PriceProvider priceProvider;
     SwapperOpenOcean swapper;
     UserSafeEventEmitter userSafeEventEmitter;
@@ -34,6 +37,7 @@ contract DeployUserSafeSetup is Utils {
     CashDataProvider cashDataProvider;
     EtherFiCashAaveV3Adapter aaveV3Adapter;
     SettlementDispatcher settlementDispatcher;
+    CashbackDispatcher cashbackDispatcher;
     address etherFiWallet;
     address owner;
     uint256 delay = 300; // 5 min
@@ -57,8 +61,11 @@ contract DeployUserSafeSetup is Utils {
     address recoverySigner1 = 0x7fEd99d0aA90423de55e238Eb5F9416FF7Cc58eF;
     address recoverySigner2 = 0x24e311DA50784Cf9DB1abE59725e4A1A110220FA;
     string chainId;
-    uint16 aaveV3ReferralCode = 0;
-    uint256 interestRateMode = 2; // variable
+
+    uint256 pepeCashbackPercentage = 200;
+    uint256 wojakCashbackPercentage = 300;
+    uint256 chadCashbackPercentage = 400;
+    uint256 whaleCashbackPercentage = 500;
 
     address factoryImpl;
     address eventEmitterImpl;
@@ -67,6 +74,7 @@ contract DeployUserSafeSetup is Utils {
     address debtManagerInitializer;
     address cashDataProviderImpl;
     address settlementDispatcherImpl;
+    address cashbackDispatcherImpl;
 
     function run() public {
         // Pulling deployer info from the environment
@@ -88,6 +96,7 @@ contract DeployUserSafeSetup is Utils {
 
         usdc = ERC20(chainConfig.usdc);
         weETH = ERC20(chainConfig.weETH);
+        scr = ERC20(chainConfig.scr);
 
         settlementDispatcherImpl = address(new SettlementDispatcher{salt: getSalt(SETTLEMENT_DISPATCHER_IMPL)}());
         settlementDispatcher = SettlementDispatcher(payable(address(new UUPSProxy{salt: getSalt(SETTLEMENT_DISPATCHER_PROXY)}(settlementDispatcherImpl, ""))));
@@ -141,15 +150,28 @@ contract DeployUserSafeSetup is Utils {
             isStableToken: true
         });
 
-        address[] memory initialTokens = new address[](3);
+        PriceProvider.Config memory scrollConfig = PriceProvider.Config({
+            oracle: chainConfig.scrUsdOracle,
+            priceFunctionCalldata: hex"",
+            isChainlinkType: true,
+            oraclePriceDecimals: IAggregatorV3(chainConfig.scrUsdOracle).decimals(),
+            maxStaleness: 10 days,
+            dataType: PriceProvider.ReturnType.Int256,
+            isBaseTokenEth: false,
+            isStableToken: true
+        });
+
+        address[] memory initialTokens = new address[](4);
         initialTokens[0] = address(weETH);
         initialTokens[1] = eth;
         initialTokens[2] = address(usdc);
+        initialTokens[3] = address(scr);
 
-        PriceProvider.Config[] memory initialTokensConfig = new PriceProvider.Config[](3);
+        PriceProvider.Config[] memory initialTokensConfig = new PriceProvider.Config[](4);
         initialTokensConfig[0] = weETHConfig;
         initialTokensConfig[1] = ethConfig;
         initialTokensConfig[2] = usdcConfig;
+        initialTokensConfig[3] = scrollConfig;
 
         address priceProviderImpl = address(new PriceProvider{salt: getSalt(PRICE_PROVIDER_IMPL)}());
         priceProvider = PriceProvider(
@@ -174,6 +196,20 @@ contract DeployUserSafeSetup is Utils {
         cashDataProviderImpl = address(new CashDataProvider{salt: getSalt(CASH_DATA_PROVIDER_IMPL)}());
         cashDataProvider = CashDataProvider(
             address(new UUPSProxy{salt: getSalt(CASH_DATA_PROVIDER_PROXY)}(cashDataProviderImpl, ""))
+        );
+
+        cashbackDispatcherImpl = address(new CashbackDispatcher{salt: getSalt(CASHBACK_DISPATCHER_IMPL)}());
+        cashbackDispatcher = CashbackDispatcher(
+            address(new UUPSProxy{salt: getSalt(CASHBACK_DISPATCHER_PROXY)}(
+                cashbackDispatcherImpl,
+                abi.encodeWithSelector(
+                    CashbackDispatcher.initialize.selector,
+                    address(owner),
+                    address(cashDataProvider),
+                    address(priceProvider),
+                    address(scr)
+                )
+            ))
         );
 
         address[] memory collateralTokens = new address[](1);
@@ -243,9 +279,24 @@ contract DeployUserSafeSetup is Utils {
             address(aaveV3Adapter),
             address(userSafeFactory),
             address(userSafeEventEmitter),
+            address(cashbackDispatcher),
             address(recoverySigner1),
             address(recoverySigner2)
         ));
+
+        ICashDataProvider.UserSafeTiers[] memory userSafeTiers = new ICashDataProvider.UserSafeTiers[](4);
+        userSafeTiers[0] = ICashDataProvider.UserSafeTiers.Pepe;
+        userSafeTiers[1] = ICashDataProvider.UserSafeTiers.Wojak;
+        userSafeTiers[2] = ICashDataProvider.UserSafeTiers.Chad;
+        userSafeTiers[3] = ICashDataProvider.UserSafeTiers.Whale;
+
+        uint256[] memory cashbackPercentages = new uint256[](4);
+        cashbackPercentages[0] = pepeCashbackPercentage;
+        cashbackPercentages[1] = wojakCashbackPercentage;
+        cashbackPercentages[2] = chadCashbackPercentage;
+        cashbackPercentages[3] = whaleCashbackPercentage;
+
+        cashDataProvider.setTierCashbackPercentage(userSafeTiers, cashbackPercentages);
 
         DebtManagerInitializer(address(debtManager)).initialize(
             owner,
@@ -350,6 +401,16 @@ contract DeployUserSafeSetup is Utils {
             deployedAddresses,
             "settlementDispatcherImpl",
             address(settlementDispatcherImpl)
+        );
+        vm.serializeAddress(
+            deployedAddresses,
+            "cashbackDispatcherProxy",
+            address(cashbackDispatcher)
+        );
+        vm.serializeAddress(
+            deployedAddresses,
+            "cashbackDispatcherImpl",
+            address(cashbackDispatcherImpl)
         );
         vm.serializeAddress(
             deployedAddresses,

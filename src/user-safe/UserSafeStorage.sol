@@ -32,12 +32,7 @@ contract UserSafeStorage is Initializable, ReentrancyGuardTransientUpgradeable {
         uint8 index;
         bytes signature;
     }
-
-    struct FundsDetails {
-        address token;
-        uint256 amount;
-    }
-
+    
     struct WithdrawalRequest {
         address[] tokens;
         uint256[] amounts;
@@ -68,7 +63,8 @@ contract UserSafeStorage is Initializable, ReentrancyGuardTransientUpgradeable {
     error SwapAndSpendOnlyInDebitMode();
     error CollateralTokensBalancesZero();
     error OutputLessThanMinAmount();
-    error CanSpendFailed(string message);
+    error OnlyCashbackDispatcher();
+    error TransactionAlreadyCleared();
 
     uint256 public constant HUNDRED_PERCENT = 100e18;
     // Address of the Cash Data Provider
@@ -95,6 +91,10 @@ contract UserSafeStorage is Initializable, ReentrancyGuardTransientUpgradeable {
     Mode internal _mode;
     // Incoming time when you switch from Debit -> Credit mode
     uint256 internal _incomingCreditModeStartTime;
+    // Pending cashback in USD
+    uint256 internal _pendingCashbackInUsd;
+    // Mapping of transaction ID to clearance
+    mapping(bytes32 => bool) internal _transactionCleared;
     
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor(address __cashDataProvider) {

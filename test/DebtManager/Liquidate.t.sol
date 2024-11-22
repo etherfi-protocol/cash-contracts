@@ -53,7 +53,7 @@ contract DebtManagerLiquidateTest is Setup {
         borrowAmt = debtManager.remainingBorrowingCapacityInUSD(address(aliceSafe));
 
         vm.prank(etherFiWallet);
-        aliceSafe.spend(address(usdc), borrowAmt);
+        aliceSafe.spend(txId, address(usdc), borrowAmt);
     }
 
     function test_SetLiquidationThreshold() public {     
@@ -157,7 +157,7 @@ contract DebtManagerLiquidateTest is Setup {
         borrowAmt = debtManager.remainingBorrowingCapacityInUSD(address(aliceSafe));
         // aliceSafe should borrow at new price for our calculations to be correct
         vm.prank(etherFiWallet);
-        aliceSafe.spend(address(usdc), borrowAmt);
+        aliceSafe.spend(keccak256("newTxId"), address(usdc), borrowAmt);
 
         vm.startPrank(owner);
         uint256 newPrice = 1000e6; // 1000 USD per weETH
@@ -226,7 +226,7 @@ contract DebtManagerLiquidateTest is Setup {
         borrowAmt = debtManager.remainingBorrowingCapacityInUSD(address(aliceSafe));
         // Alice should borrow at new price for our calculations to be correct
         vm.prank(etherFiWallet);
-        aliceSafe.spend(address(usdc), borrowAmt);
+        aliceSafe.spend(keccak256("newTxId"), address(usdc), borrowAmt);
         
         address newCollateralToken = address(new MockERC20("collateral", "CTK", 18));
         IL2DebtManager.CollateralTokenConfig memory collateralTokenConfigNewCollateralToken;
