@@ -299,21 +299,25 @@ contract DebtManagerBorrowTest is Setup {
 
         vm.stopPrank();
 
-        uint256 remainingBorrowCapacityInUsdc = debtManager
-            .remainingBorrowingCapacityInUSD(address(aliceSafe));
-
+        uint256 remainingBorrowCapacityInUsdc = debtManager.remainingBorrowingCapacityInUSD(address(aliceSafe));
         (, uint256 totalBorrowingsOfAliceSafe) = debtManager.borrowingOf(address(aliceSafe));
         assertEq(totalBorrowingsOfAliceSafe, 0);
+
+        uint256 borrowInToken = (remainingBorrowCapacityInUsdc * 1e12) / 1e6;
+        uint256 debtManagerBalBefore = newToken.balanceOf(address(debtManager));
 
         vm.prank(etherFiWallet);
         aliceSafe.spend(
             txId,
             address(newToken),
-            (remainingBorrowCapacityInUsdc * 1e12) / 1e6
+            remainingBorrowCapacityInUsdc
         );
 
         (, totalBorrowingsOfAliceSafe) = debtManager.borrowingOf(address(aliceSafe));
         assertEq(totalBorrowingsOfAliceSafe, remainingBorrowCapacityInUsdc);
+        
+        uint256 debtManagerBalAfter = newToken.balanceOf(address(debtManager));
+        assertEq(debtManagerBalBefore - debtManagerBalAfter, borrowInToken);
     }
 
     function test_NextBorrowAutomaticallyAddsInterestToThePreviousBorrows()

@@ -55,7 +55,7 @@ contract UserSafeStorage is Initializable, ReentrancyGuardTransientUpgradeable {
     error InvalidRecoverySignerAddress();
     error UserRecoverySignerIsUnsetCannotUseIndexZero();
     error IncorrectOutputAmount();
-    error AmountZeroWithSixDecimals();
+    error AmountZero();
     error OnlyUserSafeFactory();
     error ModeAlreadySet();
     error NotACollateralToken();

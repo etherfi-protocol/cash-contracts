@@ -111,13 +111,13 @@ contract UserSafeCore is UserSafeStorage {
 
     function canSpend(
         address token,
-        uint256 amount
+        uint256 amountInUsd
     ) public view returns (bool, string memory) {
         if (!_isBorrowToken(token)) return (false, "Not a supported stable token");
         address debtManager = _cashDataProvider.etherFiCashDebtManager();
 
-        uint256 amountInUsd = IL2DebtManager(debtManager).convertCollateralTokenToUsd(token, amount);
-        if (amountInUsd == 0) return (false, "Amount zero with 6 decimals");
+        uint256 amount = IL2DebtManager(debtManager).convertUsdToCollateralToken(token, amountInUsd);
+        if (amount == 0) return (false, "Amount zero");
 
         Mode __mode = _mode;
         if (_incomingCreditModeStartTime != 0) __mode = Mode.Credit;
@@ -134,7 +134,7 @@ contract UserSafeCore is UserSafeStorage {
             if (IERC20(token).balanceOf(debtManager) < amount) return (false, "Insufficient liquidity in debt manager to cover the loan");
         } 
 
-        return _spendingLimit.canSpend(amount);
+        return _spendingLimit.canSpend(amountInUsd);
     }
 
     function maxCanSpend(address token) external view returns (uint256) {
@@ -169,6 +169,7 @@ contract UserSafeCore is UserSafeStorage {
             } else returnAmt = effectiveBal;
         }
 
+        returnAmt = debtManager.convertCollateralTokenToUsd(token, returnAmt);
         uint256 spendingLimitAllowanceRemaining = _spendingLimit.maxCanSpend();
         returnAmt = Math.min(returnAmt, spendingLimitAllowanceRemaining);
 
@@ -176,9 +177,9 @@ contract UserSafeCore is UserSafeStorage {
         return (returnAmt / 10**4) * 10**4; 
     }
 
-    function spend(bytes32 txId, address token, uint256 amount) external currentMode onlyEtherFiWallet {
-        _spend(txId, token, amount);
-        UserSafeEventEmitter(_cashDataProvider.userSafeEventEmitter()).emitSpend(token, amount, _mode);
+    function spend(bytes32 txId, address token, uint256 amountInUsd) external currentMode onlyEtherFiWallet {
+        uint256 amount = _spend(txId, token, amountInUsd);
+        UserSafeEventEmitter(_cashDataProvider.userSafeEventEmitter()).emitSpend(token, amount, amountInUsd, _mode);
     }
 
     function swapAndSpend(    
@@ -188,16 +189,16 @@ contract UserSafeCore is UserSafeStorage {
         uint256 inputAmountToSwap,
         uint256 outputMinAmount,
         uint256 guaranteedOutputAmount,
-        uint256 outputAmountToTransfer,
+        uint256 amountToSpendInUsd,
         bytes calldata swapData
     ) external currentMode onlyEtherFiWallet {
         if (_mode != Mode.Debit) revert SwapAndSpendOnlyInDebitMode();
         uint256 outputAmount = _swapFunds(inputTokenToSwap, outputToken, inputAmountToSwap, outputMinAmount, guaranteedOutputAmount, swapData);
         UserSafeEventEmitter(_cashDataProvider.userSafeEventEmitter()).emitSwap(inputTokenToSwap, inputAmountToSwap, outputToken, outputAmount);
         
-        if (outputAmountToTransfer > 0) {
-            _spend(txId, outputToken, outputAmountToTransfer);
-            UserSafeEventEmitter(_cashDataProvider.userSafeEventEmitter()).emitSpend(outputToken, outputAmountToTransfer, _mode);
+        if (amountToSpendInUsd > 0) {
+            uint256 amount = _spend(txId, outputToken, amountToSpendInUsd);
+            UserSafeEventEmitter(_cashDataProvider.userSafeEventEmitter()).emitSpend(outputToken, amount, amountToSpendInUsd, _mode);
         } else if (!_isBorrowToken(outputToken)) revert UnsupportedToken();
     }
 
@@ -210,15 +211,15 @@ contract UserSafeCore is UserSafeStorage {
         }
     }
 
-    function _spend(bytes32 txId, address token, uint256 amount) internal {
+    function _spend(bytes32 txId, address token, uint256 amountInUsd) internal returns (uint256) {
         if (_transactionCleared[txId]) revert TransactionAlreadyCleared();
         _transactionCleared[txId] = true;
 
         if (!_isBorrowToken(token)) revert UnsupportedToken();
         address debtManager = _cashDataProvider.etherFiCashDebtManager();
 
-        uint256 amountInUsd = IL2DebtManager(debtManager).convertCollateralTokenToUsd(token, amount);
-        if (amountInUsd == 0) revert AmountZeroWithSixDecimals();
+        uint256 amount = IL2DebtManager(debtManager).convertUsdToCollateralToken(token, amountInUsd);
+        if (amount == 0) revert AmountZero();
 
         if (_mode == Mode.Debit && IERC20(token).balanceOf(address(this)) < amount) revert ("Insufficient balance to spend with Debit flow");
         (IL2DebtManager.TokenData[] memory collateralTokenAmounts, string memory error) = _getCollateralBalanceWithTokenSubtracted(token, amount, _mode);
@@ -253,6 +254,8 @@ contract UserSafeCore is UserSafeStorage {
         (address cashbackToken, uint256 cashbackAmount, uint256 cashbackInUsd, bool paid) = CashbackDispatcher(_cashDataProvider.cashbackDispatcher()).cashback(amountInUsd);
         UserSafeEventEmitter(_cashDataProvider.userSafeEventEmitter()).emitCashbackEvent(amountInUsd, cashbackToken, cashbackAmount, cashbackInUsd, paid);
         if (!paid) _pendingCashbackInUsd += cashbackInUsd;
+
+        return amount;
     }
 
     function preLiquidate() external {
@@ -293,9 +296,9 @@ contract UserSafeCore is UserSafeStorage {
         delete _pendingWithdrawalRequest;
     }
 
-    function repay(address token, uint256 amount) external onlyEtherFiWallet {
+    function repay(address token, uint256 amountInUsd) external onlyEtherFiWallet {
         address debtManager = _cashDataProvider.etherFiCashDebtManager();
-        _repay(debtManager, token, amount);
+        _repay(debtManager, token, amountInUsd);
     }
 
     function _checkSpendingLimit(address token, uint256 amount) internal {
@@ -307,12 +310,15 @@ contract UserSafeCore is UserSafeStorage {
     function _repay(
         address debtManager,
         address token,
-        uint256 amount
+        uint256 amountInUsd
     ) internal {
+        uint256 amount = IL2DebtManager(debtManager).convertUsdToCollateralToken(token, amountInUsd);
+        if (amount == 0) revert AmountZero();
+
         IERC20(token).forceApprove(debtManager, amount);
 
         IL2DebtManager(debtManager).repay(address(this), token, amount);
-        UserSafeEventEmitter(_cashDataProvider.userSafeEventEmitter()).emitRepayDebtManager(token, amount);
+        UserSafeEventEmitter(_cashDataProvider.userSafeEventEmitter()).emitRepayDebtManager(token, amount, amountInUsd);
     }
 
     function _updateWithdrawalRequestIfNecessary(

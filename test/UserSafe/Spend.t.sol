@@ -27,7 +27,7 @@ contract UserSafeSpendTest is Setup {
 
         vm.prank(etherFiWallet);
         vm.expectEmit(true, true, true, true);
-        emit UserSafeEventEmitter.Spend(address(aliceSafe), address(usdc), amount, UserSafeStorage.Mode.Debit);
+        emit UserSafeEventEmitter.Spend(address(aliceSafe), address(usdc), amount, amount, UserSafeStorage.Mode.Debit);
         aliceSafe.spend(txId, address(usdc), amount);
 
         uint256 settlementDispatcherUsdcBalAfter = usdc.balanceOf(settlementDispatcher);
@@ -43,7 +43,7 @@ contract UserSafeSpendTest is Setup {
         uint256 amount = 1000e6;
         vm.prank(etherFiWallet);
         vm.expectEmit(true, true, true, true);
-        emit UserSafeEventEmitter.Spend(address(aliceSafe), address(usdc), amount, UserSafeStorage.Mode.Debit);
+        emit UserSafeEventEmitter.Spend(address(aliceSafe), address(usdc), amount, amount, UserSafeStorage.Mode.Debit);
         aliceSafe.spend(txId, address(usdc), amount);
 
         vm.prank(etherFiWallet);

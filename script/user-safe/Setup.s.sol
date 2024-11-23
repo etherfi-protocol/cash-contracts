@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.24;
 
-import {Script, console} from "forge-std/Script.sol";
+import {Script} from "forge-std/Script.sol";
 import {UserSafeFactory} from "../../src/user-safe/UserSafeFactory.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {PriceProvider} from "../../src/oracle/PriceProvider.sol";
@@ -40,20 +40,24 @@ contract DeployUserSafeSetup is Utils {
     CashbackDispatcher cashbackDispatcher;
     address etherFiWallet;
     address owner;
-    uint256 delay = 300; // 5 min
+    uint256 delay = 3600; // 1 hour
 
     // weETH
-    uint80 weETH_ltv = 70e18;
+    uint80 weETH_ltv = 50e18;
     uint80 weETH_liquidationThreshold = 75e18;
-    uint96 weETH_liquidationBonus = 5e18; 
+    uint96 weETH_liquidationBonus = 1e18; 
     
     // usdc
-    uint80 usdc_ltv = 90e18;
-    uint80 usdc_liquidationThreshold = 99e18;
+    uint80 usdc_ltv = 80e18;
+    uint80 usdc_liquidationThreshold = 95e18;
     uint96 usdc_liquidationBonus = 1e18; 
+    
+    // scroll
+    uint80 scroll_ltv = 50e18;
+    uint80 scroll_liquidationThreshold = 75e18;
+    uint96 scroll_liquidationBonus = 1e18; 
 
-    uint64 borrowApyPerSecond = 634195839675; // 20% APR -> 20e18 / (365 days in seconds)
-    uint256 supplyCap = 10000000 ether;
+    uint64 borrowApyPerSecond = 317097919837; // 10% APR -> 10e18 / (365 days in seconds)
 
     uint32 optimismDestEid = 30111;
 
@@ -65,7 +69,9 @@ contract DeployUserSafeSetup is Utils {
     uint256 pepeCashbackPercentage = 200;
     uint256 wojakCashbackPercentage = 300;
     uint256 chadCashbackPercentage = 400;
-    uint256 whaleCashbackPercentage = 500;
+    uint256 whaleCashbackPercentage = 400;
+
+    uint128 minShares;
 
     address factoryImpl;
     address eventEmitterImpl;
@@ -86,10 +92,29 @@ contract DeployUserSafeSetup is Utils {
         chainId = vm.toString(block.chainid);
         ChainConfig memory chainConfig = getChainConfig(chainId);
 
-        address[] memory supportedCollateralTokens = new address[](1);
+        address[] memory supportedCollateralTokens = new address[](3);
         supportedCollateralTokens[0] = chainConfig.weETH;
+        supportedCollateralTokens[1] = chainConfig.usdc;
+        supportedCollateralTokens[2] = chainConfig.scr;
         address[] memory supportedBorrowTokens = new address[](1);
         supportedBorrowTokens[0] = chainConfig.usdc;
+
+        DebtManagerCore.CollateralTokenConfig[]
+            memory collateralTokenConfig = new DebtManagerCore.CollateralTokenConfig[](
+                3
+            );
+
+        collateralTokenConfig[0].ltv = weETH_ltv;
+        collateralTokenConfig[0].liquidationThreshold = weETH_liquidationThreshold;
+        collateralTokenConfig[0].liquidationBonus = weETH_liquidationBonus;
+
+        collateralTokenConfig[1].ltv = usdc_ltv;
+        collateralTokenConfig[1].liquidationThreshold = usdc_liquidationThreshold;
+        collateralTokenConfig[1].liquidationBonus = usdc_liquidationBonus;
+        
+        collateralTokenConfig[2].ltv = scroll_ltv;
+        collateralTokenConfig[2].liquidationThreshold = scroll_liquidationThreshold;
+        collateralTokenConfig[2].liquidationBonus = scroll_liquidationBonus;
 
         etherFiWallet = deployerAddress;
         owner = deployerAddress;
@@ -155,10 +180,10 @@ contract DeployUserSafeSetup is Utils {
             priceFunctionCalldata: hex"",
             isChainlinkType: true,
             oraclePriceDecimals: IAggregatorV3(chainConfig.scrUsdOracle).decimals(),
-            maxStaleness: 10 days,
+            maxStaleness: 1 days,
             dataType: PriceProvider.ReturnType.Int256,
             isBaseTokenEth: false,
-            isStableToken: true
+            isStableToken: false
         });
 
         address[] memory initialTokens = new address[](4);
@@ -211,24 +236,6 @@ contract DeployUserSafeSetup is Utils {
                 )
             ))
         );
-
-        address[] memory collateralTokens = new address[](1);
-        collateralTokens[0] = address(weETH);
-        address[] memory borrowTokens = new address[](1);
-        borrowTokens[0] = address(usdc);
-
-        DebtManagerCore.CollateralTokenConfig[]
-            memory collateralTokenConfig = new DebtManagerCore.CollateralTokenConfig[](
-                2
-            );
-
-        collateralTokenConfig[0].ltv = weETH_ltv;
-        collateralTokenConfig[0].liquidationThreshold = weETH_liquidationThreshold;
-        collateralTokenConfig[0].liquidationBonus = weETH_liquidationBonus;
-
-        collateralTokenConfig[1].ltv = usdc_ltv;
-        collateralTokenConfig[1].liquidationThreshold = usdc_liquidationThreshold;
-        collateralTokenConfig[1].liquidationBonus = usdc_liquidationBonus;
 
         debtManagerCoreImpl = address(new DebtManagerCore{salt: getSalt(DEBT_MANAGER_CORE_IMPL)}());
         debtManagerAdminImpl = address(new DebtManagerAdmin{salt: getSalt(DEBT_MANAGER_ADMIN_IMPL)}());
@@ -306,12 +313,17 @@ contract DeployUserSafeSetup is Utils {
         DebtManagerCore(debtManagerProxy).upgradeToAndCall(debtManagerCoreImpl, "");
         DebtManagerCore debtManagerCore = DebtManagerCore(debtManagerProxy);
         debtManagerCore.setAdminImpl(debtManagerAdminImpl);
-        DebtManagerAdmin(address(debtManagerCore)).supportCollateralToken(address(weETH), collateralTokenConfig[0]);
-        DebtManagerAdmin(address(debtManagerCore)).supportCollateralToken(address(usdc), collateralTokenConfig[1]);
-        DebtManagerAdmin(address(debtManagerCore)).supportBorrowToken(
-            address(usdc), 
+        
+        DebtManagerAdmin(address(debtManagerCore)).supportCollateralToken(supportedCollateralTokens[0], collateralTokenConfig[0]);
+        DebtManagerAdmin(address(debtManagerCore)).supportCollateralToken(supportedCollateralTokens[1], collateralTokenConfig[1]);
+        DebtManagerAdmin(address(debtManagerCore)).supportCollateralToken(supportedCollateralTokens[2], collateralTokenConfig[2]);
+        
+        minShares = uint128(5 * 10 ** ERC20(supportedBorrowTokens[0]).decimals());
+
+        DebtManagerAdmin(address(debtManagerCore)).supportBorrowToken(  
+            supportedBorrowTokens[0], 
             borrowApyPerSecond, 
-            uint128(10 * 10 ** usdc.decimals())
+            minShares
         );
 
         saveDeployments();

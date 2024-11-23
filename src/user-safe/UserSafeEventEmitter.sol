@@ -31,7 +31,7 @@ contract UserSafeEventEmitter is Initializable, UUPSUpgradeable, AccessControlDe
     event SwapTransferForSpending(address indexed userSafe, address indexed inputToken, uint256 inputAmount, address indexed outputToken, uint256 outputTokenSent);
     event AddCollateralToDebtManager(address indexed userSafe, address indexed token, uint256 amount);
     event BorrowFromDebtManager(address indexed userSafe, address indexed token, uint256 amount);
-    event RepayDebtManager(address indexed userSafe, address indexed token, uint256 debtAmount);
+    event RepayDebtManager(address indexed userSafe, address indexed token, uint256 debtAmount, uint256 debtAmountInUsd);
     event WithdrawCollateralFromDebtManager(address indexed userSafe, address indexed token, uint256 amount);
     event CloseAccountWithDebtManager(address indexed userSafe);
     event IsRecoveryActiveSet(address indexed userSafe, bool isActive);
@@ -40,7 +40,7 @@ contract UserSafeEventEmitter is Initializable, UUPSUpgradeable, AccessControlDe
     event UserRecoverySignerSet(address indexed userSafe,  address oldRecoverySigner, address newRecoverySigner);
     event SpendingLimitChanged(address indexed userSafe, SpendingLimit oldLimit, SpendingLimit newLimit);
     event ModeSet(address indexed userSafe, UserSafeStorage.Mode prevMode, UserSafeStorage.Mode newMode, uint256 incomingModeStartTime);
-    event Spend(address indexed userSafe, address indexed token, uint256 amount, UserSafeStorage.Mode mode);
+    event Spend(address indexed userSafe, address indexed token, uint256 amount, uint256 amountInUsd, UserSafeStorage.Mode mode);
     event Swap(address indexed userSafe, address indexed inputToken, uint256 inputAmount, address indexed outputToken, uint256 outputAmount);
     event Cashback(address indexed userSafe, uint256 spendingInUsd, address indexed cashbackToken, uint256 cashbackAmount, uint256 cashbackInUsd, bool paid);
     event PendingCashbackCleared(address indexed userSafe, address indexed cashbackToken, uint256 cashbackAmount, uint256 cashbackInUsd);
@@ -53,8 +53,8 @@ contract UserSafeEventEmitter is Initializable, UUPSUpgradeable, AccessControlDe
         emit Cashback(msg.sender, spendingInUsd, cashbackToken, cashbackAmount, cashbackInUsd, paid);
     }
 
-    function emitSpend(address token, uint256 amount, UserSafeStorage.Mode mode) external onlyUserSafe {
-        emit Spend(msg.sender, token, amount, mode);
+    function emitSpend(address token, uint256 amount, uint256 amountInUsd, UserSafeStorage.Mode mode) external onlyUserSafe {
+        emit Spend(msg.sender, token, amount, amountInUsd, mode);
     }
 
     function emitSwap(address inputToken, uint256 inputAmount, address outputToken, uint256 outputAmount) external onlyUserSafe {
@@ -97,8 +97,8 @@ contract UserSafeEventEmitter is Initializable, UUPSUpgradeable, AccessControlDe
         emit BorrowFromDebtManager(msg.sender, token, amount);
     }
 
-    function emitRepayDebtManager(address token, uint256 amount) external onlyUserSafe {
-        emit RepayDebtManager(msg.sender, token, amount);
+    function emitRepayDebtManager(address token, uint256 amount, uint256 amountInUsd) external onlyUserSafe {
+        emit RepayDebtManager(msg.sender, token, amount, amountInUsd);
     }
 
     function emitWithdrawCollateralFromDebtManager(address token, uint256 amount) external onlyUserSafe {

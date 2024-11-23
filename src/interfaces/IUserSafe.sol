@@ -38,7 +38,7 @@ interface IUserSafe {
     error InvalidRecoverySignerAddress();
     error UserRecoverySignerIsUnsetCannotUseIndexZero();
     error IncorrectOutputAmount();
-    error AmountZeroWithSixDecimals();
+    error AmountZero();
     error OnlyUserSafeFactory();
     error ModeAlreadySet();
     error NotACollateralToken();
@@ -145,14 +145,14 @@ interface IUserSafe {
      * @notice Function to fetch if a user can spend. 
      * @notice This is a utility function for the backend to put checks on spendings.
      * @param token Address of the token to spend.
-     * @param amount Amount of the token to spend.
+     * @param amountInUsd Amount of USD to spend in 6 decimals.
      */
-    function canSpend(address token, uint256 amount) external view returns (bool, string memory);
+    function canSpend(address token, uint256 amountInUsd) external view returns (bool, string memory);
 
     /**
      * @notice Function to fetch the max amount the user can spend in the current mode.
      * @param token Address of the token to spend.
-     * @return max spend the user can make.
+     * @return max spend the user can make in USD with 6 decimals.
      */
     function maxCanSpend(address token) external view returns (uint256);
 
@@ -285,9 +285,9 @@ interface IUserSafe {
      * @dev Can only spend supported tokens.
      * @param txId Transaction ID.
      * @param token Address of the token to transfer.
-     * @param amount Amount of tokens to transfer.
+     * @param amountInUsd Amount of USD to transfer in 6 decimals.
      */
-    function spend(bytes32 txId, address token, uint256 amount) external;
+    function spend(bytes32 txId, address token, uint256 amountInUsd) external;
 
     /**
      * @notice Function to repay funds to EtherFiCash Debt Manager.

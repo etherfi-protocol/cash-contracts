@@ -242,7 +242,7 @@ contract UserSafeSpendingLimitTest is Setup {
         // Since the time for renewal is in the past, we should be able to spend the whole spending limit again
         vm.prank(etherFiWallet);
         vm.expectEmit(true, true, true, true);
-        emit UserSafeEventEmitter.Spend(address(aliceSafe), address(usdc), dailyLimit, UserSafeStorage.Mode.Debit);
+        emit UserSafeEventEmitter.Spend(address(aliceSafe), address(usdc), dailyLimit, dailyLimit, UserSafeStorage.Mode.Debit);
         aliceSafe.spend(keccak256("newTxId"), address(usdc), dailyLimit);
     }
 
