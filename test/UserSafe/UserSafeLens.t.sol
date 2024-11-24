@@ -40,6 +40,13 @@ contract UserSafeLensTest is Setup {
         assertEq(data.totalCollateral, collateralBalInUsd);
         assertEq(data.totalBorrow, 0);        
         assertEq(data.maxBorrow, collateralBalInUsd.mulDiv(ltv, HUNDRED_PERCENT));
+
+        assertEq(data.tokenPrices.length, 2);
+        assertEq(data.tokenPrices[0].token, address(weETH));
+        assertEq(data.tokenPrices[0].amount, priceProvider.price(address(weETH)));
+
+        assertEq(data.tokenPrices[1].token, address(usdc));
+        assertEq(data.tokenPrices[1].amount, priceProvider.price(address(usdc)));
     }
 
     function test_CanGetUserDataWithWithdrawals() public {

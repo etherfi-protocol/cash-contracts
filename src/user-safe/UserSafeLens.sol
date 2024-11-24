@@ -4,6 +4,7 @@ pragma solidity ^0.8.24;
 import {IUserSafe} from "../interfaces/IUserSafe.sol";
 import {ICashDataProvider} from "../interfaces/ICashDataProvider.sol";
 import {IL2DebtManager} from "../interfaces/IL2DebtManager.sol";
+import {IPriceProvider} from "../interfaces/IPriceProvider.sol";
 import {DebtManagerStorage} from "../debt-manager/DebtManagerStorage.sol";
 import {UUPSUpgradeable, Initializable} from "openzeppelin-contracts-upgradeable/contracts/proxy/utils/UUPSUpgradeable.sol";
 import {AccessControlDefaultAdminRulesUpgradeable} from "openzeppelin-contracts-upgradeable/contracts/access/extensions/AccessControlDefaultAdminRulesUpgradeable.sol";
@@ -15,6 +16,7 @@ contract UserSafeLens is Initializable, UUPSUpgradeable, AccessControlDefaultAdm
     struct UserSafeData {
         IL2DebtManager.TokenData[] collateralBalances;
         IL2DebtManager.TokenData[] borrows;
+        IL2DebtManager.TokenData[] tokenPrices;
         IUserSafe.WithdrawalRequest withdrawalRequest;
         uint256 totalCollateral;
         uint256 totalBorrow;
@@ -59,13 +61,27 @@ contract UserSafeLens is Initializable, UUPSUpgradeable, AccessControlDefaultAdm
         IUserSafe.WithdrawalRequest memory withdrawalRequest = userSafe.pendingWithdrawalRequest();
         uint256 maxBorrow = debtManager.getMaxBorrowAmount(address(user), true);
 
+        address[] memory supportedTokens = debtManager.getCollateralTokens();
+        uint256 len = supportedTokens.length;
+        IL2DebtManager.TokenData[] memory tokenPrices = new IL2DebtManager.TokenData[](len);
+        IPriceProvider priceProvider = IPriceProvider(cashDataProvider.priceProvider());
+
+        for (uint256 i = 0; i < len; ) { 
+            tokenPrices[i].token = supportedTokens[i];
+            tokenPrices[i].amount = priceProvider.price(supportedTokens[i]);
+            unchecked {
+                ++i;
+            }
+        }
+
         return UserSafeData({
             collateralBalances: collateralBalances,
             borrows: borrowings,
             withdrawalRequest: withdrawalRequest,
             totalCollateral: totalCollateralInUsd,
             totalBorrow: totalBorrowings,
-            maxBorrow: maxBorrow
+            maxBorrow: maxBorrow,
+            tokenPrices: tokenPrices
         });
     }
 
