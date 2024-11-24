@@ -310,19 +310,30 @@ contract DebtManagerStorage is
         uint256 len = _supportedBorrowTokens.length;
         TokenData[] memory borrowTokenData = new TokenData[](len);
         uint256 totalBorrowingInUsd = 0;
+        uint256 m = 0;
 
         for (uint256 i = 0; i < len; ) {
             address borrowToken = _supportedBorrowTokens[i];
             uint256 amount = borrowingOf(user, borrowToken);
-            totalBorrowingInUsd += amount;
+            if (amount != 0) {
+                totalBorrowingInUsd += amount;
+                borrowTokenData[m] = TokenData({
+                    token: borrowToken,
+                    amount: amount
+                });
 
-            borrowTokenData[i] = TokenData({
-                token: borrowToken,
-                amount: amount
-            });
+                unchecked {
+                    ++m;
+                }
+            }
+
             unchecked {
                 ++i;
             }
+        }
+
+        assembly ("memory-safe") {
+            mstore(borrowTokenData, m)
         }
 
         return (borrowTokenData, totalBorrowingInUsd);

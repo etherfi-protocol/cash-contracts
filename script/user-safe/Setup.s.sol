@@ -21,6 +21,7 @@ import {SettlementDispatcher} from "../../src/settlement-dispatcher/SettlementDi
 import {UserSafeSetters} from "../../src/user-safe/UserSafeSetters.sol";
 import {UserSafeEventEmitter} from "../../src/user-safe/UserSafeEventEmitter.sol";
 import {IUserSafe} from "../../src/interfaces/IUserSafe.sol";
+import {UserSafeLens} from "../../src/user-safe/UserSafeLens.sol";
 import {CashbackDispatcher} from "../../src/cashback-dispatcher/CashbackDispatcher.sol";
 
 contract DeployUserSafeSetup is Utils {
@@ -33,6 +34,7 @@ contract DeployUserSafeSetup is Utils {
     UserSafeCore userSafeCoreImpl;
     UserSafeSetters userSafeSettersImpl;
     UserSafeFactory userSafeFactory;
+    UserSafeLens userSafeLens;
     IL2DebtManager debtManager;
     CashDataProvider cashDataProvider;
     EtherFiCashAaveV3Adapter aaveV3Adapter;
@@ -81,6 +83,10 @@ contract DeployUserSafeSetup is Utils {
     address cashDataProviderImpl;
     address settlementDispatcherImpl;
     address cashbackDispatcherImpl;
+    address userSafeLensImpl;
+
+    address[] supportedCollateralTokens;
+    address[] supportedBorrowTokens;
 
     function run() public {
         // Pulling deployer info from the environment
@@ -92,29 +98,11 @@ contract DeployUserSafeSetup is Utils {
         chainId = vm.toString(block.chainid);
         ChainConfig memory chainConfig = getChainConfig(chainId);
 
-        address[] memory supportedCollateralTokens = new address[](3);
-        supportedCollateralTokens[0] = chainConfig.weETH;
-        supportedCollateralTokens[1] = chainConfig.usdc;
-        supportedCollateralTokens[2] = chainConfig.scr;
-        address[] memory supportedBorrowTokens = new address[](1);
-        supportedBorrowTokens[0] = chainConfig.usdc;
+        supportedCollateralTokens.push(chainConfig.weETH);
+        supportedCollateralTokens.push(chainConfig.usdc);
+        supportedCollateralTokens.push(chainConfig.scr);
 
-        DebtManagerCore.CollateralTokenConfig[]
-            memory collateralTokenConfig = new DebtManagerCore.CollateralTokenConfig[](
-                3
-            );
-
-        collateralTokenConfig[0].ltv = weETH_ltv;
-        collateralTokenConfig[0].liquidationThreshold = weETH_liquidationThreshold;
-        collateralTokenConfig[0].liquidationBonus = weETH_liquidationBonus;
-
-        collateralTokenConfig[1].ltv = usdc_ltv;
-        collateralTokenConfig[1].liquidationThreshold = usdc_liquidationThreshold;
-        collateralTokenConfig[1].liquidationBonus = usdc_liquidationBonus;
-        
-        collateralTokenConfig[2].ltv = scroll_ltv;
-        collateralTokenConfig[2].liquidationThreshold = scroll_liquidationThreshold;
-        collateralTokenConfig[2].liquidationBonus = scroll_liquidationBonus;
+        supportedBorrowTokens.push(chainConfig.usdc);
 
         etherFiWallet = deployerAddress;
         owner = deployerAddress;
@@ -275,21 +263,35 @@ contract DeployUserSafeSetup is Utils {
             )
         ));
 
-        CashDataProvider(address(cashDataProvider)).initialize(abi.encode(
-            owner,
-            uint64(delay),
-            etherFiWallet,
-            settlementDispatcher,
-            address(debtManager),
-            address(priceProvider),
-            address(swapper),
-            address(aaveV3Adapter),
-            address(userSafeFactory),
-            address(userSafeEventEmitter),
-            address(cashbackDispatcher),
-            address(recoverySigner1),
-            address(recoverySigner2)
+        userSafeLensImpl = address(new UserSafeLens{salt: getSalt(USER_SAFE_LENS_IMPL)}());
+        userSafeLens = UserSafeLens(address(
+            new UUPSProxy{salt: getSalt(USER_SAFE_LENS_PROXY)}(
+                userSafeLensImpl,
+                abi.encodeWithSelector(
+                    UserSafeLens.initialize.selector,
+                    owner,
+                    address(cashDataProvider)
+                )
+            )
         ));
+
+        CashDataProvider(address(cashDataProvider)).initialize(
+            ICashDataProvider.InitData({
+                owner: owner,
+                delay: uint64(delay),
+                etherFiWallet: etherFiWallet,
+                settlementDispatcher: address(settlementDispatcher),
+                etherFiCashDebtManager: address(debtManager),
+                priceProvider: address(priceProvider),
+                swapper: address(swapper),
+                userSafeFactory: address(userSafeFactory),
+                userSafeEventEmitter: address(userSafeEventEmitter),
+                cashbackDispatcher: address(cashbackDispatcher),
+                userSafeLens: address(userSafeLens),
+                etherFiRecoverySigner: recoverySigner1,
+                thirdPartyRecoverySigner: recoverySigner2
+            })
+        );
 
         ICashDataProvider.UserSafeTiers[] memory userSafeTiers = new ICashDataProvider.UserSafeTiers[](4);
         userSafeTiers[0] = ICashDataProvider.UserSafeTiers.Pepe;
@@ -305,13 +307,38 @@ contract DeployUserSafeSetup is Utils {
 
         cashDataProvider.setTierCashbackPercentage(userSafeTiers, cashbackPercentages);
 
+        configureDebtManager();
+
+        saveDeployments();
+
+        vm.stopBroadcast();
+    }
+
+    function configureDebtManager() internal {
+        DebtManagerCore.CollateralTokenConfig[]
+            memory collateralTokenConfig = new DebtManagerCore.CollateralTokenConfig[](
+                3
+            );
+
+        collateralTokenConfig[0].ltv = weETH_ltv;
+        collateralTokenConfig[0].liquidationThreshold = weETH_liquidationThreshold;
+        collateralTokenConfig[0].liquidationBonus = weETH_liquidationBonus;
+
+        collateralTokenConfig[1].ltv = usdc_ltv;
+        collateralTokenConfig[1].liquidationThreshold = usdc_liquidationThreshold;
+        collateralTokenConfig[1].liquidationBonus = usdc_liquidationBonus;
+        
+        collateralTokenConfig[2].ltv = scroll_ltv;
+        collateralTokenConfig[2].liquidationThreshold = scroll_liquidationThreshold;
+        collateralTokenConfig[2].liquidationBonus = scroll_liquidationBonus;
+
         DebtManagerInitializer(address(debtManager)).initialize(
             owner,
             uint48(delay),
             address(cashDataProvider)
         );
-        DebtManagerCore(debtManagerProxy).upgradeToAndCall(debtManagerCoreImpl, "");
-        DebtManagerCore debtManagerCore = DebtManagerCore(debtManagerProxy);
+        DebtManagerCore debtManagerCore = DebtManagerCore(address(debtManager));
+        debtManagerCore.upgradeToAndCall(debtManagerCoreImpl, "");
         debtManagerCore.setAdminImpl(debtManagerAdminImpl);
         
         DebtManagerAdmin(address(debtManagerCore)).supportCollateralToken(supportedCollateralTokens[0], collateralTokenConfig[0]);
@@ -325,10 +352,6 @@ contract DeployUserSafeSetup is Utils {
             borrowApyPerSecond, 
             minShares
         );
-
-        saveDeployments();
-
-        vm.stopBroadcast();
     }
 
     function saveDeployments() internal {
@@ -373,6 +396,16 @@ contract DeployUserSafeSetup is Utils {
             deployedAddresses,
             "userSafeEventEmitterProxy",
             address(userSafeEventEmitter)
+        );
+        vm.serializeAddress(
+            deployedAddresses,
+            "userSafeLensImpl",
+            address(userSafeLensImpl)
+        );
+        vm.serializeAddress(
+            deployedAddresses,
+            "userSafeLensProxy",
+            address(userSafeLens)
         );
         vm.serializeAddress(
             deployedAddresses,

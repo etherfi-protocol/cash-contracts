@@ -10,7 +10,7 @@ import {DebtManagerAdmin} from "../src/debt-manager/DebtManagerAdmin.sol";
 import {DebtManagerInitializer} from "../src/debt-manager/DebtManagerInitializer.sol";
 import {SwapperOpenOcean} from "../src/utils/SwapperOpenOcean.sol";
 import {PriceProvider} from "../src/oracle/PriceProvider.sol";
-import {CashDataProvider} from "../src/utils/CashDataProvider.sol";
+import {CashDataProvider, ICashDataProvider} from "../src/utils/CashDataProvider.sol";
 import {OwnerLib} from "../src/libraries/OwnerLib.sol";
 import {Utils, ChainConfig} from "./Utils.sol";
 import {MockERC20} from "../src/mocks/MockERC20.sol";
@@ -21,6 +21,7 @@ import {UUPSProxy} from "../src/UUPSProxy.sol";
 import {IAggregatorV3} from "../src/interfaces/IAggregatorV3.sol";
 import {UserSafeCore, UserSafeStorage, UserSafeEventEmitter, SpendingLimit, UserSafeLib} from "../src/user-safe/UserSafeCore.sol";
 import {UserSafeSetters} from "../src/user-safe/UserSafeSetters.sol";
+import {UserSafeLens} from "../src/user-safe/UserSafeLens.sol";
 import {IUserSafe} from "../src/interfaces/IUserSafe.sol";
 import {MessageHashUtils} from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
 import {CashbackDispatcher} from "../src/cashback-dispatcher/CashbackDispatcher.sol";
@@ -42,6 +43,7 @@ contract Setup is Utils {
     UserSafeSetters userSafeSettersImpl;
     UserSafeFactory factory;
     UserSafeEventEmitter eventEmitter;
+    UserSafeLens userSafeLens;
 
     ERC20 usdc;
     ERC20 weETH;
@@ -260,21 +262,36 @@ contract Setup is Utils {
                 )
             )
         ));
-        
-        CashDataProvider(address(cashDataProvider)).initialize(abi.encode(
-            owner,
-            delay,
-            etherFiWallet,
-            settlementDispatcher,
-            address(debtManager),
-            address(priceProvider),
-            address(swapper),
-            address(factory),
-            address(eventEmitter),
-            address(cashbackDispatcher),
-            etherFiRecoverySigner,
-            thirdPartyRecoverySigner
+
+        address userSafeLensImpl = address(new UserSafeLens());
+        userSafeLens = UserSafeLens(address(
+            new UUPSProxy(
+                userSafeLensImpl,
+                abi.encodeWithSelector(
+                    userSafeLens.initialize.selector,
+                    owner,
+                    address(cashDataProvider)
+                )
+            )
         ));
+        
+        CashDataProvider(address(cashDataProvider)).initialize(
+            ICashDataProvider.InitData({
+                owner: owner,
+                delay: delay,
+                etherFiWallet: etherFiWallet,
+                settlementDispatcher: settlementDispatcher,
+                etherFiCashDebtManager: address(debtManager),
+                priceProvider: address(priceProvider),
+                swapper: address(swapper),
+                userSafeFactory: address(factory),
+                userSafeEventEmitter: address(eventEmitter),
+                cashbackDispatcher: address(cashbackDispatcher),
+                userSafeLens: address(userSafeLens),
+                etherFiRecoverySigner: etherFiRecoverySigner,
+                thirdPartyRecoverySigner: thirdPartyRecoverySigner
+            })
+        );
 
         DebtManagerInitializer(address(debtManager)).initialize(
             owner,

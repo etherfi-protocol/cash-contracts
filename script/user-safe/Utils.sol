@@ -42,6 +42,8 @@ contract Utils is Script {
     string internal USER_SAFE_SETTERS_IMPL = "UserSafeSettersImpl";
     string internal USER_SAFE_EVENT_EMITTER_PROXY = "UserSafeEventEmitterProxy";
     string internal USER_SAFE_EVENT_EMITTER_IMPL = "UserSafeEventEmitterImpl";
+    string internal USER_SAFE_LENS_PROXY = "UserSafeLensProxy";
+    string internal USER_SAFE_LENS_IMPL = "UserSafeLensImpl";
 
     function getChainConfig(
         string memory chainId

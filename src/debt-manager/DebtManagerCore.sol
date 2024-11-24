@@ -58,22 +58,32 @@ contract DebtManagerCore is DebtManagerStorage {
         uint256 len = _supportedBorrowTokens.length;
         TokenData[] memory tokenData = new TokenData[](len);
         uint256 totalBorrowingAmt = 0;
+        uint256 m = 0;
 
         for (uint256 i = 0; i < len; ) {
             BorrowTokenConfig memory config = borrowTokenConfig(
                 _supportedBorrowTokens[i]
             );
 
-            tokenData[i] = TokenData({
-                token: _supportedBorrowTokens[i],
-                amount: config.totalBorrowingAmount
-            });
+            if (config.totalBorrowingAmount > 0) {
+                tokenData[m] = TokenData({
+                    token: _supportedBorrowTokens[i],
+                    amount: config.totalBorrowingAmount
+                });
+                totalBorrowingAmt += config.totalBorrowingAmount;
 
-            totalBorrowingAmt += config.totalBorrowingAmount;
+                unchecked {
+                    ++m;
+                }
+            } 
 
             unchecked {
                 ++i;
             }
+        }
+
+        assembly ("memory-safe") {
+            mstore(tokenData, m)
         }
 
         return (tokenData, totalBorrowingAmt);
@@ -215,18 +225,30 @@ contract DebtManagerCore is DebtManagerStorage {
         uint256 len = _supportedBorrowTokens.length;
         TokenData[] memory suppliesData = new TokenData[](len);
         uint256 amountInUsd = 0;
+        uint256 m = 0;
 
         for (uint256 i = 0; i < len; ) {
             address borrowToken = _supportedBorrowTokens[i];
             uint256 amount = supplierBalance(supplier, borrowToken);
-            amountInUsd += convertCollateralTokenToUsd(borrowToken, amount);
-            suppliesData[i] = TokenData({
-                token: borrowToken,
-                amount: amount
-            });
+
+            if (amount > 0) {
+                amountInUsd += convertCollateralTokenToUsd(borrowToken, amount);
+                suppliesData[m] = TokenData({
+                    token: borrowToken,
+                    amount: amount
+                });
+            
+                unchecked {
+                    ++m;
+                }
+            }
             unchecked {
                 ++i;
             }
+        }
+
+        assembly ("memory-safe") {
+            mstore(suppliesData, m)
         }
 
         return (suppliesData, amountInUsd);
@@ -240,19 +262,28 @@ contract DebtManagerCore is DebtManagerStorage {
         uint256 len = _supportedBorrowTokens.length;
         TokenData[] memory suppliesData = new TokenData[](len);
         uint256 amountInUsd = 0;
+        uint256 m = 0;
 
         for (uint256 i = 0; i < len; ) {
             address borrowToken = _supportedBorrowTokens[i];
             uint256 totalSupplied = totalSupplies(borrowToken);
-            amountInUsd += convertCollateralTokenToUsd(borrowToken, totalSupplied);
-
-            suppliesData[i] = TokenData({
-                token: borrowToken,
-                amount: totalSupplied
-            });
+            if (totalSupplied > 0) {
+                amountInUsd += convertCollateralTokenToUsd(borrowToken, totalSupplied);
+                suppliesData[m] = TokenData({
+                    token: borrowToken,
+                    amount: totalSupplied
+                });
+                unchecked {
+                    ++m;
+                }
+            }
             unchecked {
                 ++i;
             }
+        }
+
+        assembly ("memory-safe") {
+            mstore(suppliesData, m)
         }
 
         return (suppliesData, amountInUsd);
@@ -497,21 +528,32 @@ contract DebtManagerCore is DebtManagerStorage {
     function _liquidStableAmounts() internal view returns (TokenData[] memory) {
         uint256 len = _supportedBorrowTokens.length;
         TokenData[] memory tokenData = new TokenData[](len);
+        uint256 m = 0;
 
         uint256 totalStableBalances = 0;
         for (uint256 i = 0; i < len; ) {
             uint256 bal = IERC20(_supportedBorrowTokens[i]).balanceOf(
                 address(this)
             );
-            tokenData[i] = TokenData({
-                token: _supportedBorrowTokens[i],
-                amount: bal
-            });
-            totalStableBalances += bal;
+
+            if (bal > 0) {
+                tokenData[m] = TokenData({
+                    token: _supportedBorrowTokens[i],
+                    amount: bal
+                });
+                totalStableBalances += bal;
+                unchecked {
+                    ++m;
+                }
+            }
 
             unchecked {
                 ++i;
             }
+        }
+
+        assembly ("memory-safe") {
+            mstore(tokenData, m)
         }
 
         return tokenData;

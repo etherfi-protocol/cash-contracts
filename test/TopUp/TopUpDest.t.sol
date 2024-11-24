@@ -3,7 +3,7 @@ pragma solidity ^0.8.24;
 
 import {Test} from "forge-std/Test.sol"; 
 import {TopUpDest, EIP1271SignatureUtils, PausableUpgradeable} from "../../src/top-up/TopUpDest.sol";
-import {CashDataProvider} from "../../src/utils/CashDataProvider.sol";
+import {CashDataProvider, ICashDataProvider} from "../../src/utils/CashDataProvider.sol";
 import {UUPSProxy} from "../../src/UUPSProxy.sol";
 import {MockERC20} from "../../src/mocks/MockERC20.sol";
 import {IAccessControl} from "@openzeppelin/contracts/access/IAccessControl.sol";
@@ -37,20 +37,21 @@ contract TopUpDestTest is Test {
                 cashDataProviderImpl,
                 abi.encodeWithSelector(
                     CashDataProvider.initialize.selector, 
-                    abi.encode(
-                        owner,
-                        100,
-                        address(0),
-                        address(0),
-                        address(0),
-                        address(0),
-                        address(0),
-                        userSafeFactory,
-                        address(0),
-                        address(0),
-                        makeAddr("recoverySigner1"),
-                        makeAddr("recoverySigner2")
-                    )
+                    ICashDataProvider.InitData({
+                        owner: owner,
+                        delay: 100,
+                        etherFiWallet: address(0),
+                        settlementDispatcher: address(0),
+                        etherFiCashDebtManager: address(0),
+                        priceProvider: address(0),
+                        swapper: address(0),
+                        userSafeFactory: address(userSafeFactory),
+                        userSafeEventEmitter: address(0),
+                        cashbackDispatcher: address(0),
+                        userSafeLens: address(0),
+                        etherFiRecoverySigner: makeAddr("recoverySigner1"),
+                        thirdPartyRecoverySigner: makeAddr("recoverySigner2")
+                    })
                 )
             )
         ));

@@ -26,6 +26,7 @@ contract CashDataProviderTest is Test {
     address debtManager = makeAddr("debtManager");
     address userSafeEventEmitter = makeAddr("userSafeEventEmitter");
     address cashbackDispatcher = makeAddr("cashbackDispatcher");
+    address userSafeLens = makeAddr("userSafeLens");
     address recoverySigner1 = makeAddr("recoverySigner1");
     address recoverySigner2 = makeAddr("recoverySigner2");
 
@@ -38,20 +39,22 @@ contract CashDataProviderTest is Test {
         );
 
         cashDataProvider.initialize(
-            abi.encode(
-            owner,
-            delay,
-            etherFiWallet,
-            settlementDispatcher,
-            debtManager,
-            priceProvider,
-            swapper,
-            userSafeFactory,
-            userSafeEventEmitter,
-            cashbackDispatcher,
-            recoverySigner1,
-            recoverySigner2
-        ));
+            ICashDataProvider.InitData({
+                owner: owner,
+                delay: uint64(delay),
+                etherFiWallet: etherFiWallet,
+                settlementDispatcher: address(settlementDispatcher),
+                etherFiCashDebtManager: address(debtManager),
+                priceProvider: address(priceProvider),
+                swapper: address(swapper),
+                userSafeFactory: address(userSafeFactory),
+                userSafeEventEmitter: address(userSafeEventEmitter),
+                cashbackDispatcher: address(cashbackDispatcher),
+                userSafeLens: address(userSafeLens),
+                etherFiRecoverySigner: recoverySigner1,
+                thirdPartyRecoverySigner: recoverySigner2
+            })
+        );
 
 
         cashDataProvider.grantRole(ADMIN_ROLE, admin);
@@ -70,6 +73,7 @@ contract CashDataProviderTest is Test {
         assertEq(cashDataProvider.userSafeFactory(), userSafeFactory);
         assertEq(cashDataProvider.userSafeEventEmitter(), userSafeEventEmitter);
         assertEq(cashDataProvider.cashbackDispatcher(), cashbackDispatcher);
+        assertEq(cashDataProvider.userSafeLens(), userSafeLens);
         assertEq(cashDataProvider.hasRole(ADMIN_ROLE, owner), true);
         assertEq(cashDataProvider.hasRole(ADMIN_ROLE, admin), true);
     }
@@ -257,6 +261,24 @@ contract CashDataProviderTest is Test {
         emit ICashDataProvider.CashbackDispatcherUpdated(cashbackDispatcher, newDispatcher);
         cashDataProvider.setCashbackDispatcher(newDispatcher);
         assertEq(cashDataProvider.cashbackDispatcher(), newDispatcher);
+    }
+
+    function test_SetUserSafeLens() public {
+        address newLens = makeAddr("newLens");
+    
+        vm.prank(notAdmin);
+        vm.expectRevert(buildAccessControlRevertData(notAdmin, ADMIN_ROLE));
+        cashDataProvider.setUserSafeLens(newLens);
+
+        vm.prank(admin);
+        vm.expectRevert(ICashDataProvider.InvalidValue.selector);
+        cashDataProvider.setUserSafeLens(address(0));
+        
+        vm.prank(admin);
+        vm.expectEmit(true, true, true, true);
+        emit ICashDataProvider.UserSafeLensUpdated(userSafeLens, newLens);
+        cashDataProvider.setUserSafeLens(newLens);
+        assertEq(cashDataProvider.userSafeLens(), newLens);
     }
 
     function test_WhitelistUserSafe() public {

@@ -45,13 +45,9 @@ contract DebtManagerDeployTest is Setup {
             IL2DebtManager.TokenData[] memory totalLiquidStableAmounts
         ) = debtManager.getCurrentState();
 
-        assertEq(borrowings.length, 1);
-        assertEq(borrowings[0].token, address(usdc));
-        assertEq(borrowings[0].amount, 0);
+        assertEq(borrowings.length, 0);
         assertEq(totalBorrowingsInUsd, 0);
-        assertEq(totalLiquidStableAmounts.length, 1);
-        assertEq(totalLiquidStableAmounts[0].token, address(usdc));
-        assertEq(totalLiquidStableAmounts[0].amount, 0);
+        assertEq(totalLiquidStableAmounts.length, 0);
 
         (
             IL2DebtManager.TokenData[] memory totalUserCollaterals,
@@ -62,18 +58,14 @@ contract DebtManagerDeployTest is Setup {
         assertEq(totalUserCollaterals.length, 0);
         assertEq(totalUserCollateralInUsd, 0);
         
-        assertEq(userBorrowings.length, 1);
-        assertEq(userBorrowings[0].token, address(usdc));
-        assertEq(userBorrowings[0].amount, 0);
+        assertEq(userBorrowings.length, 0);
         assertEq(totalUserBorrowings, 0);
 
         (
             IL2DebtManager.TokenData[] memory supplierBalances, 
             uint256 totalSupplierBalance
         ) = debtManager.supplierBalance(alice);
-        assertEq(supplierBalances.length, 1);
-        assertEq(supplierBalances[0].token, address(usdc));
-        assertEq(supplierBalances[0].amount, 0);
+        assertEq(supplierBalances.length, 0);
         assertEq(totalSupplierBalance, 0);
 
         assertEq(debtManager.supplierBalance(alice, address(usdc)), 0);
@@ -83,9 +75,7 @@ contract DebtManagerDeployTest is Setup {
             IL2DebtManager.TokenData[] memory suppliedTokenBalances, 
             uint256 totalSuppliedInUsd
         ) = debtManager.totalSupplies();
-        assertEq(suppliedTokenBalances.length, 1);
-        assertEq(suppliedTokenBalances[0].token, address(usdc));
-        assertEq(suppliedTokenBalances[0].amount, 0);
+        assertEq(suppliedTokenBalances.length, 0);
         assertEq(totalSuppliedInUsd, 0);
 
         address unsupportedToken = makeAddr("unsupportedToken");

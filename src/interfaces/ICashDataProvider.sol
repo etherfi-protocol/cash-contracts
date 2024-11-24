@@ -2,6 +2,22 @@
 pragma solidity ^0.8.24;
 
 interface ICashDataProvider {
+    struct InitData {
+        address owner;
+        uint64 delay;
+        address etherFiWallet;
+        address settlementDispatcher;
+        address etherFiCashDebtManager;
+        address priceProvider;
+        address swapper;
+        address userSafeFactory;
+        address userSafeEventEmitter;
+        address cashbackDispatcher;
+        address userSafeLens;
+        address etherFiRecoverySigner;
+        address thirdPartyRecoverySigner;
+    } 
+
     enum UserSafeTiers {
         None,
         Whale,
@@ -26,6 +42,7 @@ interface ICashDataProvider {
     event EtherFiRecoverySignerUpdated(address oldSigner, address newSigner);
     event ThirdPartyRecoverySignerUpdated(address oldSigner, address newSigner);
     event CashbackDispatcherUpdated(address oldDispatcher, address newDispatcher);
+    event UserSafeLensUpdated(address oldLens, address newLens);
     event UserSafeTierSet(address indexed userSafe, UserSafeTiers indexed oldTier, UserSafeTiers indexed newTier);
     event TierCashbackPercentageSet(UserSafeTiers[] tiers, uint256[] cashbackPercentages);
     event UserSafeWhitelisted(address userSafe);
@@ -96,6 +113,12 @@ interface ICashDataProvider {
      * @return Address of the cashback dispatcher
      */
     function cashbackDispatcher() external view returns (address);
+
+    /**
+     * @notice Function to fetch the address of the user safe lens
+     * @return Address of the user safe lens
+     */
+    function userSafeLens() external view returns (address);
 
     /**
      * @notice Function to fetch the address of the EtherFi recovery signerr
@@ -201,6 +224,12 @@ interface ICashDataProvider {
      * @param dispatcher Address of the new cashback dispatcher
      */
     function setCashbackDispatcher(address dispatcher) external;
+    
+    /**
+     * @notice Function to set the address of the user safe lens
+     * @param lens Address of the new user safe lens
+     */
+    function setUserSafeLens(address lens) external;
 
     
     /**

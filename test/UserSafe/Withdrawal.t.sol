@@ -49,6 +49,8 @@ contract UserSafeWithdrawalTest is Setup {
                 .pendingWithdrawalRequest();
         assertEq(pendingWithdrawalRequestBefore.tokens.length, 0);
 
+        bytes memory signature = abi.encodePacked(r, s, v);
+
         vm.prank(notOwner);
         vm.expectEmit(true, true, true, true);
         emit UserSafeEventEmitter.WithdrawalRequested(
@@ -58,8 +60,6 @@ contract UserSafeWithdrawalTest is Setup {
             recipient,
             finalizeTime
         );
-        bytes memory signature = abi.encodePacked(r, s, v);
-
         aliceSafe.requestWithdrawal(tokens, amounts, recipient, signature);
 
         IUserSafe.WithdrawalRequest memory pendingWithdrawalRequestAfter = aliceSafe.pendingWithdrawalRequest();

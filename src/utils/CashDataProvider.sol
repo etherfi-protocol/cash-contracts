@@ -32,6 +32,8 @@ contract CashDataProvider is ICashDataProvider, UUPSUpgradeable, AccessControlDe
     address private _userSafeEventEmitter;
     // Address of the Cashback Dispatcher 
     address internal _cashbackDispatcher;
+    // Address of the UserSafeLens
+    address internal _userSafeLens;
     // Address of the EtherFi Recovery Signer
     address internal _etherFiRecoverySigner;
     // Address of the Third Party Recovery Signer
@@ -44,45 +46,24 @@ contract CashDataProvider is ICashDataProvider, UUPSUpgradeable, AccessControlDe
     // User safe tier to cashback percentage in bps mapping
     mapping (UserSafeTiers tier => uint256 cashbackPercentageInBps) private _tierToCashbackPercentageInBps; 
 
-    function initialize(bytes memory data) external initializer {
-        {
-            (
-                address __owner,
-                uint64 __delay,
-                address __etherFiWallet,
-                address __settlementDispatcher,
-                address __etherFiCashDebtManager,
-                address __priceProvider
-            ) = abi.decode(data, (address, uint64, address, address, address, address));
-            __AccessControlDefaultAdminRules_init_unchained(uint48(__delay), __owner);
-            _grantRole(ADMIN_ROLE, __owner);
-            _grantRole(ETHER_FI_WALLET_ROLE, __etherFiWallet);
+    function initialize(InitData memory data) external initializer {
+        if (data.etherFiRecoverySigner == address(0) || data.thirdPartyRecoverySigner == address(0)) revert InvalidValue();
 
-            _delay = __delay;
-            _settlementDispatcher = __settlementDispatcher; 
-            _etherFiCashDebtManager = __etherFiCashDebtManager;
-            _priceProvider = __priceProvider;
-        }
+        __AccessControlDefaultAdminRules_init_unchained(uint48(data.delay), data.owner);
+        _grantRole(ADMIN_ROLE, data.owner);
+        _grantRole(ETHER_FI_WALLET_ROLE, data.etherFiWallet);
 
-        {
-            ( 
-            , , , , , ,
-            address __swapper,
-            address __userSafeFactory,
-            address __userSafeEventEmitter,
-            address __cashbackDispatcher,
-            address __etherFiRecoverySigner,
-            address __thirdPartyRecoverySigner
-            ) = abi.decode(data, (address, uint64, address, address, address, address, address, address, address, address, address, address));
-
-            if (__etherFiRecoverySigner == address(0) || __thirdPartyRecoverySigner == address(0)) revert InvalidValue();
-            _swapper = __swapper;
-            _userSafeFactory = __userSafeFactory;
-            _userSafeEventEmitter = __userSafeEventEmitter;
-            _cashbackDispatcher = __cashbackDispatcher;
-            _etherFiRecoverySigner = __etherFiRecoverySigner;
-            _thirdPartyRecoverySigner = __thirdPartyRecoverySigner;
-        }
+        _delay = data.delay;
+        _settlementDispatcher = data.settlementDispatcher; 
+        _etherFiCashDebtManager = data.etherFiCashDebtManager;
+        _priceProvider = data.priceProvider;
+        _swapper = data.swapper;
+        _userSafeFactory = data.userSafeFactory;
+        _userSafeEventEmitter = data.userSafeEventEmitter;
+        _cashbackDispatcher = data.cashbackDispatcher;
+        _userSafeLens = data.userSafeLens;
+        _etherFiRecoverySigner = data.etherFiRecoverySigner;
+        _thirdPartyRecoverySigner = data.thirdPartyRecoverySigner;
     }
 
     function _authorizeUpgrade(
@@ -150,6 +131,13 @@ contract CashDataProvider is ICashDataProvider, UUPSUpgradeable, AccessControlDe
      */
     function cashbackDispatcher() external view returns (address) {
         return _cashbackDispatcher;
+    }
+
+    /**
+     * @inheritdoc ICashDataProvider
+     */
+    function userSafeLens() external view returns (address) {
+        return _userSafeLens;
     }
 
     /**
@@ -291,6 +279,15 @@ contract CashDataProvider is ICashDataProvider, UUPSUpgradeable, AccessControlDe
         if (dispatcher == address(0)) revert InvalidValue();
         emit CashbackDispatcherUpdated(_cashbackDispatcher, dispatcher);
         _cashbackDispatcher = dispatcher;
+    }
+  
+    /**
+     * @inheritdoc ICashDataProvider
+     */
+    function setUserSafeLens(address lens) external onlyRole(ADMIN_ROLE) {
+        if (lens == address(0)) revert InvalidValue();
+        emit UserSafeLensUpdated(_userSafeLens, lens);
+        _userSafeLens = lens;
     }
 
     /**
