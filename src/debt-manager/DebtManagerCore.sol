@@ -132,25 +132,8 @@ contract DebtManagerCore is DebtManagerStorage {
         return (collateralTokens, totalCollateralInUsd);
     }
 
-    function getBorrowingPowerAndTotalBorrowing(address user, TokenData[] memory tokenAmounts) external view returns (uint256, uint256) {
-        uint256 len = tokenAmounts.length;
-        uint256 totalMaxBorrow = 0;
-
-        for (uint256 i = 0; i < len; ) {
-            uint256 collateral = convertCollateralTokenToUsd(tokenAmounts[i].token, tokenAmounts[i].amount);
-
-            // user collateral for token in USD * 100 / liquidation threshold
-            totalMaxBorrow += collateral.mulDiv(
-                _collateralTokenConfig[tokenAmounts[i].token].ltv,
-                HUNDRED_PERCENT,
-                Math.Rounding.Floor
-            );
-
-            unchecked {
-                ++i;
-            }
-        }
-
+    function getBorrowingPowerAndTotalBorrowing(address user) external view returns (uint256, uint256) {
+        uint256 totalMaxBorrow = getMaxBorrowAmount(user, true);
         (, uint256 totalBorrowings) = borrowingOf(user);
         return (totalMaxBorrow, totalBorrowings);
     }

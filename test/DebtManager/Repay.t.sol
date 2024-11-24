@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import {Setup} from "../Setup.t.sol";
+import {Setup, ERC20} from "../Setup.t.sol";
 import {IL2DebtManager} from "../../src/interfaces/IL2DebtManager.sol";
 import {SafeERC20, IERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IERC20Errors} from "@openzeppelin/contracts/interfaces/draft-IERC6093.sol";
@@ -73,6 +73,45 @@ contract DebtManagerRepayTest is Setup {
 
         uint256 debtAmtAfter = debtManager.borrowingOf(address(aliceSafe), address(usdc));
         assertEq(debtAmtBefore - debtAmtAfter, repayAmt);
+    }
+
+    function test_SwapAndRepay() public {
+        if (!isFork(chainId)) return;
+        uint256 debtAmtBefore = debtManager.borrowingOf(address(aliceSafe), address(usdc));
+        assertGt(debtAmtBefore, 0);
+
+        uint256 repayAmt = debtAmtBefore;
+        
+        address usdt = chainConfig.usdt;
+        address inputToken = usdt;
+        uint256 inputAmountToSwap = 100e6;
+        uint256 outputMinUsdcAmount = 90e6;
+        uint256 amountUsdcToRepay = repayAmt;
+        deal(usdt, address(aliceSafe), inputAmountToSwap);
+
+        bytes memory swapData = getQuoteOpenOcean(
+            chainId,
+            address(swapper),
+            address(aliceSafe),
+            inputToken,
+            address(usdc),
+            inputAmountToSwap,
+            ERC20(usdt).decimals()
+        );
+
+        vm.prank(etherFiWallet);
+        aliceSafe.swapAndRepay(
+            inputToken,
+            address(usdc),
+            inputAmountToSwap,
+            outputMinUsdcAmount,
+            0,
+            amountUsdcToRepay,
+            swapData
+        );
+
+        uint256 debtAmtAfter = debtManager.borrowingOf(address(aliceSafe), address(usdc));
+        assertEq(debtAmtAfter, 0);
     }
 
     function test_RepayAfterSomeTimeIncursInterestOnTheBorrowings() public {

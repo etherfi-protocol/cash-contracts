@@ -65,6 +65,10 @@ contract UserSafeStorage is Initializable, ReentrancyGuardTransientUpgradeable {
     error OutputLessThanMinAmount();
     error OnlyCashbackDispatcher();
     error TransactionAlreadyCleared();
+    error RepayBorrowBeforeSwitchToDebitMode();
+    error BorrowingGreaterThanMaxBorrowAfterWithdrawal();
+    error BorrowingGreaterThanMaxBorrow();
+    error InsufficientBorrowingPower();
 
     uint256 public constant HUNDRED_PERCENT = 100e18;
     // Address of the Cash Data Provider
@@ -111,36 +115,6 @@ contract UserSafeStorage is Initializable, ReentrancyGuardTransientUpgradeable {
         return _ownerBytes.getOwnerObject();
     }
 
-    function _getCollateralBalanceWithTokenSubtracted(address token, uint256 amount, Mode __mode) internal view returns (IL2DebtManager.TokenData[] memory, string memory error) {
-        address[] memory collateralTokens = IL2DebtManager(_cashDataProvider.etherFiCashDebtManager()).getCollateralTokens();
-        uint256 len = collateralTokens.length;
-        IL2DebtManager.TokenData[] memory tokenAmounts = new IL2DebtManager.TokenData[](collateralTokens.length);
-        uint256 m = 0;
-        for (uint256 i = 0; i < len; ) {
-            uint256 balance = IERC20(collateralTokens[i]).balanceOf(address(this)); 
-            uint256 pendingWithdrawalAmount = getPendingWithdrawalAmount(collateralTokens[i]);
-            if (balance != 0) {
-                balance = balance - pendingWithdrawalAmount;
-                if (__mode == Mode.Debit && token == collateralTokens[i]) {
-                    if (balance == 0 || balance < amount) return(new IL2DebtManager.TokenData[](0), "Insufficient effective balance after withdrawal to spend with debit mode");
-                    balance = balance - amount;
-                }
-                tokenAmounts[m] = IL2DebtManager.TokenData({token: collateralTokens[i], amount: balance});
-                unchecked {
-                    ++m;
-                }
-            }
-            unchecked {
-                ++i;
-            }
-        }
-
-        assembly ("memory-safe") {
-            mstore(tokenAmounts, m)
-        }
-
-        return (tokenAmounts, "");
-    }
 
     function getPendingWithdrawalAmount(address token) public view returns (uint256) {
         uint256 len = _pendingWithdrawalRequest.tokens.length;

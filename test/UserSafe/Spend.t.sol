@@ -51,77 +51,8 @@ contract UserSafeSpendTest is Setup {
         aliceSafe.spend(txId, address(usdc), amount);
     }
 
-    function test_CanSpendWithDebitFlowIfBorrowIsWithinLimits() public {
-        uint256 weETHCollateralAmount = 1 ether;
-        uint256 usdcCollateralAmount = 1000e6;
-        deal(address(weETH), address(aliceSafe), weETHCollateralAmount);
-        deal(address(usdc), address(aliceSafe), usdcCollateralAmount);
-        deal(address(usdc), address(debtManager), 1 ether); 
-
-        uint256 totalMaxBorrow = debtManager.getMaxBorrowAmount(address(aliceSafe), true);
-        uint256 spendDebitAmount = 10e6;
-        uint256 borrowAmt = totalMaxBorrow - spendDebitAmount;
-
-        _setMode(IUserSafe.Mode.Credit);
-        vm.warp(aliceSafe.incomingCreditModeStartTime() + 1);
-
-        vm.prank(etherFiWallet);
-        aliceSafe.spend(txId, address(usdc), borrowAmt);
-
-        _setMode(IUserSafe.Mode.Debit);
-
-        uint256 settlementDispatcherUsdcBalBefore = usdc.balanceOf(settlementDispatcher);
-
-        vm.prank(etherFiWallet);
-        aliceSafe.spend(keccak256("newTxId"), address(usdc), spendDebitAmount);
-        
-        uint256 settlementDispatcherUsdcBalAfter = usdc.balanceOf(settlementDispatcher);
-
-        assertEq(settlementDispatcherUsdcBalAfter - settlementDispatcherUsdcBalBefore, spendDebitAmount);
-    }
-
-    function test_CannotSpendWithDebitModeWhenBorrowIsOverLimitAfterSpend() public {
-        uint256 weETHCollateralAmount = 1 ether;
-        uint256 usdcCollateralAmount = 1000e6;
-        deal(address(weETH), address(aliceSafe), weETHCollateralAmount);
-        deal(address(usdc), address(aliceSafe), usdcCollateralAmount);
-        deal(address(usdc), address(debtManager), 1 ether); 
-
-        uint256 totalMaxBorrow = debtManager.getMaxBorrowAmount(address(aliceSafe), true);
-        uint256 spendDebitAmount = 10e6;
-        uint256 borrowAmt = totalMaxBorrow;
-
-        _setMode(IUserSafe.Mode.Credit);
-        vm.warp(aliceSafe.incomingCreditModeStartTime() + 1);
-
-        vm.prank(etherFiWallet);
-        aliceSafe.spend(txId, address(usdc), borrowAmt);
-
-        _setMode(IUserSafe.Mode.Debit);
-
-        vm.prank(etherFiWallet);
-        vm.expectRevert("Borrowings greater than max borrow after spending");
-        aliceSafe.spend(bytes32("newTxId"), address(usdc), spendDebitAmount);
-    }
-
     function test_CanSpendWithDebitModeEvenIfWithdrawalsBlockTheAmount() external {
-        uint256 weETHCollateralAmount = 1 ether;
-        uint256 usdcCollateralAmount = 1000e6;
-        deal(address(weETH), address(aliceSafe), weETHCollateralAmount);
-        deal(address(usdc), address(aliceSafe), usdcCollateralAmount);
-        deal(address(usdc), address(debtManager), 1 ether); 
-        
-        uint256 totalMaxBorrow = debtManager.getMaxBorrowAmount(address(aliceSafe), true);
-        uint256 spendDebitAmount = 10e6;
-        uint256 borrowAmt = totalMaxBorrow - spendDebitAmount;
-
-        _setMode(IUserSafe.Mode.Credit);
-        vm.warp(aliceSafe.incomingCreditModeStartTime() + 1);
-
-        vm.prank(etherFiWallet);
-        aliceSafe.spend(txId, address(usdc), borrowAmt);
-
-        _setMode(IUserSafe.Mode.Debit);
+        deal(address(usdc), address(aliceSafe), 100e6);
         uint256 maxCanSpendBeforeWithdrawal = aliceSafe.maxCanSpend(address(usdc));
 
         address[] memory tokens = new address[](1);
@@ -240,7 +171,7 @@ contract UserSafeSpendTest is Setup {
 
         vm.warp(block.timestamp + delay + 1);
         vm.prank(etherFiWallet);
-        vm.expectRevert("Insufficient balance to spend with Debit flow");
+        vm.expectRevert(IUserSafe.InsufficientBalance.selector);
         aliceSafe.spend(txId, address(usdc), amount);
     }
 

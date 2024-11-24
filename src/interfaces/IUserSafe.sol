@@ -48,6 +48,10 @@ interface IUserSafe {
     error OutputLessThanMinAmount();
     error OnlyCashbackDispatcher();
     error TransactionAlreadyCleared();
+    error RepayBorrowBeforeSwitchToDebitMode();
+    error BorrowingGreaterThanMaxBorrowAfterWithdrawal();
+    error BorrowingGreaterThanMaxBorrow();
+    error InsufficientBorrowingPower();
 
     /**
      * @notice Function to fetch the current mode of the safe (Debit/Credit)
@@ -296,6 +300,28 @@ interface IUserSafe {
      * @param amount Amount of tokens to be repaid.
      */
     function repay(address token, uint256 amount) external;
+
+    /**
+     * @notice Function to swap funds to output token and repay loan to Debt Manager.
+     * @dev Can only be called by the EtherFi Cash Wallet.
+     * @dev Can only swap to a supported token.
+     * @param inputTokenToSwap Address of input token to swap.
+     * @param outputToken Address of the output token of the swap.
+     * @param inputAmountToSwap Amount of input token to swap.
+     * @param outputMinAmount Min output amount of the output token to receive from the swap.
+     * @param guaranteedOutputAmount Guaranteed amount of output token (only for openocean swap).
+     * @param outputAmountToRepayInUsd Amount of output token to repay the loan.
+     * @param swapData Swap data received from the swapper API.
+     */
+    function swapAndRepay(
+        address inputTokenToSwap,
+        address outputToken,
+        uint256 inputAmountToSwap,
+        uint256 outputMinAmount,
+        uint256 guaranteedOutputAmount,
+        uint256 outputAmountToRepayInUsd,
+        bytes calldata swapData
+    ) external;
 
     /**
      * @notice Function to swap funds to output token and transfer it to EtherFiCash Safe.

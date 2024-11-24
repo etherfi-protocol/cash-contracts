@@ -40,6 +40,8 @@ contract UserSafeSetters is UserSafeStorage {
         );
         uint256 outputAmount = _swapFunds(inputTokenToSwap, outputToken, inputAmountToSwap, outputMinAmount, guaranteedOutputAmount, swapData);
         UserSafeEventEmitter(_cashDataProvider.userSafeEventEmitter()).emitSwap(inputTokenToSwap, inputAmountToSwap, outputToken, outputAmount);
+
+        IL2DebtManager(_cashDataProvider.etherFiCashDebtManager()).ensureHealth(address(this));
     }
 
     function setOwner(
@@ -60,11 +62,17 @@ contract UserSafeSetters is UserSafeStorage {
     function setMode(Mode mode, bytes calldata signature) external incrementNonce currentOwner currentMode {
         if (mode == _mode) revert ModeAlreadySet();
         owner().verifySetModeSig(_nonce, mode, signature);
-        if (mode == Mode.Credit) _incomingCreditModeStartTime = block.timestamp + _cashDataProvider.delay();
-        else delete _incomingCreditModeStartTime;
 
-        UserSafeEventEmitter(_cashDataProvider.userSafeEventEmitter()).emitSetMode(_mode, mode, _mode == Mode.Credit ? _incomingCreditModeStartTime : block.timestamp);
-        if (mode == Mode.Debit) _mode = mode;
+        if (mode == Mode.Debit) {
+            (, uint256 totalBorrowings) = IL2DebtManager(_cashDataProvider.etherFiCashDebtManager()).borrowingOf(address(this));
+            if (totalBorrowings != 0) revert RepayBorrowBeforeSwitchToDebitMode();
+            delete _incomingCreditModeStartTime;
+            _mode = mode;
+            UserSafeEventEmitter(_cashDataProvider.userSafeEventEmitter()).emitSetMode(Mode.Credit, Mode.Debit, block.timestamp);
+        } else {
+            _incomingCreditModeStartTime = block.timestamp + _cashDataProvider.delay();
+            UserSafeEventEmitter(_cashDataProvider.userSafeEventEmitter()).emitSetMode(Mode.Debit, Mode.Credit, _incomingCreditModeStartTime);
+        }
     }
 
 
@@ -105,11 +113,8 @@ contract UserSafeSetters is UserSafeStorage {
         );
         _requestWithdrawal(tokens, amounts, recipient);
 
-        IL2DebtManager.TokenData[] memory collateralTokenAmounts = getUserTotalCollateral();
-        (uint256 totalMaxBorrow, uint256 totalBorrowings) = 
-            IL2DebtManager(_cashDataProvider.etherFiCashDebtManager()).getBorrowingPowerAndTotalBorrowing(address(this), collateralTokenAmounts);
-
-        if (totalMaxBorrow < totalBorrowings) revert ("Borrowings greater than max borrow after withdrawal");
+        (uint256 totalMaxBorrow, uint256 totalBorrowings) = IL2DebtManager(_cashDataProvider.etherFiCashDebtManager()).getBorrowingPowerAndTotalBorrowing(address(this));
+        if (totalMaxBorrow < totalBorrowings) revert BorrowingGreaterThanMaxBorrowAfterWithdrawal();
     }
 
     function setIsRecoveryActive(

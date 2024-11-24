@@ -369,7 +369,7 @@ contract DebtManagerBorrowTest is Setup {
         vm.startPrank(etherFiWallet);
         aliceSafe.spend(txId, address(usdc), totalCanBorrow);
 
-        vm.expectRevert("Insufficient borrowing power");
+        vm.expectRevert(IL2DebtManager.AccountUnhealthy.selector);
         aliceSafe.spend(keccak256("newTxId"), address(usdc), 1);
 
         vm.stopPrank();
@@ -386,7 +386,7 @@ contract DebtManagerBorrowTest is Setup {
     function test_CannotBorrowIfNoCollateral() public {
         deal(address(weETH), address(aliceSafe), 0);
         vm.startPrank(etherFiWallet);
-        vm.expectRevert("Insufficient borrowing power");
+        vm.expectRevert(IL2DebtManager.AccountUnhealthy.selector);
         aliceSafe.spend(txId, address(usdc), 1);
         vm.stopPrank();
     }

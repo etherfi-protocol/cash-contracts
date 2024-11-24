@@ -248,6 +248,12 @@ interface IL2DebtManager {
     function unsupportBorrowToken(address token) external;
 
     /**
+     * @notice Function to ensure that the debt position of the user safe is healthy
+     * @param user Address of the user safe
+     */
+    function ensureHealth(address user) external view;
+
+    /**
      * @notice Function to supply borrow tokens to the debt manager.
      * @param  user Address of the user to register for supply.
      * @param  borrowToken Address of the borrow token to supply.
@@ -348,13 +354,12 @@ interface IL2DebtManager {
     ) external view returns (uint256);
 
     /**
-     * @notice Function to fetch the max borrow and total current borrowings based on collateral tokens passed
+     * @notice Function to fetch the max borrow and total current borrowings 
      * @param user Address of the user safe
-     * @param tokenAmounts Tokens and amounts of collateral
      * @return Total max borrow for that user
      * @return Current total borrowings of the user 
      */
-    function getBorrowingPowerAndTotalBorrowing(address user, TokenData[] memory tokenAmounts) external view returns (uint256, uint256);
+    function getBorrowingPowerAndTotalBorrowing(address user) external view returns (uint256, uint256);
 
 
     /**
