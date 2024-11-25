@@ -1,8 +1,8 @@
 {
     "topUps": {
-      "topUpSourceProxy": "0x2353697a6e11607fB990800e3E6fE76582a6f804",
-      "topUpSourceImpl": "0xD05A94857d53776e7AF5EB969461f0CA7992B6F9"
+      "topUpSourceProxy": "0x9B19da15E9EcF7b78cc78600Bf1Aae8A22b9fBb9",
+      "topUpSourceImpl": "0xAA5adBF2166D61641A4255e4aE57B4703bf328d6"
     },
-    "stargateAdapter": "0x012a7109C3f8bc4AaA25c1a5C74c27121727Ddaf", 
-    "etherFiOFTBridgeAdapter": "0xF5f41e6B9E4FdF26cc447799f155F26857E369Df"
+    "stargateAdapter": "0x9f46f97f63D9b99D1F7964915A130CC2dA7a3E28", 
+    "etherFiOFTBridgeAdapter": "0xF1B48a86691f691b5Bdbfa6d866F29e94193089F"
   }
