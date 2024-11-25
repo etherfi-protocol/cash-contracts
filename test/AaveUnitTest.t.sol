@@ -158,7 +158,7 @@ contract AaveUnitTest is Test {
             });
     }
 
-    function logStructuredAccountData(AaveAccountData memory data) public pure {
+    function logStructuredAccountData(AaveAccountData memory data) public view {
         console.log("totalCollateralBase: ", data.totalCollateralBase);
         console.log("totalDebtBase: ", data.totalDebtBase);
         console.log("availableBorrowsBase: ", data.availableBorrowsBase);
