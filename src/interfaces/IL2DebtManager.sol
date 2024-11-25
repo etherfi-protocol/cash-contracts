@@ -129,6 +129,12 @@ interface IL2DebtManager {
     error UserSafeCannotSupplyDebtTokens();
 
     /**
+     * @notice Function to fetch the admin role
+     * @return ADMIN_ROLE 
+     */
+    function ADMIN_ROLE() external view returns (bytes32);
+    
+    /**
      * @notice Function to fetch the address of the Cash Data Provider.
      * @return Cash Data Provider address
      */

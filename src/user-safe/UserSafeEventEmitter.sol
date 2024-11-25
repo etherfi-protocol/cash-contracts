@@ -17,9 +17,9 @@ contract UserSafeEventEmitter is Initializable, UUPSUpgradeable, AccessControlDe
         _disableInitializers();
     }
         
-    function initialize(uint48 accessControlDelay, address owner, address _cashDataProvider) external initializer {
+    function initialize(address owner, address _cashDataProvider) external initializer {
         __UUPSUpgradeable_init();
-        __AccessControlDefaultAdminRules_init_unchained(accessControlDelay, owner);
+        __AccessControlDefaultAdminRules_init_unchained(5 * 60, owner);
         cashDataProvider = ICashDataProvider(_cashDataProvider);
     }
 

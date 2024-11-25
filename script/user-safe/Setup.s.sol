@@ -23,6 +23,7 @@ import {UserSafeEventEmitter} from "../../src/user-safe/UserSafeEventEmitter.sol
 import {IUserSafe} from "../../src/interfaces/IUserSafe.sol";
 import {UserSafeLens} from "../../src/user-safe/UserSafeLens.sol";
 import {CashbackDispatcher} from "../../src/cashback-dispatcher/CashbackDispatcher.sol";
+import {IAccessControlDefaultAdminRules} from "@openzeppelin/contracts/access/extensions/IAccessControlDefaultAdminRules.sol";
 
 contract DeployUserSafeSetup is Utils {
     ERC20 usdc;
@@ -40,9 +41,11 @@ contract DeployUserSafeSetup is Utils {
     EtherFiCashAaveV3Adapter aaveV3Adapter;
     SettlementDispatcher settlementDispatcher;
     CashbackDispatcher cashbackDispatcher;
-    address etherFiWallet;
-    address owner;
+    address etherFiWallet = 0x2e0BE8D3D9f1833fbACf9A5e9f2d470817Ff0c00;
+    address owner = 0xA6cf33124cb342D1c604cAC87986B965F428AAC4;
+    address bridger = 0xA6cf33124cb342D1c604cAC87986B965F428AAC4;
     uint256 delay = 3600; // 1 hour
+    address deployerAddress;
 
     // weETH
     uint80 weETH_ltv = 50e18;
@@ -59,13 +62,14 @@ contract DeployUserSafeSetup is Utils {
     uint80 scroll_liquidationThreshold = 75e18;
     uint96 scroll_liquidationBonus = 1e18; 
 
-    uint64 borrowApyPerSecond = 317097919837; // 10% APR -> 10e18 / (365 days in seconds)
+    uint64 borrowApyPerSecond = 158548959919; // 5% APR -> 10e18 / (365 days in seconds)
 
     uint32 optimismDestEid = 30111;
+    address usdc_rykiOpAddress = 0x9B9c3ae1f950EF121eaeADaeEB0Bcf4695603Bff;
 
     // Shivam Metamask wallets
-    address recoverySigner1 = 0x7fEd99d0aA90423de55e238Eb5F9416FF7Cc58eF;
-    address recoverySigner2 = 0x24e311DA50784Cf9DB1abE59725e4A1A110220FA;
+    address recoverySigner1 = 0xbED1b10aF02D48DA7dA0Fff26d16E0873AF46706;
+    address recoverySigner2 = 0x566E58ac0F2c4BCaF6De63760C56cC3f825C48f5;
     string chainId;
 
     uint256 pepeCashbackPercentage = 200;
@@ -91,7 +95,7 @@ contract DeployUserSafeSetup is Utils {
     function run() public {
         // Pulling deployer info from the environment
         uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
-        address deployerAddress = vm.addr(deployerPrivateKey);
+        deployerAddress = vm.addr(deployerPrivateKey);
         // Start broadcast with deployer as the signer
         vm.startBroadcast(deployerPrivateKey);
 
@@ -104,32 +108,34 @@ contract DeployUserSafeSetup is Utils {
 
         supportedBorrowTokens.push(chainConfig.usdc);
 
-        etherFiWallet = deployerAddress;
-        owner = deployerAddress;
-
         usdc = ERC20(chainConfig.usdc);
         weETH = ERC20(chainConfig.weETH);
         scr = ERC20(chainConfig.scr);
 
-        settlementDispatcherImpl = address(new SettlementDispatcher{salt: getSalt(SETTLEMENT_DISPATCHER_IMPL)}());
-        settlementDispatcher = SettlementDispatcher(payable(address(new UUPSProxy{salt: getSalt(SETTLEMENT_DISPATCHER_PROXY)}(settlementDispatcherImpl, ""))));
-        address[] memory tokens = new address[](1);
-        tokens[0] = address(usdc);
-        
         SettlementDispatcher.DestinationData[] memory destDatas = new SettlementDispatcher.DestinationData[](1);
         destDatas[0] = SettlementDispatcher.DestinationData({
             destEid: optimismDestEid,
-            destRecipient: deployerAddress,
+            destRecipient: usdc_rykiOpAddress,
             stargate: chainConfig.stargateUsdcPool
         });
+        
+        address[] memory tokens = new address[](1);
+        tokens[0] = address(usdc);
 
-        settlementDispatcher.initialize(
-            uint48(delay),
-            deployerAddress,
-            tokens,
-            destDatas
+        settlementDispatcherImpl = address(new SettlementDispatcher{salt: getSalt(SETTLEMENT_DISPATCHER_IMPL)}());
+        settlementDispatcher = SettlementDispatcher(payable(address(
+            new UUPSProxy{salt: getSalt(SETTLEMENT_DISPATCHER_PROXY)}(
+                settlementDispatcherImpl, 
+                abi.encodeWithSelector(
+                    SettlementDispatcher.initialize.selector,
+                    owner,
+                    bridger,
+                    tokens,
+                    destDatas
+                ))
+            ))
         );
-
+        
         PriceProvider.Config memory weETHConfig = PriceProvider.Config({
             oracle: chainConfig.weEthWethOracle,
             priceFunctionCalldata: hex"",
@@ -241,7 +247,6 @@ contract DeployUserSafeSetup is Utils {
                 factoryImpl, 
                 abi.encodeWithSelector(
                     UserSafeFactory.initialize.selector, 
-                    delay,
                     owner, 
                     address(cashDataProvider),
                     address(userSafeCoreImpl),
@@ -256,7 +261,6 @@ contract DeployUserSafeSetup is Utils {
                 eventEmitterImpl,
                 abi.encodeWithSelector(
                     UserSafeEventEmitter.initialize.selector,
-                    delay,
                     owner,
                     address(cashDataProvider)
                 )
@@ -277,7 +281,7 @@ contract DeployUserSafeSetup is Utils {
 
         CashDataProvider(address(cashDataProvider)).initialize(
             ICashDataProvider.InitData({
-                owner: owner,
+                owner: deployerAddress,
                 delay: uint64(delay),
                 etherFiWallet: etherFiWallet,
                 settlementDispatcher: address(settlementDispatcher),
@@ -307,6 +311,10 @@ contract DeployUserSafeSetup is Utils {
 
         cashDataProvider.setTierCashbackPercentage(userSafeTiers, cashbackPercentages);
 
+        IAccessControlDefaultAdminRules(address(cashDataProvider)).grantRole(cashDataProvider.ADMIN_ROLE(), owner);
+        IAccessControlDefaultAdminRules(address(cashDataProvider)).renounceRole(cashDataProvider.ADMIN_ROLE(), deployerAddress);
+        IAccessControlDefaultAdminRules(address(cashDataProvider)).beginDefaultAdminTransfer(owner);
+
         configureDebtManager();
 
         saveDeployments();
@@ -333,8 +341,7 @@ contract DeployUserSafeSetup is Utils {
         collateralTokenConfig[2].liquidationBonus = scroll_liquidationBonus;
 
         DebtManagerInitializer(address(debtManager)).initialize(
-            owner,
-            uint48(delay),
+            deployerAddress,
             address(cashDataProvider)
         );
         DebtManagerCore debtManagerCore = DebtManagerCore(address(debtManager));
@@ -352,6 +359,10 @@ contract DeployUserSafeSetup is Utils {
             borrowApyPerSecond, 
             minShares
         );
+
+        IAccessControlDefaultAdminRules(address(debtManager)).grantRole(debtManager.ADMIN_ROLE(), owner);
+        IAccessControlDefaultAdminRules(address(debtManager)).renounceRole(debtManager.ADMIN_ROLE(), deployerAddress);
+        IAccessControlDefaultAdminRules(address(debtManager)).beginDefaultAdminTransfer(owner);
     }
 
     function saveDeployments() internal {

@@ -58,7 +58,7 @@ contract PriceProvider is IPriceProvider, Initializable, UUPSUpgradeable, Access
         address[] memory __tokens,
         Config[] memory __configs
     ) external initializer {
-        __AccessControlDefaultAdminRules_init_unchained(5 * 3600, __owner);
+        __AccessControlDefaultAdminRules_init_unchained(5 * 60, __owner);
         _setTokenConfig(__tokens, __configs);
         _grantRole(ADMIN_ROLE, msg.sender);
     }

@@ -43,12 +43,12 @@ contract SettlementDispatcher is Initializable, UUPSUpgradeable, AccessControlDe
     }
 
     function initialize(
-        uint48 accessControlDelay,
+        address owner,
         address bridger, 
         address[] calldata tokens, 
         DestinationData[] calldata destDatas
     ) external initializer {
-        __AccessControlDefaultAdminRules_init(accessControlDelay, msg.sender);
+        __AccessControlDefaultAdminRules_init(5 * 60, owner);
         __UUPSUpgradeable_init();
         _grantRole(BRIDGER_ROLE, bridger);
         _setDestinationData(tokens, destDatas);

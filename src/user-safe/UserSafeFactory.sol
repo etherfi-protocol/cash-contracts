@@ -34,13 +34,12 @@ contract UserSafeFactory is Initializable, UUPSUpgradeable, AccessControlDefault
     }
 
     function initialize(
-        uint48 _accessControlDelay,
         address _owner,
         address _cashDataProvider,
         address _userSafeCoreImpl,
         address _userSafeSettersImpl
     ) external initializer {
-        __AccessControlDefaultAdminRules_init(_accessControlDelay, _owner);
+        __AccessControlDefaultAdminRules_init(5 * 60, _owner);
         _grantRole(ADMIN_ROLE, _owner);
         beacon = address(new UpgradeableBeacon(_userSafeCoreImpl, address(this)));
         cashDataProvider = _cashDataProvider;

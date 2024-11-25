@@ -36,7 +36,7 @@ contract CashSafeTest is Test {
 
         vm.expectEmit(true, true, true, true);
         emit SettlementDispatcher.DestinationDataSet(tokens, destDatas);
-        settlementDispatcher.initialize(accessControlDelay, bridger, tokens, destDatas);
+        settlementDispatcher.initialize(owner, bridger, tokens, destDatas);
         vm.stopPrank();
     }
 

@@ -241,7 +241,6 @@ contract Setup is Utils {
                 factoryImpl, 
                 abi.encodeWithSelector(
                     UserSafeFactory.initialize.selector, 
-                    uint48(delay),
                     owner, 
                     address(cashDataProvider),
                     address(userSafeCoreImpl),
@@ -256,7 +255,6 @@ contract Setup is Utils {
                 eventEmitterImpl,
                 abi.encodeWithSelector(
                     UserSafeEventEmitter.initialize.selector,
-                    delay,
                     owner,
                     address(cashDataProvider)
                 )
@@ -295,7 +293,6 @@ contract Setup is Utils {
 
         DebtManagerInitializer(address(debtManager)).initialize(
             owner,
-            uint48(delay),
             address(cashDataProvider)
         );
         DebtManagerCore(debtManagerProxy).upgradeToAndCall(debtManagerCoreImpl, "");
