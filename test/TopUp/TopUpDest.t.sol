@@ -62,7 +62,6 @@ contract TopUpDestTest is Test {
                 topUpDestImpl,
                 abi.encodeWithSelector(
                     TopUpDest.initialize.selector,
-                    100,
                     owner,
                     address(cashDataProvider)
                 )

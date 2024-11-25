@@ -10,7 +10,6 @@ contract DeployTopUpSource is Utils {
     TopUpSource topUpSrc;
 
     address weth;
-    uint48 defaultAdminDelay = 300; // 5 mins
     address owner;
     address recoveryWallet;
 
@@ -29,7 +28,7 @@ contract DeployTopUpSource is Utils {
 
         bytes32 salt = keccak256("topUpSourceProxy");
         topUpSrc = TopUpSource(payable(address(new UUPSProxy{salt: salt}(topUpSrcImpl, ""))));
-        topUpSrc.initialize(weth, defaultAdminDelay, owner, recoveryWallet);
+        topUpSrc.initialize(weth, owner, recoveryWallet);
 
         vm.stopBroadcast();
     }

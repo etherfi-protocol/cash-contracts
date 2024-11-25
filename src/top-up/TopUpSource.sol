@@ -45,12 +45,12 @@ contract TopUpSource is Initializable, UUPSUpgradeable, AccessControlDefaultAdmi
         _disableInitializers();
     }
 
-    function initialize(address _weth, uint48 _defaultAdminDelay, address _defaultAdmin, address _recoveryWallet) external initializer {
+    function initialize(address _weth, address _defaultAdmin, address _recoveryWallet) external initializer {
         if (_defaultAdmin == address(0)) revert DefaultAdminCannotBeZeroAddress();
         if (_recoveryWallet == address(0)) revert RecoveryWalletCannotBeZeroAddress();
 
         __UUPSUpgradeable_init_unchained();
-        __AccessControlDefaultAdminRules_init_unchained(_defaultAdminDelay, _defaultAdmin);
+        __AccessControlDefaultAdminRules_init_unchained(5 * 60, _defaultAdmin);
         __Pausable_init_unchained();
 
         _grantRole(PAUSER_ROLE, _defaultAdmin);

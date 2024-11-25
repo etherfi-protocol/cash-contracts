@@ -9,7 +9,6 @@ import {stdJson} from "forge-std/StdJson.sol";
 contract DeployTopUpDest is Utils {
     TopUpDest topUpDest;
 
-    uint48 defaultAdminDelay = 300; // 5 mins
     address owner;
     address cashDataProvider;
 
@@ -32,7 +31,7 @@ contract DeployTopUpDest is Utils {
 
         bytes32 salt = keccak256("topUpDestProxy");
         topUpDest = TopUpDest(payable(address(new UUPSProxy{salt: salt}(topUpDestImpl, ""))));
-        topUpDest.initialize(defaultAdminDelay, owner, cashDataProvider);
+        topUpDest.initialize(owner, cashDataProvider);
 
         vm.stopBroadcast();
     }

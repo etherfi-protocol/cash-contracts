@@ -60,7 +60,7 @@ contract PriceProvider is IPriceProvider, Initializable, UUPSUpgradeable, Access
     ) external initializer {
         __AccessControlDefaultAdminRules_init_unchained(5 * 60, __owner);
         _setTokenConfig(__tokens, __configs);
-        _grantRole(ADMIN_ROLE, msg.sender);
+        _grantRole(ADMIN_ROLE, __owner);
     }
 
     function setTokenConfig(address[] memory _tokens, Config[] memory _configs) external onlyRole(ADMIN_ROLE) {

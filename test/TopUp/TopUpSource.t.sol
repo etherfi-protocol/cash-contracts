@@ -70,12 +70,12 @@ contract TopUpSourceTest is Test {
         ))); 
 
         vm.expectRevert(TopUpSource.DefaultAdminCannotBeZeroAddress.selector);
-        topUpSrc.initialize(address(weth), 100, address(0), recoveryWallet);
+        topUpSrc.initialize(address(weth), address(0), recoveryWallet);
         
         vm.expectRevert(TopUpSource.RecoveryWalletCannotBeZeroAddress.selector);
-        topUpSrc.initialize(address(weth), 100, owner, address(0));
+        topUpSrc.initialize(address(weth), owner, address(0));
 
-        topUpSrc.initialize(address(weth), 100, owner, recoveryWallet);
+        topUpSrc.initialize(address(weth), owner, recoveryWallet);
         topUpSrc.setTokenConfig(tokens, tokenConfigs);
 
         vm.stopPrank();

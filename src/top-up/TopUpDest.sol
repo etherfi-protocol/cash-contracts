@@ -47,10 +47,10 @@ contract TopUpDest is Initializable, UUPSUpgradeable, EIP712Upgradeable, NoncesU
         _disableInitializers();
     }
 
-    function initialize(uint48 _defaultAdminDelay, address _defaultAdmin, address _cashDataProvider) external initializer {
+    function initialize(address _defaultAdmin, address _cashDataProvider) external initializer {
         __UUPSUpgradeable_init_unchained();
         __ReentrancyGuardTransient_init();
-        __AccessControlDefaultAdminRules_init_unchained(_defaultAdminDelay, _defaultAdmin);
+        __AccessControlDefaultAdminRules_init_unchained(5 * 60, _defaultAdmin);
         __EIP712_init_unchained("TopUpContract", "1");
         __Pausable_init_unchained();
         __Nonces_init_unchained();
