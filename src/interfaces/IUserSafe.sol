@@ -148,10 +148,11 @@ interface IUserSafe {
     /**
      * @notice Function to fetch if a user can spend. 
      * @notice This is a utility function for the backend to put checks on spendings.
+     * @param txId Transaction ID.
      * @param token Address of the token to spend.
      * @param amountInUsd Amount of USD to spend in 6 decimals.
      */
-    function canSpend(address token, uint256 amountInUsd) external view returns (bool, string memory);
+    function canSpend(bytes32 txId, address token, uint256 amountInUsd) external view returns (bool, string memory);
 
     /**
      * @notice Function to fetch the max amount the user can spend in the current mode.

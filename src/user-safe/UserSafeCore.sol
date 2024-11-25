@@ -110,9 +110,11 @@ contract UserSafeCore is UserSafeStorage {
     }
 
     function canSpend(
+        bytes32 txId,
         address token,
         uint256 amountInUsd
     ) public view returns (bool, string memory) {
+        if (_transactionCleared[txId]) return (false, "Transaction already cleared");
         if (!_isBorrowToken(token)) return (false, "Not a supported stable token");
         
         address debtManager = _cashDataProvider.etherFiCashDebtManager();
