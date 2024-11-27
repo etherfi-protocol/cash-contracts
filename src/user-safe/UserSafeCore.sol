@@ -124,16 +124,18 @@ contract UserSafeCore is UserSafeStorage {
         
         Mode __mode = _mode;
         if (_incomingCreditModeStartTime != 0) __mode = Mode.Credit;
+        if (__mode == Mode.Debit && IERC20(token).balanceOf(address(this)) < amount) return (false, "Insufficient balance to spend with Debit flow");
         
-        if (__mode == Mode.Debit) {
-            uint256 withdrawalAmount = getPendingWithdrawalAmount(token);
-            if (IERC20(token).balanceOf(address(this)) - withdrawalAmount < amount) return (false, "Insufficient effective balance to spend with Debit flow");
-        } else {
-            (uint256 totalMaxBorrow, uint256 totalBorrowings) = IL2DebtManager(debtManager).getBorrowingPowerAndTotalBorrowing(address(this));
-            if (totalBorrowings > totalMaxBorrow) return (false, "Borrowings greater than max borrow");
+        (IL2DebtManager.TokenData[] memory collateralTokenAmounts, string memory error) = _getCollateralBalanceWithTokenSubtracted(token, amount, __mode);
+        if (bytes(error).length != 0) return (false, error);
+        if (collateralTokenAmounts.length == 0) return (false, "Collateral tokens balances zero");
+        (uint256 totalMaxBorrow, uint256 totalBorrowings) = 
+            IL2DebtManager(debtManager).getBorrowingPowerAndTotalBorrowing(address(this), collateralTokenAmounts);
+        if (totalBorrowings > totalMaxBorrow) return (false, "Borrowings greater than max borrow after spending");
+        if (__mode == Mode.Credit) {
             if (amountInUsd > totalMaxBorrow - totalBorrowings) return (false, "Insufficient borrowing power");        
             if (IERC20(token).balanceOf(debtManager) < amount) return (false, "Insufficient liquidity in debt manager to cover the loan");
-        }
+        } 
 
         return _spendingLimit.canSpend(amountInUsd);
     }
@@ -145,13 +147,26 @@ contract UserSafeCore is UserSafeStorage {
         Mode __mode = _mode;
         if (_incomingCreditModeStartTime != 0) __mode = Mode.Credit;
 
-        if (__mode == Mode.Debit) {
-            uint256 spendableAmt = IERC20(token).balanceOf(address(this)) - getPendingWithdrawalAmount(token);
-            returnAmtInUsd = debtManager.convertCollateralTokenToUsd(token, spendableAmt);
-        } else {
-            (uint256 totalMaxBorrow, uint256 totalBorrowings) = debtManager.getBorrowingPowerAndTotalBorrowing(address(this));
-            if (totalBorrowings > totalMaxBorrow) return 0;
-            returnAmtInUsd = totalMaxBorrow - totalBorrowings;
+        (IL2DebtManager.TokenData[] memory collateralTokenAmounts, string memory error) = _getCollateralBalanceWithTokenSubtracted(token, 0, _mode);
+        if (bytes(error).length != 0 || collateralTokenAmounts.length == 0) return 0;
+        
+        (uint256 totalMaxBorrow, uint256 totalBorrowings) = 
+            debtManager.getBorrowingPowerAndTotalBorrowing(address(this), collateralTokenAmounts);
+        if (totalBorrowings > totalMaxBorrow) return 0;
+
+        if (__mode == Mode.Credit) returnAmtInUsd = totalMaxBorrow - totalBorrowings;
+        else {
+            uint256 effectiveBal = IERC20(token).balanceOf(address(this)) - getPendingWithdrawalAmount(token);
+            if (effectiveBal == 0) return 0;
+            (collateralTokenAmounts, error) = _getCollateralBalanceWithTokenSubtracted(token, effectiveBal, _mode);
+            if (bytes(error).length != 0 || collateralTokenAmounts.length == 0) return 0;
+            (totalMaxBorrow, totalBorrowings) = debtManager.getBorrowingPowerAndTotalBorrowing(address(this), collateralTokenAmounts);
+            if (totalMaxBorrow < totalBorrowings) {
+                uint256 deficit = totalBorrowings - totalMaxBorrow;
+                uint80 ltv = debtManager.collateralTokenConfig(token).ltv;
+                uint256 amountRequiredToCoverDebt = deficit.mulDiv(HUNDRED_PERCENT, ltv, Math.Rounding.Ceil);
+                returnAmtInUsd = IL2DebtManager(debtManager).convertCollateralTokenToUsd(token, effectiveBal) - amountRequiredToCoverDebt;
+            } else returnAmtInUsd = IL2DebtManager(debtManager).convertCollateralTokenToUsd(token, effectiveBal);
         }
 
         returnAmtInUsd = Math.min(returnAmtInUsd, _spendingLimit.maxCanSpend());
@@ -208,21 +223,34 @@ contract UserSafeCore is UserSafeStorage {
         retrievePendingCashback();
         _spendingLimit.spend(amountInUsd);
 
-        if (_mode == Mode.Debit) {
+        if (_mode == Mode.Debit && IERC20(token).balanceOf(address(this)) < amount) revert ("Insufficient balance to spend with Debit flow");
+        (IL2DebtManager.TokenData[] memory collateralTokenAmounts, string memory error) = _getCollateralBalanceWithTokenSubtracted(token, amount, _mode);
+        if (collateralTokenAmounts.length == 0) {
             _updateWithdrawalRequestIfNecessary(token, amount);
-            IERC20(token).safeTransfer(_cashDataProvider.settlementDispatcher(), amount);
-        } else {
-            try IL2DebtManager(debtManager).borrow(token, amount) {}
-            catch {
+            (collateralTokenAmounts, error) = _getCollateralBalanceWithTokenSubtracted(token, amount, _mode);
+            if (bytes(error).length != 0 || collateralTokenAmounts.length == 0) revert (error);
+        }
+
+        (uint256 totalMaxBorrow, uint256 totalBorrowings) =  IL2DebtManager(debtManager).getBorrowingPowerAndTotalBorrowing(address(this), collateralTokenAmounts);
+        if (totalBorrowings > totalMaxBorrow || (_mode == Mode.Credit && amountInUsd > totalMaxBorrow - totalBorrowings)) {
+            if (_pendingWithdrawalRequest.tokens.length != 0) {
                 _cancelOldWithdrawal();
-                IL2DebtManager(debtManager).borrow(token, amount);
+                (collateralTokenAmounts, error) = _getCollateralBalanceWithTokenSubtracted(token, amount, _mode);
+                if (bytes(error).length != 0) revert(error);
+
+                (totalMaxBorrow, totalBorrowings) = IL2DebtManager(debtManager).getBorrowingPowerAndTotalBorrowing(address(this), collateralTokenAmounts);
             }
         }
+
+        if (totalBorrowings > totalMaxBorrow) revert ("Borrowings greater than max borrow after spending");
+        if (_mode == Mode.Credit && amountInUsd > totalMaxBorrow - totalBorrowings) revert("Insufficient borrowing power");
+
+        if (_mode == Mode.Debit) IERC20(token).safeTransfer(_cashDataProvider.settlementDispatcher(), amount);
+        else IL2DebtManager(debtManager).borrow(token, amount);
 
         (address cashbackToken, uint256 cashbackAmount, uint256 cashbackInUsd, bool paid) = CashbackDispatcher(_cashDataProvider.cashbackDispatcher()).cashback(amountInUsd);
         UserSafeEventEmitter(_cashDataProvider.userSafeEventEmitter()).emitCashbackEvent(amountInUsd, cashbackToken, cashbackAmount, cashbackInUsd, paid);
         if (!paid) _pendingCashbackInUsd += cashbackInUsd;
-
         return amount;
     }
 

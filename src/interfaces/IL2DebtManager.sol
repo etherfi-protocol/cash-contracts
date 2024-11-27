@@ -363,10 +363,11 @@ interface IL2DebtManager {
     /**
      * @notice Function to fetch the max borrow and total current borrowings 
      * @param user Address of the user safe
+     * @param tokenAmounts Token amounts of collateral
      * @return Total max borrow for that user
      * @return Current total borrowings of the user 
      */
-    function getBorrowingPowerAndTotalBorrowing(address user) external view returns (uint256, uint256);
+    function getBorrowingPowerAndTotalBorrowing(address user, TokenData[] memory tokenAmounts) external view returns (uint256, uint256);
 
 
     /**

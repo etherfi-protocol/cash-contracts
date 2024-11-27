@@ -64,18 +64,12 @@ contract UserSafeSetters is UserSafeStorage {
         if (mode == _mode) revert ModeAlreadySet();
         owner().verifySetModeSig(_nonce, mode, signature);
 
-        if (mode == Mode.Debit) {
-            (, uint256 totalBorrowings) = IL2DebtManager(_cashDataProvider.etherFiCashDebtManager()).borrowingOf(address(this));
-            if (totalBorrowings != 0) revert RepayBorrowBeforeSwitchToDebitMode();
-            delete _incomingCreditModeStartTime;
-            _mode = mode;
-            UserSafeEventEmitter(_cashDataProvider.userSafeEventEmitter()).emitSetMode(Mode.Credit, Mode.Debit, block.timestamp);
-        } else {
-            _incomingCreditModeStartTime = block.timestamp + _cashDataProvider.delay();
-            UserSafeEventEmitter(_cashDataProvider.userSafeEventEmitter()).emitSetMode(Mode.Debit, Mode.Credit, _incomingCreditModeStartTime);
-        }
-    }
+        if (mode == Mode.Credit) _incomingCreditModeStartTime = block.timestamp + _cashDataProvider.delay();
+        else delete _incomingCreditModeStartTime;
 
+        UserSafeEventEmitter(_cashDataProvider.userSafeEventEmitter()).emitSetMode(_mode, mode, _mode == Mode.Credit ? _incomingCreditModeStartTime : block.timestamp);
+        if (mode == Mode.Debit) _mode = mode;
+    }
 
     function updateSpendingLimit(
         uint256 dailyLimitInUsd,
