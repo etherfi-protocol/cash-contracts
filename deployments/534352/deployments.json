@@ -5,7 +5,7 @@
     "cashbackDispatcherImpl": "0xa3F6744F264882D1EC6d9a4735E583866A808e44",
     "cashbackDispatcherProxy": "0x7d372C3ca903CA2B6ecd8600D567eb6bAfC5e6c9",
     "debtManagerAdminImpl": "0xE995f0b8d984441CFE978246740c7F6aCDE7560D",
-    "debtManagerCore": "0x7Aef2b4c256F76e0dE7fb264fadB15E4DC920682",
+    "debtManagerCore": "0x1d3BE10146B8957BA15cbfE5754b0C0422a0873B",
     "debtManagerInitializer": "0x318c5F25E44ae661b06DCB9278648475Ee52F814",
     "debtManagerProxy": "0x8f9d2Cd33551CE06dD0564Ba147513F715c2F4a0",
     "etherFiWallet": "0x2e0BE8D3D9f1833fbACf9A5e9f2d470817Ff0c00",

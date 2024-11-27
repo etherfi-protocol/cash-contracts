@@ -108,13 +108,13 @@ contract DebtManagerCore is DebtManagerStorage {
             if (forLtv)
                 // user collateral for token in USD * 100 / liquidation threshold
                 totalMaxBorrow += collateral.mulDiv(
-                    _collateralTokenConfig[_supportedCollateralTokens[i]].ltv,
+                    _collateralTokenConfig[collateralTokens[i].token].ltv,
                     HUNDRED_PERCENT,
                     Math.Rounding.Floor
                 );
             else
                 totalMaxBorrow += collateral.mulDiv(
-                    _collateralTokenConfig[_supportedCollateralTokens[i]].liquidationThreshold,
+                    _collateralTokenConfig[collateralTokens[i].token].liquidationThreshold,
                     HUNDRED_PERCENT,
                     Math.Rounding.Floor
                 );
