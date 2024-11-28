@@ -164,6 +164,25 @@ contract UserSafeSpendTest is Setup {
         }
     }
 
+    function test_CannotSpendWithDebitModeIfBorrowExceedsMaxBorrow() public {
+        _setMode(IUserSafe.Mode.Credit);
+        vm.warp(aliceSafe.incomingCreditModeStartTime() + 1);
+
+        uint256 aliceBalUsdc = 1000e6;
+        deal(address(usdc), address(aliceSafe), aliceBalUsdc);
+        deal(address(weETH), address(aliceSafe), 0);
+        deal(address(usdc), address(debtManager), 1000e6);
+        
+        vm.prank(etherFiWallet);
+        aliceSafe.spend(txId, address(usdc), 10e6);
+
+        _setMode(IUserSafe.Mode.Debit);
+
+        vm.prank(etherFiWallet);
+        vm.expectRevert(IUserSafe.BorrowingsExceedMaxBorrowAfterSpending.selector);
+        aliceSafe.spend(keccak256("newTxId"), address(usdc), aliceBalUsdc);
+    }
+
     function test_CannotSpendWithDebitFlowWhenBalanceIsInsufficient() public {
         uint256 amount = aliceSafeUsdcBalanceBefore + 1;
         vm.prank(alice);
