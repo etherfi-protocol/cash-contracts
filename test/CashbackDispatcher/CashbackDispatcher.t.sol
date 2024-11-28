@@ -534,7 +534,7 @@ contract CashbackDispatcherTest is Setup {
         ICashDataProvider.UserSafeTiers[] memory tiers = new ICashDataProvider.UserSafeTiers[](1);
         tiers[0] = tier;
 
-        vm.prank(owner);
+        vm.prank(etherFiWallet);
         cashDataProvider.setUserSafeTier(safes, tiers);
     }
 }

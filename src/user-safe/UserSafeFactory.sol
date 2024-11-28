@@ -46,19 +46,19 @@ contract UserSafeFactory is Initializable, UUPSUpgradeable, AccessControlDefault
         userSafeSettersImpl = _userSafeSettersImpl;
     }
 
-    function setCashDataProvider(address _cashDataProvider) external onlyRole(ADMIN_ROLE) {
+    function setCashDataProvider(address _cashDataProvider) external onlyRole(DEFAULT_ADMIN_ROLE) {
         if (_cashDataProvider == address(0)) revert InvalidValue();
         emit CashDataProviderSet(cashDataProvider, _cashDataProvider);
         cashDataProvider = _cashDataProvider;
     }
 
-    function setUserSafeSettersImpl(address _userSafeSettersImpl) external onlyRole(ADMIN_ROLE) {
+    function setUserSafeSettersImpl(address _userSafeSettersImpl) external onlyRole(DEFAULT_ADMIN_ROLE) {
         if (_userSafeSettersImpl == address(0)) revert InvalidValue();
         emit UserSafeSettersImplSet(userSafeSettersImpl, _userSafeSettersImpl);
         userSafeSettersImpl = _userSafeSettersImpl;
     }
 
-    function setBeacon(address _beacon) external onlyRole(ADMIN_ROLE) {
+    function setBeacon(address _beacon) external onlyRole(DEFAULT_ADMIN_ROLE) {
         if (_beacon == address(0)) revert InvalidValue();
         emit BeaconSet(beacon, _beacon);
         beacon = _beacon;

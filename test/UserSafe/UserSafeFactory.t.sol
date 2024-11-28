@@ -118,7 +118,7 @@ contract UserSafeFactoryTest is Setup {
 
     function test_OnlyAdminCanSetBeacon() public {
         vm.prank(notOwner);
-        vm.expectRevert(buildAccessControlRevertData(notOwner, ADMIN_ROLE));
+        vm.expectRevert(buildAccessControlRevertData(notOwner, DEFAULT_ADMIN_ROLE));
         factory.setBeacon(address(1));
     }
 
@@ -141,7 +141,7 @@ contract UserSafeFactoryTest is Setup {
 
     function test_OnlyAdminCanSetCashDataProvider() public {
         vm.prank(notOwner);
-        vm.expectRevert(buildAccessControlRevertData(notOwner, ADMIN_ROLE));
+        vm.expectRevert(buildAccessControlRevertData(notOwner, DEFAULT_ADMIN_ROLE));
         factory.setCashDataProvider(address(1));
     }
 

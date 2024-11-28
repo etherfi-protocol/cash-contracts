@@ -323,7 +323,7 @@ contract CashDataProvider is ICashDataProvider, UUPSUpgradeable, AccessControlDe
     /**
      * @inheritdoc ICashDataProvider
      */
-    function setUserSafeTier(address[] memory safes, UserSafeTiers[] memory tiers) external onlyRole(ADMIN_ROLE) {
+    function setUserSafeTier(address[] memory safes, UserSafeTiers[] memory tiers) external onlyRole(ETHER_FI_WALLET_ROLE) {
         uint256 len = safes.length;
         if (len != tiers.length) revert ArrayLengthMismatch();
         for (uint256 i = 0; i < len; ) {

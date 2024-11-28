@@ -255,6 +255,8 @@ contract DeployUserSafeSetup is Utils {
             )
         );
 
+        userSafeFactory.grantRole(userSafeFactory.ADMIN_ROLE(), etherFiWallet);
+
         eventEmitterImpl = address(new UserSafeEventEmitter{salt: getSalt(USER_SAFE_EVENT_EMITTER_IMPL)}());
         userSafeEventEmitter = UserSafeEventEmitter(address(
             new UUPSProxy{salt: getSalt(USER_SAFE_EVENT_EMITTER_PROXY)}(
