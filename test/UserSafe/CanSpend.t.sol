@@ -33,7 +33,7 @@ contract UserSafeCanSpendTest is Setup {
         uint256 bal = usdc.balanceOf(address(aliceSafe));
         (bool canSpend, string memory reason) = aliceSafe.canSpend(txId, address(usdc), bal + 1);
         assertEq(canSpend, false);
-        assertEq(reason, "Insufficient effective balance to spend with Debit flow");
+        assertEq(reason, "Insufficient balance to spend with Debit flow");
     }
 
     function test_CannotSpendWithCreditModeIfLiquidityAvailableInDebtManager() public {
@@ -96,7 +96,7 @@ contract UserSafeCanSpendTest is Setup {
 
         (bool canSpend, string memory reason) = aliceSafe.canSpend(txId, token, bal);
         assertEq(canSpend, false);
-        assertEq(reason, "Insufficient effective balance to spend with Debit flow");
+        assertEq(reason, "Insufficient effective balance after withdrawal to spend with debit mode");
     }
 
     function test_CanSpendWithCreditModeFailsIfWithdrawalRequestBlocksIt() public {
@@ -144,7 +144,7 @@ contract UserSafeCanSpendTest is Setup {
 
         (bool canSpend, string memory reason) = aliceSafe.canSpend(txId, token, bal);
         assertEq(canSpend, false);
-        assertEq(reason, "Insufficient effective balance to spend with Debit flow");
+        assertEq(reason, "Insufficient effective balance after withdrawal to spend with debit mode");
     }
 
     function test_CanSpendFailsIfTxIdIsAlreadyCleared() public {

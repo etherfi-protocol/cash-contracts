@@ -3,7 +3,7 @@ pragma solidity ^0.8.24;
 
 import {IUserSafe, UserSafeEventEmitter, OwnerLib, UserSafeLib, ArrayDeDupTransient} from "../../src/user-safe/UserSafeCore.sol";
 import {MessageHashUtils} from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
-import {Setup} from "../Setup.t.sol";
+import {Setup, IL2DebtManager} from "../Setup.t.sol";
 
 contract UserSafeWithdrawalTest is Setup {
     using MessageHashUtils for bytes32;
@@ -136,6 +136,34 @@ contract UserSafeWithdrawalTest is Setup {
         aliceSafe.processWithdrawal();
 
         vm.stopPrank();
+    }
+    
+    function test_CannotWithdrawIfAccountBecomesUnhealthy() external {
+        address[] memory tokens = new address[](2);
+        tokens[0] = address(usdc);
+        tokens[1] = address(weETH);
+
+        uint256[] memory amounts = new uint256[](2);
+        amounts[0] = 100e6;
+        amounts[1] = 1 ether;
+        
+        deal(tokens[0], address(aliceSafe), amounts[0]);
+        deal(tokens[1], address(aliceSafe), amounts[1]);
+        deal(address(usdc), address(debtManager), 1 ether);
+        
+        address recipient = notOwner;
+
+        _setMode(IUserSafe.Mode.Credit);
+        vm.warp(aliceSafe.incomingCreditModeStartTime() + 1);
+
+        vm.prank(etherFiWallet);
+        aliceSafe.spend(txId, address(usdc), 10e6);
+
+
+        bytes memory signature = _requestWithdrawal(tokens, amounts, recipient);
+        
+        vm.expectRevert(IL2DebtManager.AccountUnhealthy.selector);
+        aliceSafe.requestWithdrawal(tokens, amounts, recipient, signature);
     }
 
     function test_CanResetWithdrawalWithNewRequest() public {
@@ -348,5 +376,26 @@ contract UserSafeWithdrawalTest is Setup {
 
         bytes memory signature = abi.encodePacked(r, s, v);
         return signature;
+    }
+
+    function _setMode(IUserSafe.Mode mode) internal {
+        uint256 nonce = aliceSafe.nonce() + 1;
+        bytes32 msgHash = keccak256(
+            abi.encode(
+                UserSafeLib.SET_MODE_METHOD,
+                block.chainid,
+                address(aliceSafe),
+                nonce,
+                mode
+            )
+        );
+
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(
+            alicePk,
+            msgHash.toEthSignedMessageHash()
+        );
+
+        bytes memory signature = abi.encodePacked(r, s, v);
+        aliceSafe.setMode(mode, signature);
     }
 }

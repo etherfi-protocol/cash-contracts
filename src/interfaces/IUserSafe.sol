@@ -48,7 +48,6 @@ interface IUserSafe {
     error OutputLessThanMinAmount();
     error OnlyCashbackDispatcher();
     error TransactionAlreadyCleared();
-    error RepayBorrowBeforeSwitchToDebitMode();
     error BorrowingGreaterThanMaxBorrowAfterWithdrawal();
     error BorrowingGreaterThanMaxBorrow();
     error InsufficientBorrowingPower();
@@ -126,6 +125,11 @@ interface IUserSafe {
     function pendingCashback() external view returns (uint256);
 
     /**
+     * @notice Function to fetch the total cashback earned in USD to date
+     */
+    function totalCashbackEarnedInUsd() external view returns (uint256);
+
+    /**
      * @notice Function to fetch whether the recovery is active.
      */
     function isRecoveryActive() external view returns (bool);
@@ -157,11 +161,13 @@ interface IUserSafe {
     function canSpend(bytes32 txId, address token, uint256 amountInUsd) external view returns (bool, string memory);
 
     /**
-     * @notice Function to fetch the max amount the user can spend in the current mode.
+     * @notice Function to fetch the max amount the user can spend in the credit and debit modes.
      * @param token Address of the token to spend.
-     * @return max spend the user can make in USD with 6 decimals.
+     * @return returnAmtInCreditModeUsd max spend the user can make in USD with 6 decimals in credit mode.
+     * @return returnAmtInDebitModeUsd max spend the user can make in USD with 6 decimals in debit mode.
+     * @return spendingLimitAllowance spending limit allowance left in USD with 6 decimals.
      */
-    function maxCanSpend(address token) external view returns (uint256);
+    function maxCanSpend(address token) external view returns (uint256 returnAmtInCreditModeUsd, uint256 returnAmtInDebitModeUsd, uint256 spendingLimitAllowance);
 
     /**
      * @notice Function to set the owner of the contract.

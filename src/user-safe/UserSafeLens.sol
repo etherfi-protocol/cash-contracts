@@ -14,6 +14,8 @@ contract UserSafeLens is Initializable, UUPSUpgradeable, AccessControlDefaultAdm
     using Math for uint256;
 
     struct UserSafeData {
+        IUserSafe.Mode mode;
+        uint256 incomingCreditModeStartTime;
         IL2DebtManager.TokenData[] collateralBalances;
         IL2DebtManager.TokenData[] borrows;
         IL2DebtManager.TokenData[] tokenPrices;
@@ -21,6 +23,11 @@ contract UserSafeLens is Initializable, UUPSUpgradeable, AccessControlDefaultAdm
         uint256 totalCollateral;
         uint256 totalBorrow;
         uint256 maxBorrow;
+        uint256 creditMaxSpend;
+        uint256 debitMaxSpend;
+        uint256 spendingLimitAllowance;
+        uint256 totalCashbackEarnedInUsd;
+        uint256 pendingCashbackInUsd;
     }
 
     ICashDataProvider public cashDataProvider;
@@ -44,45 +51,40 @@ contract UserSafeLens is Initializable, UUPSUpgradeable, AccessControlDefaultAdm
         if (_cashDataProvider == address(0)) revert InvalidValue();
         emit CashDataProviderSet(address(cashDataProvider), _cashDataProvider);
         cashDataProvider = ICashDataProvider(_cashDataProvider);
-
     }
 
-    function getUserSafeData(address user) external view returns (UserSafeData memory) {
+    function getUserSafeData(address user) external view returns (UserSafeData memory userData) {
         IUserSafe userSafe = IUserSafe(user);
         IL2DebtManager debtManager = IL2DebtManager(cashDataProvider.etherFiCashDebtManager());
 
         (
-            IL2DebtManager.TokenData[] memory collateralBalances,
-            uint256 totalCollateralInUsd,
-            IL2DebtManager.TokenData[] memory borrowings,
-            uint256 totalBorrowings
+            userData.collateralBalances,
+            userData.totalCollateral,
+            userData.borrows,
+            userData.totalBorrow
         ) = debtManager.getUserCurrentState(address(userSafe));
         
-        IUserSafe.WithdrawalRequest memory withdrawalRequest = userSafe.pendingWithdrawalRequest();
-        uint256 maxBorrow = debtManager.getMaxBorrowAmount(address(user), true);
+        userData.withdrawalRequest = userSafe.pendingWithdrawalRequest();
+        userData.maxBorrow = debtManager.getMaxBorrowAmount(address(user), true);
 
         address[] memory supportedTokens = debtManager.getCollateralTokens();
         uint256 len = supportedTokens.length;
-        IL2DebtManager.TokenData[] memory tokenPrices = new IL2DebtManager.TokenData[](len);
+        userData.tokenPrices = new IL2DebtManager.TokenData[](len);
         IPriceProvider priceProvider = IPriceProvider(cashDataProvider.priceProvider());
 
         for (uint256 i = 0; i < len; ) { 
-            tokenPrices[i].token = supportedTokens[i];
-            tokenPrices[i].amount = priceProvider.price(supportedTokens[i]);
+            userData.tokenPrices[i].token = supportedTokens[i];
+            userData.tokenPrices[i].amount = priceProvider.price(supportedTokens[i]);
             unchecked {
                 ++i;
             }
         }
-
-        return UserSafeData({
-            collateralBalances: collateralBalances,
-            borrows: borrowings,
-            withdrawalRequest: withdrawalRequest,
-            totalCollateral: totalCollateralInUsd,
-            totalBorrow: totalBorrowings,
-            maxBorrow: maxBorrow,
-            tokenPrices: tokenPrices
-        });
+        
+        (userData.creditMaxSpend, userData.debitMaxSpend, userData.spendingLimitAllowance) = userSafe.maxCanSpend(debtManager.getBorrowTokens()[0]);
+        userData.mode = userSafe.mode();
+        userData.incomingCreditModeStartTime = userSafe.incomingCreditModeStartTime();
+        userData.totalCashbackEarnedInUsd = userSafe.totalCashbackEarnedInUsd();
+        userData.pendingCashbackInUsd = userSafe.pendingCashback();
     }
 
     function _authorizeUpgrade(

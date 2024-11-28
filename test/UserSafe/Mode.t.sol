@@ -47,7 +47,7 @@ contract UserSafeModeTest is Setup {
         _setMode(IUserSafe.Mode.Credit, IUserSafe.ModeAlreadySet.selector);
     }
 
-    function test_CannotSetDebitModeIfBorrowIsNotRepaid() public {
+    function test_CanSetDebitModeIfBorrowIsNotRepaid() public {
         uint256 weETHCollateralAmount = 1 ether;
         deal(address(weETH), address(aliceSafe), weETHCollateralAmount);
         deal(address(usdc), address(debtManager), 1 ether); 
@@ -62,7 +62,9 @@ contract UserSafeModeTest is Setup {
         vm.prank(etherFiWallet);
         aliceSafe.spend(txId, address(usdc), borrowAmt);
 
-        _setMode(IUserSafe.Mode.Debit, IUserSafe.RepayBorrowBeforeSwitchToDebitMode.selector);
+        _setMode(IUserSafe.Mode.Debit, bytes4(0));
+
+        assertEq(uint8(aliceSafe.mode()), uint8(IUserSafe.Mode.Debit));
     }
 
     function _setMode(IUserSafe.Mode mode, bytes4 errorSelector) internal {

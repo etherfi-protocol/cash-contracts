@@ -101,6 +101,8 @@ contract UserSafeStorage is Initializable, ReentrancyGuardTransientUpgradeable {
     uint256 internal _pendingCashbackInUsd;
     // Mapping of transaction ID to clearance
     mapping(bytes32 => bool) internal _transactionCleared;
+    // total cashback earned to date in USD
+    uint256 internal _totalCashbackEarnedInUsd;
     
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor(address __cashDataProvider) {

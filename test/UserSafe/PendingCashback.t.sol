@@ -56,6 +56,7 @@ contract UserSafePendingCashbackTest is Setup {
         aliceSafe.spend(txId, address(usdc), spendAmt);
 
         assertEq(aliceSafe.pendingCashback(), cashbackInUsdc);
+        assertEq(aliceSafe.totalCashbackEarnedInUsd(), cashbackInUsdc);
     }
 
     function test_RetrievePendingCashback() public {
@@ -74,6 +75,7 @@ contract UserSafePendingCashbackTest is Setup {
         aliceSafe.spend(txId, address(usdc), spendAmt);
 
         assertEq(aliceSafe.pendingCashback(), cashbackInUsdc);
+        assertEq(aliceSafe.totalCashbackEarnedInUsd(), cashbackInUsdc);
 
         deal(address(scr), address(cashbackDispatcher), cashbackInScroll);
 
@@ -85,6 +87,7 @@ contract UserSafePendingCashbackTest is Setup {
         
         uint256 aliceSafeScrBalAfter = scr.balanceOf(address(aliceSafe));
         assertApproxEqAbs(aliceSafeScrBalAfter - aliceSafeScrBalBefore, cashbackInScroll, 1000);
+        assertEq(aliceSafe.totalCashbackEarnedInUsd(), cashbackInUsdc);
     }
 
     function test_RetrievePendingCashbackWhenNoPendingCashbackJustReturns() public {

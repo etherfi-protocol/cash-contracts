@@ -47,6 +47,13 @@ contract UserSafeLensTest is Setup {
 
         assertEq(data.tokenPrices[1].token, address(usdc));
         assertEq(data.tokenPrices[1].amount, priceProvider.price(address(usdc)));
+
+        assertEq(data.creditMaxSpend, collateralBalInUsd * ltv / HUNDRED_PERCENT);
+        assertEq(data.debitMaxSpend, 0);
+        assertEq(data.totalCashbackEarnedInUsd, 0);
+        assertEq(data.pendingCashbackInUsd, 0);
+        assertEq(uint8(data.mode), uint8(IUserSafe.Mode.Debit));
+        assertEq(data.incomingCreditModeStartTime, 0);
     }
 
     function test_CanGetUserDataWithWithdrawals() public {

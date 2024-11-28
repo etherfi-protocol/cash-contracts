@@ -53,7 +53,7 @@ contract UserSafeSpendTest is Setup {
 
     function test_CanSpendWithDebitModeEvenIfWithdrawalsBlockTheAmount() external {
         deal(address(usdc), address(aliceSafe), 100e6);
-        uint256 maxCanSpendBeforeWithdrawal = aliceSafe.maxCanSpend(address(usdc));
+        (, uint256 maxCanSpendBeforeWithdrawal, ) = aliceSafe.maxCanSpend(address(usdc));
 
         address[] memory tokens = new address[](1);
         tokens[0] = address(usdc);

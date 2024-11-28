@@ -107,9 +107,7 @@ contract UserSafeSetters is UserSafeStorage {
             signature
         );
         _requestWithdrawal(tokens, amounts, recipient);
-
-        (uint256 totalMaxBorrow, uint256 totalBorrowings) = IL2DebtManager(_cashDataProvider.etherFiCashDebtManager()).getBorrowingPowerAndTotalBorrowing(address(this));
-        if (totalMaxBorrow < totalBorrowings) revert BorrowingGreaterThanMaxBorrowAfterWithdrawal();
+        IL2DebtManager(_cashDataProvider.etherFiCashDebtManager()).ensureHealth(address(this));
     }
 
     function setIsRecoveryActive(
