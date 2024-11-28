@@ -145,16 +145,7 @@ contract DebtManagerRepayTest is Setup {
         deal(address(usdc), address(aliceSafe), 0);
 
         vm.startPrank(etherFiWallet);
-        if (!isFork(chainId))
-            vm.expectRevert(
-                abi.encodeWithSelector(
-                    IERC20Errors.ERC20InsufficientBalance.selector,
-                    address(aliceSafe),
-                    0,
-                    1
-                )
-            );
-        else vm.expectRevert(IUserSafe.InsufficientBalance.selector);
+        vm.expectRevert(IUserSafe.InsufficientBalance.selector);
         aliceSafe.repay(address(usdc), 1);
         vm.stopPrank();
     }
