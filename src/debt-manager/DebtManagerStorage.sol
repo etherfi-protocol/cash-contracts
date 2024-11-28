@@ -182,6 +182,7 @@ contract DebtManagerStorage is
     error OnlyUserSafe();
     error UserSafeCannotSupplyDebtTokens();
     error NotAUserSafe();
+    error BorrowTokenCannotBeRemovedFromCollateral();
     
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {

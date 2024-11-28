@@ -218,19 +218,7 @@ contract UserSafeCore is UserSafeStorage {
                 IL2DebtManager(debtManager).borrow(token, amount);
             }
         }
-        //     (uint256 totalMaxBorrow, uint256 totalBorrowings) =  IL2DebtManager(debtManager).getBorrowingPowerAndTotalBorrowing(address(this));
-        //     if (totalBorrowings > totalMaxBorrow ||  amountInUsd > (totalMaxBorrow - totalBorrowings)) {
-        //         if (_pendingWithdrawalRequest.tokens.length != 0) {
-        //             _cancelOldWithdrawal();
-        //             (totalMaxBorrow, totalBorrowings) = IL2DebtManager(debtManager).getBorrowingPowerAndTotalBorrowing(address(this));
-        //         }
-        //     }
 
-        //     if (totalBorrowings > totalMaxBorrow) revert BorrowingGreaterThanMaxBorrow();
-        //     if (amountInUsd > totalMaxBorrow - totalBorrowings) revert InsufficientBorrowingPower();
-        //     IL2DebtManager(debtManager).borrow(token, amount);
-        // }
-        
         (address cashbackToken, uint256 cashbackAmount, uint256 cashbackInUsd, bool paid) = CashbackDispatcher(_cashDataProvider.cashbackDispatcher()).cashback(amountInUsd);
         UserSafeEventEmitter(_cashDataProvider.userSafeEventEmitter()).emitCashbackEvent(amountInUsd, cashbackToken, cashbackAmount, cashbackInUsd, paid);
         if (!paid) _pendingCashbackInUsd += cashbackInUsd;
@@ -276,7 +264,8 @@ contract UserSafeCore is UserSafeStorage {
         delete _pendingWithdrawalRequest;
     }
 
-    function repay(address token, uint256 amountInUsd) public currentMode onlyEtherFiWallet {
+    function repay(address token, uint256 amountInUsd) public onlyEtherFiWallet {
+        if (!_isBorrowToken(token)) revert OnlyBorrowToken();
         address debtManager = _cashDataProvider.etherFiCashDebtManager();
         _repay(debtManager, token, amountInUsd);
     }
@@ -289,7 +278,7 @@ contract UserSafeCore is UserSafeStorage {
         uint256 guaranteedOutputAmount,
         uint256 outputAmountToRepayInUsd,
         bytes calldata swapData
-    ) external currentMode onlyEtherFiWallet {
+    ) external onlyEtherFiWallet {
         if (!_isBorrowToken(outputToken)) revert UnsupportedToken();
         if (outputAmountToRepayInUsd == 0) revert AmountCannotBeZero();
         uint256 outputAmount = _swapFunds(inputTokenToSwap, outputToken, inputAmountToSwap, outputMinAmount, guaranteedOutputAmount, swapData);
@@ -299,12 +288,6 @@ contract UserSafeCore is UserSafeStorage {
         _repay(debtManager, outputToken, outputAmountToRepayInUsd);
     }
 
-    function _checkSpendingLimit(address token, uint256 amount) internal {
-        uint8 tokenDecimals = _getDecimals(token);
-        if (tokenDecimals != 6) amount = (amount * 1e6) / 10 ** tokenDecimals;
-        _spendingLimit.spend(amount);
-    }
-
     function _repay(
         address debtManager,
         address token,
@@ -312,40 +295,12 @@ contract UserSafeCore is UserSafeStorage {
     ) internal {
         uint256 amount = IL2DebtManager(debtManager).convertUsdToCollateralToken(token, amountInUsd);
         if (amount == 0) revert AmountZero();
+        _updateWithdrawalRequestIfNecessary(token, amount);
 
         IERC20(token).forceApprove(debtManager, amount);
 
         IL2DebtManager(debtManager).repay(address(this), token, amount);
         UserSafeEventEmitter(_cashDataProvider.userSafeEventEmitter()).emitRepayDebtManager(token, amount, amountInUsd);
-    }
-
-    function _updateWithdrawalRequestIfNecessary(
-        address token,
-        uint256 amount
-    ) internal {
-        uint256 balance = IERC20(token).balanceOf(address(this));
-
-        if (amount > balance) revert InsufficientBalance();
-
-        uint256 len = _pendingWithdrawalRequest.tokens.length;
-        uint256 tokenIndex = len;
-        for (uint256 i = 0; i < len; ) {
-            if (_pendingWithdrawalRequest.tokens[i] == token) {
-                tokenIndex = i;
-                break;
-            }
-            unchecked {
-                ++i;
-            }
-        }
-
-        // If the token does not exist in withdrawal request
-        if (tokenIndex == len) return;
-
-        if (amount + _pendingWithdrawalRequest.amounts[tokenIndex] > balance) {
-            _pendingWithdrawalRequest.amounts[tokenIndex] = balance - amount;
-            UserSafeEventEmitter(_cashDataProvider.userSafeEventEmitter()).emitWithdrawalAmountUpdated(token, balance - amount);
-        }
     }
 
     function _isBorrowToken(address token) internal view returns (bool) {

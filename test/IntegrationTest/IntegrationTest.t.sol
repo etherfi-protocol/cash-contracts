@@ -191,17 +191,19 @@ contract IntegrationTest is Setup {
         
         vm.warp(block.timestamp + timeElapsed);
 
+        uint256 expectedBorrow = ((1 ether + expectedInterest) * 1e6) /
+                10 ** newBorrowToken.decimals();
+
         assertEq(
             debtManager.borrowingOf(
                 address(aliceSafe),
                 address(newBorrowToken)
             ),
-            ((1 ether + expectedInterest) * 1e6) /
-                10 ** newBorrowToken.decimals()
+            expectedBorrow
         );
 
         vm.prank(etherFiWallet);
-        aliceSafe.repay(address(newBorrowToken), 1 ether + expectedInterest);
+        aliceSafe.repay(address(newBorrowToken), expectedBorrow);
 
         assertEq(
             debtManager.supplierBalance(

@@ -127,6 +127,7 @@ interface IL2DebtManager {
     error SupplyCapBreached();
     error OnlyUserSafe();
     error UserSafeCannotSupplyDebtTokens();
+    error BorrowTokenCannotBeRemovedFromCollateral();
 
     /**
      * @notice Function to fetch the admin role

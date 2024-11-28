@@ -38,6 +38,7 @@ contract UserSafeSetters is UserSafeStorage {
             swapData,
             signature
         );
+        _updateWithdrawalRequestIfNecessary(inputTokenToSwap, inputAmountToSwap);
         uint256 outputAmount = _swapFunds(inputTokenToSwap, outputToken, inputAmountToSwap, outputMinAmount, guaranteedOutputAmount, swapData);
         UserSafeEventEmitter(_cashDataProvider.userSafeEventEmitter()).emitSwap(inputTokenToSwap, inputAmountToSwap, outputToken, outputAmount);
 

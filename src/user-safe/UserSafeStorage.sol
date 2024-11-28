@@ -69,6 +69,7 @@ contract UserSafeStorage is Initializable, ReentrancyGuardTransientUpgradeable {
     error BorrowingGreaterThanMaxBorrowAfterWithdrawal();
     error BorrowingGreaterThanMaxBorrow();
     error InsufficientBorrowingPower();
+    error OnlyBorrowToken();
 
     uint256 public constant HUNDRED_PERCENT = 100e18;
     // Address of the Cash Data Provider
@@ -217,6 +218,35 @@ contract UserSafeStorage is Initializable, ReentrancyGuardTransientUpgradeable {
         if (outputAmount < outputMinAmount) revert OutputLessThanMinAmount();
 
         return outputAmount;
+    }
+
+    function _updateWithdrawalRequestIfNecessary(
+        address token,
+        uint256 amount
+    ) internal {
+        uint256 balance = IERC20(token).balanceOf(address(this));
+
+        if (amount > balance) revert InsufficientBalance();
+
+        uint256 len = _pendingWithdrawalRequest.tokens.length;
+        uint256 tokenIndex = len;
+        for (uint256 i = 0; i < len; ) {
+            if (_pendingWithdrawalRequest.tokens[i] == token) {
+                tokenIndex = i;
+                break;
+            }
+            unchecked {
+                ++i;
+            }
+        }
+
+        // If the token does not exist in withdrawal request
+        if (tokenIndex == len) return;
+
+        if (amount + _pendingWithdrawalRequest.amounts[tokenIndex] > balance) {
+            _pendingWithdrawalRequest.amounts[tokenIndex] = balance - amount;
+            UserSafeEventEmitter(_cashDataProvider.userSafeEventEmitter()).emitWithdrawalAmountUpdated(token, balance - amount);
+        }
     }
 
     modifier currentMode() {

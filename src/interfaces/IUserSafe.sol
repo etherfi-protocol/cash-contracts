@@ -52,6 +52,7 @@ interface IUserSafe {
     error BorrowingGreaterThanMaxBorrowAfterWithdrawal();
     error BorrowingGreaterThanMaxBorrow();
     error InsufficientBorrowingPower();
+    error OnlyBorrowToken();
 
     /**
      * @notice Function to fetch the current mode of the safe (Debit/Credit)

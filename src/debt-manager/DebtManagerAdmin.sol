@@ -17,6 +17,7 @@ contract DebtManagerAdmin is DebtManagerStorage {
         address token
     ) external onlyRole(ADMIN_ROLE) {
         if (token == address(0)) revert InvalidValue();
+        if (isBorrowToken(token)) revert BorrowTokenCannotBeRemovedFromCollateral();
         uint256 indexPlusOneForTokenToBeRemoved = _collateralTokenIndexPlusOne[token];
         if (indexPlusOneForTokenToBeRemoved == 0) revert NotACollateralToken();
 

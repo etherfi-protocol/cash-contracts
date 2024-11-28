@@ -99,6 +99,13 @@ contract DebtManagerCollateralTest is Setup {
         vm.stopPrank();
     }
 
+    function test_CannotUnsupportCollateralTokenWhichIsABorrowToken() public {
+        vm.startPrank(owner);
+        vm.expectRevert(IL2DebtManager.BorrowTokenCannotBeRemovedFromCollateral.selector);
+        debtManager.unsupportCollateralToken(address(usdc));
+        vm.stopPrank();
+    }
+
     function test_CannotAddCollateralTokenIfAlreadySupported() public {
         IL2DebtManager.CollateralTokenConfig memory collateralTokenConfig;
         collateralTokenConfig.ltv = newLtv;
@@ -129,15 +136,7 @@ contract DebtManagerCollateralTest is Setup {
         debtManager.unsupportCollateralToken(address(1));
         vm.stopPrank();
     }
-
-    function test_CannotUnsupportAllTokensAsCollateral() public {
-        vm.startPrank(owner);
-        debtManager.unsupportCollateralToken(address(usdc));
-        vm.expectRevert(IL2DebtManager.NoCollateralTokenLeft.selector);
-        debtManager.unsupportCollateralToken(address(weETH));
-        vm.stopPrank();
-    }
-
+    
     function test_CannotUnsupportAddressZeroAsCollateralToken() public {
         vm.startPrank(owner);
         vm.expectRevert(IL2DebtManager.InvalidValue.selector);

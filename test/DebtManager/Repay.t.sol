@@ -75,6 +75,13 @@ contract DebtManagerRepayTest is Setup {
         assertEq(debtAmtBefore - debtAmtAfter, repayAmt);
     }
 
+    function test_CannotRepayWithNonBorrowToken() public {
+        vm.startPrank(etherFiWallet);
+        vm.expectRevert(IUserSafe.OnlyBorrowToken.selector);
+        aliceSafe.repay(address(weETH), 1 ether);
+        vm.stopPrank();
+    }
+
     function test_SwapAndRepay() public {
         if (!isFork(chainId)) return;
         uint256 debtAmtBefore = debtManager.borrowingOf(address(aliceSafe), address(usdc));
@@ -147,7 +154,7 @@ contract DebtManagerRepayTest is Setup {
                     1
                 )
             );
-        else vm.expectRevert("ERC20: transfer amount exceeds balance");
+        else vm.expectRevert(IUserSafe.InsufficientBalance.selector);
         aliceSafe.repay(address(usdc), 1);
         vm.stopPrank();
     }

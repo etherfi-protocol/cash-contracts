@@ -118,7 +118,7 @@ contract CashbackDispatcher is Initializable, UUPSUpgradeable, AccessControlDefa
 
     function setCashbackToken(address _token) external onlyRole(ADMIN_ROLE) {
         if (_token == address(0)) revert InvalidValue();
-        if (priceProvider.price(cashbackToken) == 0) revert CashbackTokenPriceNotConfigured();
+        if (priceProvider.price(_token) == 0) revert CashbackTokenPriceNotConfigured();
         emit CashbackTokenSet(cashbackToken, _token);
         cashbackToken = _token;
     }
