@@ -53,6 +53,7 @@ interface IUserSafe {
     error InsufficientBorrowingPower();
     error OnlyBorrowToken();
     error RecipientCannotBeAddressZero();
+    error BorrowingsExceedMaxBorrowAfterSpending();
 
     /**
      * @notice Function to fetch the current mode of the safe (Debit/Credit)
