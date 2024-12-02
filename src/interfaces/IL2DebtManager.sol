@@ -477,16 +477,6 @@ interface IL2DebtManager {
         returns (TokenData[] memory, uint256);
 
     /**
-     * @notice Function to fetch the total collateral amount in this contract.
-     * @return Array of Collateral struct.
-     * @return Total collateral in USD.
-     */
-    function totalCollateralAmounts()
-        external
-        view
-        returns (TokenData[] memory, uint256);
-
-    /**
      * @notice Function to fetch the borrow token config.
      * @param  borrowToken Address of the borrow token.
      * @return BorrowTokenConfig struct.
