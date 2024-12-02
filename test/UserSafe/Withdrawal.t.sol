@@ -238,6 +238,26 @@ contract UserSafeWithdrawalTest is Setup {
         aliceSafe.requestWithdrawal(tokens, amounts, recipient, signature);
         vm.stopPrank();
     }
+    
+    function test_CannotRequestWithdrawalWhenRecipientIsAddressZero() public {
+        address[] memory tokens = new address[](2);
+        tokens[0] = address(usdc);
+        tokens[1] = address(weETH);
+
+        uint256[] memory amounts = new uint256[](2);
+        amounts[0] = 100e6;
+        amounts[1] = 1 ether;
+
+        deal(tokens[0], address(aliceSafe), amounts[0]);
+        deal(tokens[1], address(aliceSafe), amounts[1]);
+
+        address recipient = address(0);
+
+        bytes memory signature = _requestWithdrawal(tokens, amounts, recipient);
+        vm.expectRevert(IUserSafe.RecipientCannotBeAddressZero.selector);
+        aliceSafe.requestWithdrawal(tokens, amounts, recipient, signature);
+        vm.stopPrank();
+    }
 
     function test_CanTransferEvenIfAmountIsBlockedByWithdrawal() public {
         address[] memory tokens = new address[](1);

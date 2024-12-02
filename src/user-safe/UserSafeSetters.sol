@@ -146,6 +146,7 @@ contract UserSafeSetters is UserSafeStorage {
         uint256[] calldata amounts,
         address recipient
     ) internal {
+        if (recipient == address(0)) revert RecipientCannotBeAddressZero();
         _cancelOldWithdrawal();
 
         uint256 len = tokens.length;

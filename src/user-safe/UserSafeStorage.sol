@@ -70,6 +70,7 @@ contract UserSafeStorage is Initializable, ReentrancyGuardTransientUpgradeable {
     error BorrowingGreaterThanMaxBorrow();
     error InsufficientBorrowingPower();
     error OnlyBorrowToken();
+    error RecipientCannotBeAddressZero();
 
     uint256 public constant HUNDRED_PERCENT = 100e18;
     // Address of the Cash Data Provider
