@@ -412,18 +412,30 @@ contract DebtManagerCore is DebtManagerStorage {
         if (!isBorrowToken(borrowToken)) revert UnsupportedBorrowToken();
         if (!liquidatable(user)) revert CannotLiquidateYet();
 
-        _liquidate(user, borrowToken, collateralTokensPreference);
+        _liquidateUser(user, borrowToken, collateralTokensPreference);
+
+    }
+
+    function _liquidateUser(
+        address user,
+        address borrowToken,
+        address[] memory collateralTokensPreference
+    ) internal {
+        uint256 debtAmountToLiquidateInUsd = _userBorrowings[user][borrowToken].ceilDiv(2);
+        _liquidate(user, borrowToken, collateralTokensPreference, debtAmountToLiquidateInUsd);
+
+        if (liquidatable(user)) _liquidate(user, borrowToken, collateralTokensPreference, _userBorrowings[user][borrowToken]);
     }
 
     function _liquidate(
         address user,
         address borrowToken,
-        address[] memory collateralTokensPreference
+        address[] memory collateralTokensPreference,
+        uint256 debtAmountToLiquidateInUsd
     ) internal {    
         IUserSafe(user).preLiquidate();
-        
-        uint256 debtAmountToLiquidateInUsd = _userBorrowings[user][borrowToken];
         if (debtAmountToLiquidateInUsd == 0) revert LiquidatableAmountIsZero();
+
         uint256 beforeDebtAmount = _userBorrowings[user][borrowToken];
 
         (LiquidationTokenData[] memory collateralTokensToSend, uint256 remainingDebt) = _getCollateralTokensForDebtAmount(

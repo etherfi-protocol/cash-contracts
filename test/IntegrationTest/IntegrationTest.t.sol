@@ -92,7 +92,7 @@ contract IntegrationTest is Setup {
         uint80 newCollateralLtv = 80e18;
         uint80 newCollateralLiquidationThreshold = 85e18;
         uint96 newCollateralLiquidationBonus = 5e18;
-        uint64 newBorrowTokenApy = 1e18;
+        uint64 newBorrowTokenApy = 1000;
 
         IL2DebtManager.CollateralTokenConfig memory config;
         config.ltv = newCollateralLtv;

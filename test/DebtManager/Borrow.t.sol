@@ -49,7 +49,7 @@ contract DebtManagerBorrowTest is Setup {
 
     function test_CanAddOrRemoveSupportedBorrowTokens() public {
         address newBorrowToken = address(new MockERC20("abc", "ABC", 12));
-        uint64 borrowApy = 1e18;
+        uint64 borrowApy = 1000;
         uint128 _minShares = 1e12;
 
         vm.startPrank(owner);
@@ -266,7 +266,7 @@ contract DebtManagerBorrowTest is Setup {
     function test_BorrowTokenWithDecimalsOtherThanSix() public {
         MockERC20 newToken = new MockERC20("mockToken", "MTK", 12);
         deal(address(newToken), address(debtManager), 1 ether);
-        uint64 borrowApy = 1e18;
+        uint64 borrowApy = 1000;
 
         vm.startPrank(owner);
         if (isFork(chainId)) {

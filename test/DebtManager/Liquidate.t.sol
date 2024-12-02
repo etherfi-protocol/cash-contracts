@@ -176,15 +176,21 @@ contract DebtManagerLiquidateTest is Setup {
         // So total collateral < total debt
         // Also the user is liquidatable since liquidation threshold is 10% 
         
-        // Debt is 15 USD 
-        // total collateral -> 0.01 WETH = 10 USD
-        // total bonus -> 0.01 * 5% = 0.0005 weETH -> 0.5 USD
-        // weETH amt -> 15 / 1000 = 0.015 weETH
-        // bonus -> 5% -> 0.015 * 5% = 0.00075 weETH
-        // total debt liquidated -> 10 - 0.5 USD -> 9.5 USD
-        // total collateral gone -> 0.01 weETH
+        // 50% liquidation -> 
+        // Debt is 15 USD -> 7.5 USD to liquidate first
+        // weETH amt -> 7.5 / 1000 = 0.0075 weETH
+        // bonus -> 5% -> 0.0075 * 5% = 0.000375 weETH
+        // total collateral gone -> 0.007875
 
-        uint256 liquidationAmt = 9.5 * 1e6;
+        // next 50% liquidation (since user is still liquidatable)
+        // collateral left -> 0.002125 weETH
+        // total value in USD -> 0.002125 * 1000 -> 2.125 USD
+        // total bonus -> 0.002125 * 5% = 0.00010625 weETH -> 0.10625 USD
+        // total collateral liquidated -> 2.125 - 0.10625 USD -> 2.01875 USD
+
+        // total liquidated amount -> 7.5 + 2.01875 USD = 9.51875 USD
+
+        uint256 liquidationAmt = 9.51875 * 1e6;
 
         address[] memory collateralTokenPreference = new address[](1);
         collateralTokenPreference[0] = address(weETH);
@@ -240,7 +246,7 @@ contract DebtManagerLiquidateTest is Setup {
             collateralTokenConfigNewCollateralToken
         );
 
-        uint256 collateralAmtNewToken = 0.003 ether;
+        uint256 collateralAmtNewToken = 0.005 ether;
         deal(newCollateralToken, address(aliceSafe), collateralAmtNewToken);
 
         // Lower the thresholds for weETH as well
@@ -257,28 +263,43 @@ contract DebtManagerLiquidateTest is Setup {
         assertEq(debtManager.liquidatable(address(aliceSafe)), true);
 
         // currently, alice collateral -> 
-        // 0.01 weETH + 0.003 newToken  => 30 + 9 = 39 USDC (since 3000 is the default price in mock price provider)
+        // 0.01 weETH + 0.005 newToken  => 30 + 15 = 45 USDC (since 3000 is the default price in mock price provider)
         // alice debt -> 30 * 50% = 15 USD (initial collateral 30 USD, LTV: 50%)
         // When we liquidate -> user should receive the following:
         
         // for a debt of 15 USD ->
 
-        // new token
-        // total collateral in new token -> 0.003 * 3000 = 9 USDC
-        // total bonus = 0.003 * 10% = 0.0003 -> 0.9 USDC
-        // total debt liquidated = 9 - 0.9 = 8.1 USDC
-                
-        // weETH 
+        // first liquidate 50% loan -> 7.5 USD
+
+        // new token is first in preference 
+        // total collateral in new token -> 0.005 * 3000 = 15 USDC
+        // debt amount in new collateral token -> 7.5 USD / 3000 USD = 0.0025 
+        // liquidation bonus -> 0.0025 * 10% bonus -> 0.00025 in collateral tokens -> 0.75 USDC 
+        // Collateral left in new token = 0.005 - 0.0025 - 0.00025 = 0.00225
+        
+        // After partial liquidation -> 
+        // user debt -> 7.5 USDC
+        // user collateral -> 0.01 weETH + 0.00225 newToken = 36.75
+        // user is still liquidatable as liquidation threshold is 10% 
+
+        // now we need to again liquidate the debt of 7.5 USDC which is left
+
+        // new token is first in preference 
+        // total collateral in new token -> 0.00225 * 3000 = 6.75 USDC
+        // liquidation bonus -> 0.00225 * 10% bonus -> 0.000225 in collateral tokens -> 0.675 USDC 
+        // so new token wipes off 6.75 - 0.675 = 6.075 USDC of debt
+        
+        // weETH is second in preference 
         // total collateral in weETH -> 0.01 * 3000 = 30 USDC
-        // total debt left = 15 - 8.1 = 6.9 USDC
-        // total collateral worth 6.9 USDC in weETH -> 6.9 / 3000 -> 0.0023
-        // total bonus on 0.0023 weETH => 0.0023 * 5% = 0.000115
+        // total debt left = 7.5 USDC - 6.075 USDC = 1.425 USDC
+        // total collateral worth 1.425 USDC in weETH -> 1.425 / 3000 -> 0.000475
+        // total bonus on 0.000475 weETH => 0.000475 * 5% = 0.00002375
 
         // In total
-        // borrow wiped by new token -> 8.1 USDC
-        // borrow wiped by weETH -> 6.9 USDC
-        // total liquidation bonus new token -> 0.0003
-        // total liquidation bonus weETH -> 0.000115
+        // borrow wiped by new token -> 7.5 + 6.075 = 13.575 USDC
+        // borrow wiped by weETH -> 1.425 USDC
+        // total liquidation bonus new token -> 0.00025 + 0.000225 = 0.000475
+        // total liquidation bonus weETH -> 0.00002375
 
         uint256 ownerWeETHBalBefore = weETH.balanceOf(owner);
         uint256 ownerNewTokenBalBefore = IERC20(newCollateralToken).balanceOf(owner);
@@ -300,12 +321,12 @@ contract DebtManagerLiquidateTest is Setup {
     ) internal view {
         uint256 ownerWeETHBalAfter = weETH.balanceOf(owner);
         uint256 ownerNewTokenBalAfter = IERC20(newCollateralToken).balanceOf(owner);
-        uint256 aliceSafeDebtAfter = debtManager.borrowingOf(address(aliceSafe), address(usdc));
+        uint256 aliceDebtAfter = debtManager.borrowingOf(alice, address(usdc));
 
-        uint256 borrowWipedByNewToken =  8.1 * 1e6;
-        uint256 borrowWipedByWeETH = 6.9 * 1e6;
-        uint256 liquidationBonusNewToken =  0.0003 ether;
-        uint256 liquidationBonusWeETH = 0.000115 ether;
+        uint256 borrowWipedByNewToken =  13.575 * 1e6;
+        uint256 borrowWipedByWeETH = 1.425 * 1e6;
+        uint256 liquidationBonusNewToken =  0.000475 ether;
+        uint256 liquidationBonusWeETH = 0.00002375 ether;
 
         assertApproxEqAbs(
             debtManager.convertCollateralTokenToUsd(
@@ -326,6 +347,6 @@ contract DebtManagerLiquidateTest is Setup {
         );
 
         assertEq(aliceDebtBefore, borrowAmt);
-        assertEq(aliceSafeDebtAfter, 0);
+        assertEq(aliceDebtAfter, 0);
     }
 }

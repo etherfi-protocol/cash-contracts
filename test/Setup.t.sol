@@ -75,7 +75,7 @@ contract Setup is Utils {
     uint80 ltv = 50e18; // 50%
     uint80 liquidationThreshold = 60e18; // 60%
     uint96 liquidationBonus = 5e18; // 5%
-    uint64 borrowApyPerSecond = 1e16; // 0.01% per second
+    uint64 borrowApyPerSecond = 317097919837; // 10% / (365 days in seconds)
     ChainConfig chainConfig;
     uint256 supplyCap = 10000 ether;
     int256 timezoneOffset = 4 * 60 * 60; // Dubai timezone
