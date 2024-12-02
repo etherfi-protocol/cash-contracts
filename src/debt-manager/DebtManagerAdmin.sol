@@ -122,7 +122,7 @@ contract DebtManagerAdmin is DebtManagerStorage {
         uint64 borrowApy,
         uint128 minShares
     ) internal {
-        if (borrowApy == 0 || minShares == 0) revert InvalidValue();
+        if (borrowApy == 0 || borrowApy > MAX_BORROW_APY || minShares == 0) revert InvalidValue();
 
         BorrowTokenConfig memory cfg = BorrowTokenConfig({
             interestIndexSnapshot: 0,
@@ -138,7 +138,7 @@ contract DebtManagerAdmin is DebtManagerStorage {
     }
 
     function _setBorrowApy(address token, uint64 apy) internal {
-        if (apy == 0) revert InvalidValue();
+        if (apy == 0 || apy > MAX_BORROW_APY) revert InvalidValue();
         if (!isBorrowToken(token)) revert UnsupportedBorrowToken();
 
         _updateBorrowings(address(0));

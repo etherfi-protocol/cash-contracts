@@ -87,6 +87,8 @@ contract DebtManagerStorage is
     // Shares have 18 decimals
     mapping(address supplier => mapping(address borrowToken => uint256 shares)) internal _sharesOfBorrowTokens;
 
+    uint256 public constant MAX_BORROW_APY = 1585489599188; // 50% / (365 days in seconds)
+
     event Supplied(
         address indexed sender,
         address indexed user,
