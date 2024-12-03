@@ -22,7 +22,7 @@ contract DeployTopUpSource is Utils {
         string memory fixtures = vm.readFile(file);
         weth = stdJson.readAddress(fixtures, string.concat(".", chainId, ".", "weth"));
         recoveryWallet = stdJson.readAddress(fixtures, string.concat(".", chainId, ".", "recoveryWallet"));
-        owner = stdJson.readAddress(fixtures, string.concat(".", chainId, ".", "owner"));
+        owner = vm.addr(deployerPrivateKey);
 
         address topUpSrcImpl = address(new TopUpSource{salt: keccak256("topUpSourceImpl")}());
 

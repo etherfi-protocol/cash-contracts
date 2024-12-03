@@ -11,7 +11,6 @@
           "token": "usdc",
           "address": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
           "bridge": "stargate",
-          "recipientOnDestChain": "0xd74857b234994DE558E4974FeF647A636F6eCeC7",
           "maxSlippageInBps": "50",
           "stargatePool": "0xc026395860Db2d07ee33e05fE50ed7bD583189C7"
         },
@@ -19,7 +18,6 @@
             "token": "weETH",
             "address": "0xCd5fE23C85820F7B72D0926FC9b05b43E359b7ee",
             "bridge": "oftBridgeAdapter",
-            "recipientOnDestChain": "0xd74857b234994DE558E4974FeF647A636F6eCeC7",
             "maxSlippageInBps": "50",
             "oftAdapter": "0xcd2eb13D6831d4602D80E5db9230A57596CDCA63"
         }
@@ -34,7 +32,6 @@
           "token": "usdc",
           "address": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
           "bridge": "stargate",
-          "recipientOnDestChain": "0xd74857b234994DE558E4974FeF647A636F6eCeC7",
           "maxSlippageInBps": "50",
           "stargatePool": "0x27a16dc786820B16E5c9028b75B99F6f604b5d26"
         },
@@ -42,9 +39,8 @@
             "token": "weETH",
             "address": "0x04C0599Ae5A44757c0af6F9eC3b93da8976c150A",
             "bridge": "oftBridgeAdapter",
-              "recipientOnDestChain": "0xd74857b234994DE558E4974FeF647A636F6eCeC7",
-              "maxSlippageInBps": "50",
-              "oftAdapter": "0x04C0599Ae5A44757c0af6F9eC3b93da8976c150A"
+            "maxSlippageInBps": "50",
+            "oftAdapter": "0x04C0599Ae5A44757c0af6F9eC3b93da8976c150A"
           }
         ]
     }

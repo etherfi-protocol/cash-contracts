@@ -19,7 +19,7 @@
     "compile": "forge compile"
   },
   "dependencies": {
-    "axios": "^1.7.3",
+    "axios": "^1.7.8",
     "dotenv": "^16.4.5",
     "ethers": "^5.7.2"
   },

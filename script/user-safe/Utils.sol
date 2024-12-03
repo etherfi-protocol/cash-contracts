@@ -22,6 +22,7 @@ struct ChainConfig {
 
 contract Utils is Script {
     address eth = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
+    string scrollChainId = "534352";
 
     string internal FACTORY_PROXY = "FactoryProxy";
     string internal FACTORY_IMPL = "FactoryImpl";

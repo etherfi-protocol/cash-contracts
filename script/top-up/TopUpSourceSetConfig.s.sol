@@ -57,12 +57,22 @@ contract TopUpSourceSetConfig is Utils {
         (address[] memory tokens, TopUpSource.TokenConfig[] memory tokenConfig) = parseTokenConfigs(fixtures, chainId);
 
         topUpSrc.setTokenConfig(tokens, tokenConfig);
+
+        address owner = stdJson.readAddress(fixtures, string.concat(".", chainId, ".", "owner"));
+        address deployer = vm.addr(deployerPrivateKey);
+
+        topUpSrc.beginDefaultAdminTransfer(owner);
+        topUpSrc.grantRole(topUpSrc.BRIDGER_ROLE(), owner);
+        topUpSrc.grantRole(topUpSrc.PAUSER_ROLE(), owner);
+        
+        topUpSrc.renounceRole(topUpSrc.BRIDGER_ROLE(), deployer);
+        topUpSrc.renounceRole(topUpSrc.PAUSER_ROLE(), deployer);
     
         vm.stopBroadcast();
     }   
 
     // Helper function to parse token configs from JSON
-    function parseTokenConfigs(string memory jsonString, string memory chainId) internal view returns (address[] memory tokens, TopUpSource.TokenConfig[] memory tokenConfig) {
+    function parseTokenConfigs(string memory jsonString, string memory chainId) internal returns (address[] memory tokens, TopUpSource.TokenConfig[] memory tokenConfig) {
         uint256 count = getTokenConfigsLength(jsonString, chainId);
         tokens = new address[](count);
         tokenConfig = new TopUpSource.TokenConfig[](count);
@@ -71,7 +81,7 @@ contract TopUpSourceSetConfig is Utils {
             string memory base = string.concat(".", chainId, ".tokenConfigs[", vm.toString(i), "]");
             
             tokens[i] = stdJson.readAddress(jsonString, string.concat(base, ".address"));
-            tokenConfig[i].recipientOnDestChain = stdJson.readAddress(jsonString, string.concat(base, ".recipientOnDestChain"));
+            tokenConfig[i].recipientOnDestChain = getDestRecipientAddress();
             tokenConfig[i].maxSlippageInBps = uint96(stdJson.readUint(jsonString, string.concat(base, ".maxSlippageInBps")));
             string memory bridge = stdJson.readString(jsonString, string.concat(base, ".bridge"));
 
@@ -116,5 +126,19 @@ contract TopUpSourceSetConfig is Utils {
 
     function getValue(string memory jsonString, string memory path) external pure returns (address) {
         return stdJson.readAddress(jsonString, path);
+    }
+
+    function getDestRecipientAddress() internal returns (address) {
+        string memory dir = string.concat(vm.projectRoot(), "/deployments/");
+        string memory chainDir = string.concat(scrollChainId, "/");
+        string memory file = string.concat(dir, chainDir, "top-ups", ".json");
+
+        if (!vm.exists(file)) revert ("Scroll topup deployment file not found");
+        string memory deployments = vm.readFile(file);
+
+        return stdJson.readAddress(
+            deployments,
+            string.concat(".", "topUps", ".", "topUpDestProxy")
+        );
     }
 }
