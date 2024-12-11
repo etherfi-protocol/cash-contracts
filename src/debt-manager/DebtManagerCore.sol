@@ -149,7 +149,7 @@ contract DebtManagerCore is DebtManagerStorage {
         for (uint256 i = 0; i < len; ) {
             uint256 collateral = convertCollateralTokenToUsd(tokenAmounts[i].token, tokenAmounts[i].amount);
 
-            // user collateral for token in USD * 100 / liquidation threshold
+            // user collateral for token in USD * 100 / ltv
             totalMaxBorrow += collateral.mulDiv(
                 _collateralTokenConfig[tokenAmounts[i].token].ltv,
                 HUNDRED_PERCENT,
@@ -500,7 +500,7 @@ contract DebtManagerCore is DebtManagerStorage {
         for (uint256 i = 0; i < len; ) {
             address collateralToken = collateralTokenPreference[i];
             if (!isCollateralToken(collateralToken)) revert NotACollateralToken();
-            
+
             uint256 collateralAmountForDebt = convertUsdToCollateralToken(
                 collateralToken,
                 repayDebtUsdAmt
