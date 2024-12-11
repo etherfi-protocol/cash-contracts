@@ -499,6 +499,8 @@ contract DebtManagerCore is DebtManagerStorage {
 
         for (uint256 i = 0; i < len; ) {
             address collateralToken = collateralTokenPreference[i];
+            if (!isCollateralToken(collateralToken)) revert NotACollateralToken();
+            
             uint256 collateralAmountForDebt = convertUsdToCollateralToken(
                 collateralToken,
                 repayDebtUsdAmt

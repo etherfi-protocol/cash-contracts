@@ -143,6 +143,47 @@ contract DebtManagerLiquidateTest is Setup {
         vm.stopPrank();
     }
 
+    function test_CannotLiquidateIfTokensPassedIsNotCollateralToken() public {
+        deal(address(usdc), address(aliceSafe), borrowAmt);
+        vm.prank(etherFiWallet);
+        aliceSafe.repay(address(usdc), borrowAmt);
+
+        priceProvider = PriceProvider(
+            address(new MockPriceProvider(mockWeETHPriceInUsd, address(usdc)))
+        );
+        vm.prank(owner);
+        cashDataProvider.setPriceProvider(address(priceProvider));
+
+        borrowAmt = debtManager.remainingBorrowingCapacityInUSD(address(aliceSafe));
+        // aliceSafe should borrow at new price for our calculations to be correct
+        vm.prank(etherFiWallet);
+        aliceSafe.spend(keccak256("newTxId"), address(usdc), borrowAmt);
+
+        vm.startPrank(owner);
+        uint256 newPrice = 1000e6; // 1000 USD per weETH
+        MockPriceProvider(address(priceProvider)).setPrice(newPrice);
+        
+        // Lower the thresholds for weETH as well
+        IL2DebtManager.CollateralTokenConfig memory collateralTokenConfigWeETH;
+        collateralTokenConfigWeETH.ltv = 5e18;
+        collateralTokenConfigWeETH.liquidationThreshold = 10e18;
+        collateralTokenConfigWeETH.liquidationBonus = 5e18;
+        debtManager.setCollateralTokenConfig(address(weETH), collateralTokenConfigWeETH);
+
+        address mockToken = address(new MockERC20("mockToken", "mock", 18));
+        address[] memory collateralTokenPreference = new address[](2);
+        collateralTokenPreference[0] = address(mockToken);
+        collateralTokenPreference[1] = address(weETH);
+
+        uint256 liquidationAmt = 5e6;
+
+        IERC20(address(usdc)).forceApprove(address(debtManager), liquidationAmt);
+        vm.expectRevert(IL2DebtManager.NotACollateralToken.selector);
+        debtManager.liquidate(address(aliceSafe), address(usdc), collateralTokenPreference);
+
+        vm.stopPrank();
+    }
+
     function test_LiquidatorIsChargedRightAmountOfBorrowTokens() public {
         deal(address(usdc), address(aliceSafe), borrowAmt);
         vm.prank(etherFiWallet);
