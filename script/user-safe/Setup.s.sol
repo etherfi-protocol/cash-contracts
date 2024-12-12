@@ -67,7 +67,6 @@ contract DeployUserSafeSetup is Utils {
     uint32 optimismDestEid = 30111;
     address usdc_rykiOpAddress = 0x9B9c3ae1f950EF121eaeADaeEB0Bcf4695603Bff;
 
-    // Shivam Metamask wallets
     address recoverySigner1 = 0xbED1b10aF02D48DA7dA0Fff26d16E0873AF46706;
     address recoverySigner2 = 0x566E58ac0F2c4BCaF6De63760C56cC3f825C48f5;
     string chainId;
@@ -88,6 +87,7 @@ contract DeployUserSafeSetup is Utils {
     address settlementDispatcherImpl;
     address cashbackDispatcherImpl;
     address userSafeLensImpl;
+    address priceProviderImpl;
 
     address[] supportedCollateralTokens;
     address[] supportedBorrowTokens;
@@ -192,7 +192,7 @@ contract DeployUserSafeSetup is Utils {
         initialTokensConfig[2] = usdcConfig;
         initialTokensConfig[3] = scrollConfig;
 
-        address priceProviderImpl = address(new PriceProvider{salt: getSalt(PRICE_PROVIDER_IMPL)}());
+        priceProviderImpl = address(new PriceProvider{salt: getSalt(PRICE_PROVIDER_IMPL)}());
         priceProvider = PriceProvider(
             address(
                 new UUPSProxy{salt: getSalt(PRICE_PROVIDER_PROXY)}(
@@ -376,8 +376,13 @@ contract DeployUserSafeSetup is Utils {
         vm.serializeAddress(deployedAddresses, "weETH", address(weETH));
         vm.serializeAddress(
             deployedAddresses,
-            "priceProvider",
+            "priceProviderProxy",
             address(priceProvider)
+        );
+        vm.serializeAddress(
+            deployedAddresses,
+            "priceProviderImpl",
+            address(priceProviderImpl)
         );
         vm.serializeAddress(deployedAddresses, "swapper", address(swapper));
         vm.serializeAddress(

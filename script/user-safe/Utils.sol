@@ -25,26 +25,26 @@ contract Utils is Script {
     string scrollChainId = "534352";
 
     string internal FACTORY_PROXY = "FactoryProxy";
-    string internal FACTORY_IMPL = "FactoryImpl";
+    string internal FACTORY_IMPL = "FactoryImpl1";
     string internal SETTLEMENT_DISPATCHER_PROXY = "SettlementDispatcherProxy";
-    string internal SETTLEMENT_DISPATCHER_IMPL = "SettlementDispatcherImpl";
+    string internal SETTLEMENT_DISPATCHER_IMPL = "SettlementDispatcherImpl1";
     string internal CASHBACK_DISPATCHER_PROXY = "CashbackDispatcherProxy";
-    string internal CASHBACK_DISPATCHER_IMPL = "CashbackDispatcherImpl";
+    string internal CASHBACK_DISPATCHER_IMPL = "CashbackDispatcherImpl1";
     string internal PRICE_PROVIDER_PROXY = "PriceProviderProxy";
-    string internal PRICE_PROVIDER_IMPL = "PriceProviderImpl";
+    string internal PRICE_PROVIDER_IMPL = "PriceProviderImpl1";
     string internal SWAPPER_OPEN_OCEAN = "SwapperOpenOcean";
     string internal CASH_DATA_PROVIDER_PROXY = "CashDataProviderProxy";
-    string internal CASH_DATA_PROVIDER_IMPL = "CashDataProviderImpl";
+    string internal CASH_DATA_PROVIDER_IMPL = "CashDataProviderImpl1";
     string internal DEBT_MANAGER_PROXY = "DebtManagerProxy";
-    string internal DEBT_MANAGER_CORE_IMPL = "DebtManagerCoreImpl";
-    string internal DEBT_MANAGER_ADMIN_IMPL = "DebtManagerAdminImpl";
-    string internal DEBT_MANAGER_INITIALIZER_IMPL = "DebtManagerInitializerImpl";
-    string internal USER_SAFE_CORE_IMPL = "UserSafeCoreImpl";
-    string internal USER_SAFE_SETTERS_IMPL = "UserSafeSettersImpl";
+    string internal DEBT_MANAGER_CORE_IMPL = "DebtManagerCoreImpl1";
+    string internal DEBT_MANAGER_ADMIN_IMPL = "DebtManagerAdminImpl1";
+    string internal DEBT_MANAGER_INITIALIZER_IMPL = "DebtManagerInitializerImpl1";
+    string internal USER_SAFE_CORE_IMPL = "UserSafeCoreImpl1";
+    string internal USER_SAFE_SETTERS_IMPL = "UserSafeSettersImpl1";
     string internal USER_SAFE_EVENT_EMITTER_PROXY = "UserSafeEventEmitterProxy";
-    string internal USER_SAFE_EVENT_EMITTER_IMPL = "UserSafeEventEmitterImpl";
-    string internal USER_SAFE_LENS_PROXY = "UserSafeLensProxy";
-    string internal USER_SAFE_LENS_IMPL = "UserSafeLensImpl";
+    string internal USER_SAFE_EVENT_EMITTER_IMPL = "UserSafeEventEmitterImpl1";
+    string internal USER_SAFE_LENS_PROXY = "UserSafeLensProxy1";
+    string internal USER_SAFE_LENS_IMPL = "UserSafeLensImpl1";
 
     function getChainConfig(
         string memory chainId

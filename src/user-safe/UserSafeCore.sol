@@ -33,7 +33,7 @@ contract UserSafeCore is UserSafeStorage {
     ) external initializer {        
         __ReentrancyGuardTransient_init();
         __owner.getOwnerObject()._ownerNotZero();
-        
+        _mode = Mode.Debit;
         _isRecoveryActive = true;
         _ownerBytes = __owner;
         SpendingLimit memory newLimit = _spendingLimit.initialize(

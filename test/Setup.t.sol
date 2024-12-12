@@ -331,24 +331,6 @@ contract Setup is Utils {
         deal(address(usdc), alice, 1 ether);
         deal(address(usdc), address(swapper), 1 ether);
 
-        uint256 nonce = aliceSafe.nonce() + 1;
-        bytes32 msgHash = keccak256(
-            abi.encode(
-                UserSafeLib.SET_MODE_METHOD,
-                block.chainid,
-                address(aliceSafe),
-                nonce,
-                IUserSafe.Mode.Debit
-            )
-        );
-        (uint8 v, bytes32 r, bytes32 s) = vm.sign(
-            alicePk,
-            msgHash.toEthSignedMessageHash()
-        );
-
-        bytes memory signature = abi.encodePacked(r, s, v);
-        aliceSafe.setMode(IUserSafe.Mode.Debit, signature);
-
         vm.stopPrank();
     }
 }
