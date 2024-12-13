@@ -1,11 +1,11 @@
 {
   "addresses": {
-    "cashDataProviderImpl": "0x9374fb8cB8A5371dd66980E2422A37C7F59678d6",
+    "cashDataProviderImpl": "0xDFB1c521423Ff2bb1Eb6AFCDDA545F20545F5796",
     "cashDataProviderProxy": "0xb1F5bBc3e4DE0c767ace41EAb8A28b837fBA966F",
-    "cashbackDispatcherImpl": "0xa3F6744F264882D1EC6d9a4735E583866A808e44",
+    "cashbackDispatcherImpl": "0x16745eFB1a8efdAfC6622f534cCBb7574AFD55E7",
     "cashbackDispatcherProxy": "0x7d372C3ca903CA2B6ecd8600D567eb6bAfC5e6c9",
-    "debtManagerAdminImpl": "0xE995f0b8d984441CFE978246740c7F6aCDE7560D",
-    "debtManagerCore": "0x1d3BE10146B8957BA15cbfE5754b0C0422a0873B",
+    "debtManagerAdminImpl": "0x325173ED24F7cB715f7Fc6C6A0be10d5330772A7",
+    "debtManagerCore": "0xeA25223B4677B4c3D41F3AE9c831c501bE780b0E",
     "debtManagerInitializer": "0x318c5F25E44ae661b06DCB9278648475Ee52F814",
     "debtManagerProxy": "0x8f9d2Cd33551CE06dD0564Ba147513F715c2F4a0",
     "etherFiWallet": "0x2e0BE8D3D9f1833fbACf9A5e9f2d470817Ff0c00",
@@ -17,14 +17,14 @@
     "settlementDispatcherProxy": "0x4Dca5093E0bB450D7f7961b5Df0A9d4c24B24786",
     "swapper": "0x44C00821F0e70F00b7af74235981eb30BEB3577F",
     "usdc": "0x06eFdBFf2a14a7c8E15944D1F4A48F9F95F663A4",
-    "userSafeCoreImpl": "0x5D0c33B2Df0C07CEcd11E7467A0f555c9640e3Da",
+    "userSafeCoreImpl": "0x11529B4776EC1940277A5F1fF2fB1Cc7100B31b0",
     "userSafeEventEmitterImpl": "0x5a85Fc47F678f715ec72b098EB8570e113CBa5D5",
     "userSafeEventEmitterProxy": "0x5423885B376eBb4e6104b8Ab1A908D350F6A162e",
-    "userSafeFactoryImpl": "0x7C1cA293B1e537bc9701348D8Ce0e5D6144A3e02",
+    "userSafeFactoryImpl": "0x8273c252C51E692dC3903073AC568620B5618F90",
     "userSafeFactoryProxy": "0x18Fa07dF94b4E9F09844e1128483801B24Fe8a27",
-    "userSafeLensImpl": "0x3111cf20B40287AfF1B5f9e916ea618e8b574223",
-    "userSafeLensProxy": "0x8518cDd9da840273662511Bd9175B3947e576E3A",
-    "userSafeSettersImpl": "0xfd5f13145416E16AcAC81daf9086f79dF4D53807",
+    "userSafeLensImpl": "0x1073EF7f8245dDF3537aacdA2f2DE6D44BeD0Abf",
+    "userSafeLensProxy": "0x333321a783f765bFd4c22FBBC5B2D02b97efB44c",
+    "userSafeSettersImpl": "0x712AA225d41FD3C39De5eC6449237DfB8a7fF298",
     "weETH": "0x01f0a31698C4d065659b9bdC21B3610292a1c506"
   }
 }
