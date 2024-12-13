@@ -1,9 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import "forge-std/Script.sol";
-
-import "@openzeppelin/contracts/utils/Strings.sol";
+import {Script} from "forge-std/Script.sol";
+import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
 
 
 contract GnosisHelpers is Script {
