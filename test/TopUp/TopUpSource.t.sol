@@ -8,6 +8,7 @@ import {EtherFiOFTBridgeAdapter} from "../../src/top-up/bridges/EtherFiOFTBridge
 import {UUPSProxy} from "../../src/UUPSProxy.sol";
 import {SafeERC20, IERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IAccessControl} from "@openzeppelin/contracts/access/IAccessControl.sol";
+import {MockERC20} from "../../src/mocks/MockERC20.sol";
 
 contract TopUpSourceTest is Test {
     using SafeERC20 for IERC20;
@@ -333,25 +334,31 @@ contract TopUpSourceTest is Test {
         uint256 recoveryWalletBalBefore = 0;
         uint256 topUpSrcBalBefore = 100 ether;
 
-        deal(address(usdc), recoveryWallet, recoveryWalletBalBefore);
-        deal(address(usdc), address(topUpSrc), topUpSrcBalBefore);
+        deal(address(weth), address(topUpSrc), topUpSrcBalBefore);
 
         vm.prank(owner);
         vm.expectEmit(true, true, true, true);
-        emit TopUpSource.Recovery(recoveryWallet, address(usdc), amount);
-        topUpSrc.recoverFunds(address(usdc), amount);
+        emit TopUpSource.Recovery(recoveryWallet, address(weth), amount);
+        topUpSrc.recoverFunds(address(weth), amount);
 
-        uint256 recoveryWalletBalAfter = usdc.balanceOf(recoveryWallet);
-        uint256 topUpSrcBalAfter = usdc.balanceOf(address(topUpSrc));
+        uint256 recoveryWalletBalAfter = weth.balanceOf(recoveryWallet);
+        uint256 topUpSrcBalAfter = weth.balanceOf(address(topUpSrc));
 
         assertEq(recoveryWalletBalAfter - recoveryWalletBalBefore, amount);
         assertEq(topUpSrcBalBefore - topUpSrcBalAfter, amount);
     }
 
+    function test_CannotRecoverSupportedToken() public {
+        vm.startPrank(owner);
+        vm.expectRevert(TopUpSource.CannotRecoverSupportedToken.selector);
+        topUpSrc.recoverFunds(address(usdc), 1);
+        vm.stopPrank();
+    }
+
     function test_OnlyDefaultAdminCanRecoverFunds() public {
         vm.startPrank(notOwner);
         vm.expectRevert(buildAccessControlRevertData(notOwner, topUpSrc.DEFAULT_ADMIN_ROLE()));
-        topUpSrc.recoverFunds(address(usdc), 1);
+        topUpSrc.recoverFunds(address(weth), 1);
         vm.stopPrank();
     }
 

@@ -40,6 +40,7 @@ contract TopUpSource is Initializable, UUPSUpgradeable, AccessControlDefaultAdmi
     error RecoveryWalletNotSet();
     error RecoveryWalletCannotBeZeroAddress();
     error DefaultAdminCannotBeZeroAddress();
+    error CannotRecoverSupportedToken();
 
     constructor() {
         _disableInitializers();
@@ -127,6 +128,8 @@ contract TopUpSource is Initializable, UUPSUpgradeable, AccessControlDefaultAdmi
     function recoverFunds(address token, uint256 amount) external onlyRole(DEFAULT_ADMIN_ROLE) {
         if (recoveryWallet == address(0)) revert RecoveryWalletNotSet();
         if (token == address(0)) revert TokenCannotBeZeroAddress();
+        if (_tokenConfig[token].recipientOnDestChain != address(0)) revert CannotRecoverSupportedToken();
+
         IERC20(token).safeTransfer(recoveryWallet, amount);   
 
         emit Recovery(recoveryWallet, token, amount);
