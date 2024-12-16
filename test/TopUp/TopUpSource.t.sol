@@ -8,6 +8,7 @@ import {EtherFiOFTBridgeAdapter} from "../../src/top-up/bridges/EtherFiOFTBridge
 import {UUPSProxy} from "../../src/UUPSProxy.sol";
 import {SafeERC20, IERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IAccessControl} from "@openzeppelin/contracts/access/IAccessControl.sol";
+import {MockERC20} from "../../src/mocks/MockERC20.sol";
 
 contract TopUpSourceTest is Test {
     using SafeERC20 for IERC20;
@@ -15,7 +16,6 @@ contract TopUpSourceTest is Test {
     address owner = makeAddr("owner");
     address notOwner = makeAddr("notOwner");
     address alice = makeAddr("alice");
-    address recoveryWallet = makeAddr("recoveryWallet");
     TopUpSource topUpSrc;
     EtherFiOFTBridgeAdapter oftBridgeAdapter;
     StargateAdapter stargateAdapter;
@@ -70,12 +70,9 @@ contract TopUpSourceTest is Test {
         ))); 
 
         vm.expectRevert(TopUpSource.DefaultAdminCannotBeZeroAddress.selector);
-        topUpSrc.initialize(address(weth), address(0), recoveryWallet);
+        topUpSrc.initialize(address(weth), address(0));
         
-        vm.expectRevert(TopUpSource.RecoveryWalletCannotBeZeroAddress.selector);
-        topUpSrc.initialize(address(weth), owner, address(0));
-
-        topUpSrc.initialize(address(weth), owner, recoveryWallet);
+        topUpSrc.initialize(address(weth), owner);
         topUpSrc.setTokenConfig(tokens, tokenConfigs);
 
         vm.stopPrank();
@@ -324,65 +321,6 @@ contract TopUpSourceTest is Test {
 
         vm.expectRevert(PausableUpgradeable.EnforcedPause.selector);
         topUpSrc.bridge(address(usdc));
-        vm.stopPrank();
-    }
-
-    function test_Recovery() public {
-        uint256 amount = 1 ether;
-
-        uint256 recoveryWalletBalBefore = 0;
-        uint256 topUpSrcBalBefore = 100 ether;
-
-        deal(address(usdc), recoveryWallet, recoveryWalletBalBefore);
-        deal(address(usdc), address(topUpSrc), topUpSrcBalBefore);
-
-        vm.prank(owner);
-        vm.expectEmit(true, true, true, true);
-        emit TopUpSource.Recovery(recoveryWallet, address(usdc), amount);
-        topUpSrc.recoverFunds(address(usdc), amount);
-
-        uint256 recoveryWalletBalAfter = usdc.balanceOf(recoveryWallet);
-        uint256 topUpSrcBalAfter = usdc.balanceOf(address(topUpSrc));
-
-        assertEq(recoveryWalletBalAfter - recoveryWalletBalBefore, amount);
-        assertEq(topUpSrcBalBefore - topUpSrcBalAfter, amount);
-    }
-
-    function test_OnlyDefaultAdminCanRecoverFunds() public {
-        vm.startPrank(notOwner);
-        vm.expectRevert(buildAccessControlRevertData(notOwner, topUpSrc.DEFAULT_ADMIN_ROLE()));
-        topUpSrc.recoverFunds(address(usdc), 1);
-        vm.stopPrank();
-    }
-
-    function test_CannotRecoverIfTokenIsAddressZero() public {
-        vm.prank(owner);
-        vm.expectRevert(TopUpSource.TokenCannotBeZeroAddress.selector);
-        topUpSrc.recoverFunds(address(0), 1);
-    }
-
-    function test_CanSetRecoveryWallet() public {
-        address newRecoveryWallet = makeAddr("newRecoveryWallet");
-        vm.startPrank(owner);
-        vm.expectEmit(true, true, true, true);
-        emit TopUpSource.RecoveryWalletSet(recoveryWallet, newRecoveryWallet);
-        topUpSrc.setRecoveryWallet(newRecoveryWallet);
-        vm.stopPrank();
-
-        assertEq(topUpSrc.recoveryWallet(), newRecoveryWallet);
-    }
-
-    function test_OnlyOwnerCanSetRecoveryWallet() public {
-        vm.startPrank(notOwner);
-        vm.expectRevert(buildAccessControlRevertData(notOwner, topUpSrc.DEFAULT_ADMIN_ROLE()));
-        topUpSrc.setRecoveryWallet(address(1));
-        vm.stopPrank();
-    }
-
-    function test_CannotSetRecoveryWalletToAddressZero() public {
-        vm.startPrank(owner);
-        vm.expectRevert(TopUpSource.RecoveryWalletCannotBeZeroAddress.selector);
-        topUpSrc.setRecoveryWallet(address(0));
         vm.stopPrank();
     }
 

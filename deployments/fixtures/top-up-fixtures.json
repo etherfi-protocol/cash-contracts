@@ -5,7 +5,6 @@
   "1": {
       "weth": "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
       "owner": "0xA6cf33124cb342D1c604cAC87986B965F428AAC4",
-      "recoveryWallet": "0xA6cf33124cb342D1c604cAC87986B965F428AAC4",
       "tokenConfigs":[
         {
           "token": "usdc",
@@ -26,7 +25,6 @@
   "8453": {
       "weth": "0x4200000000000000000000000000000000000006",
       "owner": "0xA6cf33124cb342D1c604cAC87986B965F428AAC4",
-      "recoveryWallet": "0xA6cf33124cb342D1c604cAC87986B965F428AAC4",
       "tokenConfigs":[
         {
           "token": "usdc",
