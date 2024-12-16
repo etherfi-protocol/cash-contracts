@@ -1,19 +1,19 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.24;
 
-import {UserSafeLens} from "../src/user-safe/UserSafeLens.sol";
-import {UserSafeCore} from "../src/user-safe/UserSafeCore.sol";
-import {UserSafeSetters} from "../src/user-safe/UserSafeSetters.sol";
-import {CashbackDispatcher} from "../src/cashback-dispatcher/CashbackDispatcher.sol";
-import {SettlementDispatcher} from "../src/settlement-dispatcher/SettlementDispatcher.sol";
-import {UserSafeFactory} from "../src/user-safe/UserSafeFactory.sol";
-import {DebtManagerCore} from "../src/debt-manager/DebtManagerCore.sol";
-import {DebtManagerAdmin} from "../src/debt-manager/DebtManagerAdmin.sol";
-import {UUPSProxy} from "../src/UUPSProxy.sol";
-import {CashDataProvider} from "../src/utils/CashDataProvider.sol";
+import {UserSafeLens} from "../../src/user-safe/UserSafeLens.sol";
+import {UserSafeCore} from "../../src/user-safe/UserSafeCore.sol";
+import {UserSafeSetters} from "../../src/user-safe/UserSafeSetters.sol";
+import {CashbackDispatcher} from "../../src/cashback-dispatcher/CashbackDispatcher.sol";
+import {SettlementDispatcher} from "../../src/settlement-dispatcher/SettlementDispatcher.sol";
+import {UserSafeFactory} from "../../src/user-safe/UserSafeFactory.sol";
+import {DebtManagerCore} from "../../src/debt-manager/DebtManagerCore.sol";
+import {DebtManagerAdmin} from "../../src/debt-manager/DebtManagerAdmin.sol";
+import {UUPSProxy} from "../../src/UUPSProxy.sol";
+import {CashDataProvider} from "../../src/utils/CashDataProvider.sol";
 import {stdJson} from "forge-std/StdJson.sol";
-import {GnosisHelpers} from "../utils/GnosisHelpers.sol";
-import {Utils} from "../script/user-safe/Utils.sol";
+import {GnosisHelpers} from "../../utils/GnosisHelpers.sol";
+import {Utils} from "../../script/user-safe/Utils.sol";
 import {Test} from "forge-std/Test.sol";
 
 contract Migrate is Utils, GnosisHelpers {
