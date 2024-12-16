@@ -24,31 +24,25 @@ contract TopUpSource is Initializable, UUPSUpgradeable, AccessControlDefaultAdmi
     
     IWETH public weth;
     mapping (address token => TokenConfig config) private _tokenConfig;
-    address public recoveryWallet;
+    address private deprecated_variable;
 
     event TokenConfigSet(address[] tokens, TokenConfig[] configs);
     event Bridge(address token, uint256 amount);
     event ETHDeposit(address sender, uint256 amount);
-    event Recovery(address recoveryWallet, address token, uint256 amount);
-    event RecoveryWalletSet(address oldRecoveryWallet, address newRecoveryWallet);
 
     error ArrayLengthMismatch();
     error TokenCannotBeZeroAddress();
     error InvalidConfig();
     error TokenConfigNotSet();
     error ZeroBalance();
-    error RecoveryWalletNotSet();
-    error RecoveryWalletCannotBeZeroAddress();
     error DefaultAdminCannotBeZeroAddress();
-    error CannotRecoverSupportedToken();
 
     constructor() {
         _disableInitializers();
     }
 
-    function initialize(address _weth, address _defaultAdmin, address _recoveryWallet) external initializer {
+    function initialize(address _weth, address _defaultAdmin) external initializer {
         if (_defaultAdmin == address(0)) revert DefaultAdminCannotBeZeroAddress();
-        if (_recoveryWallet == address(0)) revert RecoveryWalletCannotBeZeroAddress();
 
         __UUPSUpgradeable_init_unchained();
         __AccessControlDefaultAdminRules_init_unchained(5 * 60, _defaultAdmin);
@@ -58,8 +52,6 @@ contract TopUpSource is Initializable, UUPSUpgradeable, AccessControlDefaultAdmi
         _grantRole(BRIDGER_ROLE, _defaultAdmin);
 
         weth = IWETH(_weth);
-        recoveryWallet = _recoveryWallet;
-        emit RecoveryWalletSet(address(0), _recoveryWallet);
     }
 
     function tokenConfig(address token) external view returns (TokenConfig memory) {
@@ -123,22 +115,6 @@ contract TopUpSource is Initializable, UUPSUpgradeable, AccessControlDefaultAdmi
             _tokenConfig[token].maxSlippageInBps, 
             _tokenConfig[token].additionalData
         );
-    }
-
-    function recoverFunds(address token, uint256 amount) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        if (recoveryWallet == address(0)) revert RecoveryWalletNotSet();
-        if (token == address(0)) revert TokenCannotBeZeroAddress();
-        if (_tokenConfig[token].recipientOnDestChain != address(0)) revert CannotRecoverSupportedToken();
-
-        IERC20(token).safeTransfer(recoveryWallet, amount);   
-
-        emit Recovery(recoveryWallet, token, amount);
-    }
-
-    function setRecoveryWallet(address _recoveryWallet) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        if (_recoveryWallet == address(0)) revert RecoveryWalletCannotBeZeroAddress();
-        emit RecoveryWalletSet(recoveryWallet, _recoveryWallet);
-        recoveryWallet = _recoveryWallet;
     }
 
     function pause() external whenNotPaused onlyRole(PAUSER_ROLE) {
