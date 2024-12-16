@@ -1,3 +1,4 @@
+
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
@@ -9,9 +10,13 @@ struct ChainConfig {
     string rpc;
     address weth;
     address usdc;
+    address usdt;
     address weETH;
+    address scr;
     address weEthWethOracle;
     address ethUsdcOracle;
+    address scrUsdOracle;
+    address usdcUsdOracle;
     address swapRouter1InchV6;
     address swapRouterOpenOcean;
     address aaveV3Pool;
@@ -22,6 +27,7 @@ contract Utils is Test {
     bytes32 public constant DEFAULT_ADMIN_ROLE = bytes32(0);
     bytes32 public constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
     uint256 public constant HUNDRED_PERCENT = 100e18;
+    uint256 public constant HUNDRED_PERCENT_IN_BPS = 10000;
     uint256 public constant PRECISION = 1e18;
     uint256 public constant SIX_DECIMALS = 1e6;
     address eth = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
@@ -54,9 +60,19 @@ contract Utils is Test {
             string.concat(".", chainId, ".", "usdc")
         );
 
+        config.usdt = stdJson.readAddress(
+            inputJson,
+            string.concat(".", chainId, ".", "usdt")
+        );
+
         config.weETH = stdJson.readAddress(
             inputJson,
             string.concat(".", chainId, ".", "weETH")
+        );
+
+        config.scr = stdJson.readAddress(
+            inputJson,
+            string.concat(".", chainId, ".", "scr")
         );
 
         config.weEthWethOracle = stdJson.readAddress(
@@ -67,6 +83,16 @@ contract Utils is Test {
         config.ethUsdcOracle = stdJson.readAddress(
             inputJson,
             string.concat(".", chainId, ".", "ethUsdcOracle")
+        );
+
+        config.scrUsdOracle = stdJson.readAddress(
+            inputJson,
+            string.concat(".", chainId, ".", "scrUsdOracle")
+        );
+
+        config.usdcUsdOracle = stdJson.readAddress(
+            inputJson,
+            string.concat(".", chainId, ".", "usdcUsdOracle")
         );
 
         config.swapRouter1InchV6 = stdJson.readAddress(
@@ -110,9 +136,10 @@ contract Utils is Test {
         address to,
         address srcToken,
         address dstToken,
-        uint256 amount
+        uint256 amount,
+        uint8 srcTokenDecimals
     ) internal returns (bytes memory data) {
-        string[] memory inputs = new string[](9);
+        string[] memory inputs = new string[](10);
         inputs[0] = "npx";
         inputs[1] = "ts-node";
         inputs[2] = "test/getQuote1Inch.ts";
@@ -122,6 +149,7 @@ contract Utils is Test {
         inputs[6] = vm.toString(srcToken);
         inputs[7] = vm.toString(dstToken);
         inputs[8] = vm.toString(amount);
+        inputs[9] = vm.toString(srcTokenDecimals);
 
         return vm.ffi(inputs);
     }
@@ -132,9 +160,10 @@ contract Utils is Test {
         address to,
         address srcToken,
         address dstToken,
-        uint256 amount
+        uint256 amount,
+        uint8 srcTokenDecimals
     ) internal returns (bytes memory data) {
-        string[] memory inputs = new string[](9);
+        string[] memory inputs = new string[](10);
         inputs[0] = "npx";
         inputs[1] = "ts-node";
         inputs[2] = "test/getQuoteOpenOcean.ts";
@@ -144,6 +173,7 @@ contract Utils is Test {
         inputs[6] = vm.toString(srcToken);
         inputs[7] = vm.toString(dstToken);
         inputs[8] = vm.toString(amount);
+        inputs[9] = vm.toString(srcTokenDecimals);
 
         return vm.ffi(inputs);
     }

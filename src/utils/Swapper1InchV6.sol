@@ -49,6 +49,9 @@ contract Swapper1InchV6 is ISwapper {
         uint256,
         bytes calldata _data
     ) external returns (uint256 toAssetAmount) {
+        if (IERC20(_fromAsset).allowance(address(this), address(swapRouter)) < _fromAssetAmount) 
+            IERC20(_fromAsset).forceApprove(swapRouter, type(uint256).max);
+            
         // Decode the function selector from the RLP encoded _data param
         bytes4 swapSelector = bytes4(_data[:4]);
 

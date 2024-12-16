@@ -8,16 +8,43 @@ struct ChainConfig {
     string rpc;
     address usdc;
     address weETH;
+    address scr;
     address weEthWethOracle;
     address ethUsdcOracle;
+    address scrUsdOracle;
+    address usdcUsdOracle;
     address swapRouter1InchV6;
     address swapRouterOpenOcean;
     address aaveV3Pool;
     address aaveV3PoolDataProvider;
+    address stargateUsdcPool;
 }
 
 contract Utils is Script {
     address eth = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
+    string scrollChainId = "534352";
+
+    string internal FACTORY_PROXY = "FactoryProxy";
+    string internal FACTORY_IMPL = "FactoryImpl";
+    string internal SETTLEMENT_DISPATCHER_PROXY = "SettlementDispatcherProxy";
+    string internal SETTLEMENT_DISPATCHER_IMPL = "SettlementDispatcherImpl";
+    string internal CASHBACK_DISPATCHER_PROXY = "CashbackDispatcherProxy";
+    string internal CASHBACK_DISPATCHER_IMPL = "CashbackDispatcherImpl";
+    string internal PRICE_PROVIDER_PROXY = "PriceProviderProxy";
+    string internal PRICE_PROVIDER_IMPL = "PriceProviderImpl";
+    string internal SWAPPER_OPEN_OCEAN = "SwapperOpenOcean";
+    string internal CASH_DATA_PROVIDER_PROXY = "CashDataProviderProxy";
+    string internal CASH_DATA_PROVIDER_IMPL = "CashDataProviderImpl";
+    string internal DEBT_MANAGER_PROXY = "DebtManagerProxy";
+    string internal DEBT_MANAGER_CORE_IMPL = "DebtManagerCoreImpl";
+    string internal DEBT_MANAGER_ADMIN_IMPL = "DebtManagerAdminImpl";
+    string internal DEBT_MANAGER_INITIALIZER_IMPL = "DebtManagerInitializerImpl";
+    string internal USER_SAFE_CORE_IMPL = "UserSafeCoreImpl";
+    string internal USER_SAFE_SETTERS_IMPL = "UserSafeSettersImpl";
+    string internal USER_SAFE_EVENT_EMITTER_PROXY = "UserSafeEventEmitterProxy";
+    string internal USER_SAFE_EVENT_EMITTER_IMPL = "UserSafeEventEmitterImpl";
+    string internal USER_SAFE_LENS_PROXY = "UserSafeLensProxy";
+    string internal USER_SAFE_LENS_IMPL = "UserSafeLensImpl";
 
     function getChainConfig(
         string memory chainId
@@ -30,63 +57,79 @@ contract Utils is Script {
 
         string memory inputJson = vm.readFile(string.concat(dir, file));
 
-        string memory rpc = stdJson.readString(
+        ChainConfig memory config;
+
+        config.rpc = stdJson.readString(
             inputJson,
             string.concat(".", chainId, ".", "rpc")
         );
 
-        address usdc = stdJson.readAddress(
+        config.usdc = stdJson.readAddress(
             inputJson,
             string.concat(".", chainId, ".", "usdc")
         );
 
-        address weETH = stdJson.readAddress(
+        config.weETH = stdJson.readAddress(
             inputJson,
             string.concat(".", chainId, ".", "weETH")
         );
 
-        address weEthWethOracle = stdJson.readAddress(
+        config.scr = stdJson.readAddress(
+            inputJson,
+            string.concat(".", chainId, ".", "scr")
+        );
+
+        config.weEthWethOracle = stdJson.readAddress(
             inputJson,
             string.concat(".", chainId, ".", "weEthWethOracle")
         );
 
-        address ethUsdcOracle = stdJson.readAddress(
+        config.ethUsdcOracle = stdJson.readAddress(
             inputJson,
             string.concat(".", chainId, ".", "ethUsdcOracle")
         );
 
-        address swapRouter1InchV6 = stdJson.readAddress(
+        config.scrUsdOracle = stdJson.readAddress(
+            inputJson,
+            string.concat(".", chainId, ".", "scrUsdOracle")
+        );
+
+        config.usdcUsdOracle = stdJson.readAddress(
+            inputJson,
+            string.concat(".", chainId, ".", "usdcUsdOracle")
+        );
+
+        config.usdcUsdOracle = stdJson.readAddress(
+            inputJson,
+            string.concat(".", chainId, ".", "usdcUsdOracle")
+        );
+
+        config.swapRouter1InchV6 = stdJson.readAddress(
             inputJson,
             string.concat(".", chainId, ".", "swapRouter1InchV6")
         );
 
-        address swapRouterOpenOcean = stdJson.readAddress(
+        config.swapRouterOpenOcean = stdJson.readAddress(
             inputJson,
             string.concat(".", chainId, ".", "swapRouterOpenOcean")
         );
 
-        address aaveV3Pool = stdJson.readAddress(
+        config.aaveV3Pool = stdJson.readAddress(
             inputJson,
             string.concat(".", chainId, ".", "aaveV3Pool")
         );
 
-        address aaveV3PoolDataProvider = stdJson.readAddress(
+        config.aaveV3PoolDataProvider = stdJson.readAddress(
             inputJson,
             string.concat(".", chainId, ".", "aaveV3PoolDataProvider")
         );
 
-        return
-            ChainConfig({
-                rpc: rpc,
-                usdc: usdc,
-                weETH: weETH,
-                weEthWethOracle: weEthWethOracle,
-                ethUsdcOracle: ethUsdcOracle,
-                swapRouter1InchV6: swapRouter1InchV6,
-                swapRouterOpenOcean: swapRouterOpenOcean,
-                aaveV3Pool: aaveV3Pool,
-                aaveV3PoolDataProvider: aaveV3PoolDataProvider
-            });
+        config.stargateUsdcPool = stdJson.readAddress(
+            inputJson,
+            string.concat(".", chainId, ".", "stargateUsdcPool")
+        );
+
+        return config;
     }
 
     function readDeploymentFile() internal view returns (string memory) {
@@ -136,5 +179,9 @@ contract Utils is Script {
         inputs[8] = vm.toString(amount);
 
         return vm.ffi(inputs);
+    }
+
+    function getSalt(string memory contractName) internal pure returns (bytes32) {
+        return keccak256(bytes(contractName));
     }
 }

@@ -19,12 +19,16 @@ contract CashDataProviderTest is Test {
 
     uint64 delay = 100;
     address etherFiWallet = makeAddr("etherFiWallet");
-    address etherFiCashMultiSig = makeAddr("etherFiCashMultiSig");
+    address settlementDispatcher = makeAddr("settlementDispatcher");
     address priceProvider = makeAddr("priceProvider");
     address swapper = makeAddr("swapper");
-    address aaveAdapter = makeAddr("aaveAdapter");
     address userSafeFactory = makeAddr("userSafeFactory");
     address debtManager = makeAddr("debtManager");
+    address userSafeEventEmitter = makeAddr("userSafeEventEmitter");
+    address cashbackDispatcher = makeAddr("cashbackDispatcher");
+    address userSafeLens = makeAddr("userSafeLens");
+    address recoverySigner1 = makeAddr("recoverySigner1");
+    address recoverySigner2 = makeAddr("recoverySigner2");
 
     function setUp() public {
         vm.startPrank(owner);
@@ -35,16 +39,23 @@ contract CashDataProviderTest is Test {
         );
 
         cashDataProvider.initialize(
-            owner,
-            delay,
-            etherFiWallet,
-            etherFiCashMultiSig,
-            debtManager,
-            priceProvider,
-            swapper,
-            aaveAdapter,
-            userSafeFactory
+            ICashDataProvider.InitData({
+                owner: owner,
+                delay: uint64(delay),
+                etherFiWallet: etherFiWallet,
+                settlementDispatcher: address(settlementDispatcher),
+                etherFiCashDebtManager: address(debtManager),
+                priceProvider: address(priceProvider),
+                swapper: address(swapper),
+                userSafeFactory: address(userSafeFactory),
+                userSafeEventEmitter: address(userSafeEventEmitter),
+                cashbackDispatcher: address(cashbackDispatcher),
+                userSafeLens: address(userSafeLens),
+                etherFiRecoverySigner: recoverySigner1,
+                thirdPartyRecoverySigner: recoverySigner2
+            })
         );
+
 
         cashDataProvider.grantRole(ADMIN_ROLE, admin);
 
@@ -55,12 +66,14 @@ contract CashDataProviderTest is Test {
         assertEq(cashDataProvider.owner(), owner);
         assertEq(cashDataProvider.delay(), delay);
         assertEq(cashDataProvider.isEtherFiWallet(etherFiWallet), true);
-        assertEq(cashDataProvider.etherFiCashMultiSig(), etherFiCashMultiSig);
+        assertEq(cashDataProvider.settlementDispatcher(), settlementDispatcher);
         assertEq(cashDataProvider.etherFiCashDebtManager(), debtManager);
         assertEq(cashDataProvider.priceProvider(), priceProvider);
         assertEq(cashDataProvider.swapper(), swapper);
-        assertEq(cashDataProvider.aaveAdapter(), aaveAdapter);
         assertEq(cashDataProvider.userSafeFactory(), userSafeFactory);
+        assertEq(cashDataProvider.userSafeEventEmitter(), userSafeEventEmitter);
+        assertEq(cashDataProvider.cashbackDispatcher(), cashbackDispatcher);
+        assertEq(cashDataProvider.userSafeLens(), userSafeLens);
         assertEq(cashDataProvider.hasRole(ADMIN_ROLE, owner), true);
         assertEq(cashDataProvider.hasRole(ADMIN_ROLE, admin), true);
     }
@@ -129,17 +142,17 @@ contract CashDataProviderTest is Test {
         
         vm.prank(notAdmin);
         vm.expectRevert(buildAccessControlRevertData(notAdmin, ADMIN_ROLE));
-        cashDataProvider.setEtherFiCashMultiSig(newWallet);
+        cashDataProvider.setSettlementDispatcher(newWallet);
 
         vm.prank(admin);
         vm.expectRevert(ICashDataProvider.InvalidValue.selector);
-        cashDataProvider.setEtherFiCashMultiSig(address(0));
+        cashDataProvider.setSettlementDispatcher(address(0));
         
         vm.prank(admin);
         vm.expectEmit(true, true, true, true);
-        emit ICashDataProvider.CashMultiSigUpdated(etherFiCashMultiSig, newWallet);
-        cashDataProvider.setEtherFiCashMultiSig(newWallet);
-        assertEq(cashDataProvider.etherFiCashMultiSig(), newWallet);
+        emit ICashDataProvider.SettlementDispatcherUpdated(settlementDispatcher, newWallet);
+        cashDataProvider.setSettlementDispatcher(newWallet);
+        assertEq(cashDataProvider.settlementDispatcher(), newWallet);
     }
 
     function test_SetEtherFiCashDebtManager() public {
@@ -196,24 +209,6 @@ contract CashDataProviderTest is Test {
         assertEq(cashDataProvider.swapper(), newWallet);
     }
 
-    function test_SetAaveAdapter() public {
-        address newWallet = makeAddr("newWallet");
-    
-        vm.prank(notAdmin);
-        vm.expectRevert(buildAccessControlRevertData(notAdmin, ADMIN_ROLE));
-        cashDataProvider.setAaveAdapter(newWallet);
-
-        vm.prank(admin);
-        vm.expectRevert(ICashDataProvider.InvalidValue.selector);
-        cashDataProvider.setAaveAdapter(address(0));
-        
-        vm.prank(admin);
-        vm.expectEmit(true, true, true, true);
-        emit ICashDataProvider.AaveAdapterUpdated(aaveAdapter, newWallet);
-        cashDataProvider.setAaveAdapter(newWallet);
-        assertEq(cashDataProvider.aaveAdapter(), newWallet);
-    }
-
     function test_SetUserSafeFactory() public {
         address newWallet = makeAddr("newWallet");
     
@@ -230,6 +225,60 @@ contract CashDataProviderTest is Test {
         emit ICashDataProvider.UserSafeFactoryUpdated(userSafeFactory, newWallet);
         cashDataProvider.setUserSafeFactory(newWallet);
         assertEq(cashDataProvider.userSafeFactory(), newWallet);
+    }
+
+    function test_SetUserSafeEventEmitter() public {
+        address newWallet = makeAddr("newWallet");
+    
+        vm.prank(notAdmin);
+        vm.expectRevert(buildAccessControlRevertData(notAdmin, ADMIN_ROLE));
+        cashDataProvider.setUserSafeEventEmitter(newWallet);
+
+        vm.prank(admin);
+        vm.expectRevert(ICashDataProvider.InvalidValue.selector);
+        cashDataProvider.setUserSafeEventEmitter(address(0));
+        
+        vm.prank(admin);
+        vm.expectEmit(true, true, true, true);
+        emit ICashDataProvider.UserSafeEventEmitterUpdated(userSafeEventEmitter, newWallet);
+        cashDataProvider.setUserSafeEventEmitter(newWallet);
+        assertEq(cashDataProvider.userSafeEventEmitter(), newWallet);
+    }
+
+    function test_SetCashbackDispatcher() public {
+        address newDispatcher = makeAddr("newDispatcher");
+    
+        vm.prank(notAdmin);
+        vm.expectRevert(buildAccessControlRevertData(notAdmin, ADMIN_ROLE));
+        cashDataProvider.setCashbackDispatcher(newDispatcher);
+
+        vm.prank(admin);
+        vm.expectRevert(ICashDataProvider.InvalidValue.selector);
+        cashDataProvider.setCashbackDispatcher(address(0));
+        
+        vm.prank(admin);
+        vm.expectEmit(true, true, true, true);
+        emit ICashDataProvider.CashbackDispatcherUpdated(cashbackDispatcher, newDispatcher);
+        cashDataProvider.setCashbackDispatcher(newDispatcher);
+        assertEq(cashDataProvider.cashbackDispatcher(), newDispatcher);
+    }
+
+    function test_SetUserSafeLens() public {
+        address newLens = makeAddr("newLens");
+    
+        vm.prank(notAdmin);
+        vm.expectRevert(buildAccessControlRevertData(notAdmin, ADMIN_ROLE));
+        cashDataProvider.setUserSafeLens(newLens);
+
+        vm.prank(admin);
+        vm.expectRevert(ICashDataProvider.InvalidValue.selector);
+        cashDataProvider.setUserSafeLens(address(0));
+        
+        vm.prank(admin);
+        vm.expectEmit(true, true, true, true);
+        emit ICashDataProvider.UserSafeLensUpdated(userSafeLens, newLens);
+        cashDataProvider.setUserSafeLens(newLens);
+        assertEq(cashDataProvider.userSafeLens(), newLens);
     }
 
     function test_WhitelistUserSafe() public {

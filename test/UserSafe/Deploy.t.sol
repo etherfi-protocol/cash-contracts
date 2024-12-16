@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import {IUserSafe, OwnerLib, UserSafe} from "../../src/user-safe/UserSafe.sol";
-import {UserSafeSetup} from "./UserSafeSetup.t.sol";
+import {IUserSafe, OwnerLib, SpendingLimit, UserSafeCore} from "../../src/user-safe/UserSafeCore.sol";
+import {Setup} from "../Setup.t.sol";
 import {CREATE3} from "solady/utils/CREATE3.sol";
 
-contract UserSafeDeployTest is UserSafeSetup {
+contract UserSafeDeployTest is Setup {
     address bob = makeAddr("bob");
     bytes bobBytes = abi.encode(bob);
 
@@ -13,25 +13,29 @@ contract UserSafeDeployTest is UserSafeSetup {
         assertEq(aliceSafe.owner().ethAddr, alice);
         assertEq(aliceSafe.recoverySigners()[0].ethAddr, address(0));
         assertEq(aliceSafe.recoverySigners()[1].ethAddr, etherFiRecoverySigner);
-        assertEq(
-            aliceSafe.recoverySigners()[2].ethAddr,
-            thirdPartyRecoverySigner
-        );
+        assertEq(aliceSafe.recoverySigners()[2].ethAddr, thirdPartyRecoverySigner);
 
-        UserSafe.SpendingLimitData memory spendingLimit = aliceSafe
-            .applicableSpendingLimit();
-        assertEq(spendingLimit.spendingLimit, defaultSpendingLimit);
+        SpendingLimit memory spendingLimit = aliceSafe.applicableSpendingLimit();
+        assertEq(spendingLimit.dailyLimit, defaultDailySpendingLimit);
+        assertEq(spendingLimit.monthlyLimit, defaultMonthlySpendingLimit);
+        assertEq(spendingLimit.spentToday, 0);
+        assertEq(spendingLimit.spentThisMonth, 0);
+        assertEq(spendingLimit.newDailyLimit, 0);
+        assertEq(spendingLimit.newMonthlyLimit, 0);
+        assertEq(spendingLimit.dailyLimitChangeActivationTime, 0);
+        assertEq(spendingLimit.monthlyLimitChangeActivationTime, 0);
+        assertEq(spendingLimit.timezoneOffset, timezoneOffset);
     }
 
     function test_DeployAUserSafe() public {
         bytes memory salt = abi.encode("safe", block.timestamp);
 
         bytes memory initData = abi.encodeWithSelector(
-            // initialize(bytes,uint256, uint256)
-            0x32b218ac,
+            UserSafeCore.initialize.selector,
             bobBytes,
-            defaultSpendingLimit,
-            collateralLimit
+            defaultDailySpendingLimit,
+            defaultMonthlySpendingLimit,
+            timezoneOffset
         );
         
         address deterministicAddress = factory.getUserSafeAddress(salt, initData);
@@ -45,11 +49,11 @@ contract UserSafeDeployTest is UserSafeSetup {
         bytes memory salt = abi.encode("safe", block.timestamp);
 
         bytes memory initData = abi.encodeWithSelector(
-            // initialize(bytes,uint256, uint256)
-            0x32b218ac,
+            UserSafeCore.initialize.selector,
             bobBytes,
-            defaultSpendingLimit,
-            collateralLimit
+            defaultDailySpendingLimit,
+            defaultMonthlySpendingLimit,
+            timezoneOffset
         );
         
         address deterministicAddress = factory.getUserSafeAddress(salt, initData);

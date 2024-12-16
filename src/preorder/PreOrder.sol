@@ -127,7 +127,7 @@ contract PreOrder is
 
         // If we decide we want infinite of the last tier, we can just statically
         // initialize to a giant number instead of doing this
-        assembly {
+        assembly ("memory-safe") {
             sstore(tokens.slot, totalCards)
         }
     }

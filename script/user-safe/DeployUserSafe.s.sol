@@ -3,19 +3,24 @@ pragma solidity ^0.8.24;
 
 import {Utils, ChainConfig} from "./Utils.sol";
 import {UserSafeFactory} from "../../src/user-safe/UserSafeFactory.sol";
-import {UserSafe} from "../../src/user-safe/UserSafe.sol";
+import {IUserSafe} from "../../src/interfaces/IUserSafe.sol";
 import {stdJson} from "forge-std/StdJson.sol";
+import {UserSafeCore} from "../../src/user-safe/UserSafeCore.sol";
 
 contract DeployUserSafe is Utils {
     UserSafeFactory userSafeFactory;
-    UserSafe ownerSafe;
-    uint256 defaultSpendingLimit = 10000e6;
-    uint256 collateralLimit = 10000e6;
+    IUserSafe ownerSafe;
+    uint256 defaultDailySpendingLimit = 1000e6;
+    uint256 defaultMonthlySpendingLimit = 10000e6;
+    int256 timezoneOffset = 4 * 3600; // Dubai Timezone
+    address ownerEoa;
 
     function run() public {
         // Pulling deployer info from the environment
         uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
         address deployer = vm.addr(deployerPrivateKey);
+
+        if (ownerEoa == address(0)) ownerEoa = deployer;
 
         // Start broadcast with deployer as the signer
         vm.startBroadcast(deployerPrivateKey);
@@ -25,21 +30,21 @@ contract DeployUserSafe is Utils {
         userSafeFactory = UserSafeFactory(
             stdJson.readAddress(
                 deployments,
-                string.concat(".", "addresses", ".", "userSafeFactory")
+                string.concat(".", "addresses", ".", "userSafeFactoryProxy")
             )
         );
 
         bytes memory saltData = abi.encode("ownerSafe", block.timestamp);
         
-        ownerSafe = UserSafe(
+        ownerSafe = IUserSafe(
             userSafeFactory.createUserSafe(
                 saltData,
                 abi.encodeWithSelector(
-                    // initialize(bytes,uint256,uint256)
-                    0x32b218ac,
-                    abi.encode(deployer),
-                    defaultSpendingLimit,
-                    collateralLimit
+                    UserSafeCore.initialize.selector,
+                    abi.encode(ownerEoa),
+                    defaultDailySpendingLimit,
+                    defaultMonthlySpendingLimit,
+                    timezoneOffset
                 )
             )
         );
@@ -47,7 +52,7 @@ contract DeployUserSafe is Utils {
         string memory parentObject = "parent object";
         string memory deployedAddresses = "addresses";
 
-        vm.serializeAddress(deployedAddresses, "owner", deployer);
+        vm.serializeAddress(deployedAddresses, "owner", ownerEoa);
         string memory addressOutput = vm.serializeAddress(
             deployedAddresses,
             "safe",

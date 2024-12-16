@@ -3,15 +3,12 @@ pragma solidity ^0.8.24;
 
 import {IERC1271} from "@openzeppelin/contracts/interfaces/IERC1271.sol";
 import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
-import {MessageHashUtils} from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
 
 /**
  * @title Library of utilities for making EIP1271-compliant signature checks.
  * @author Layr Labs, Inc.
  */
 library EIP1271SignatureUtils {
-    using MessageHashUtils for bytes32;
-
     // bytes4(keccak256("isValidSignature(bytes32,bytes)")
     bytes4 internal constant EIP1271_MAGICVALUE = 0x1626ba7e;
 
@@ -24,12 +21,10 @@ library EIP1271SignatureUtils {
      * Otherwise, passes on the signature to the signer to verify the signature and checks that it returns the `EIP1271_MAGICVALUE`.
      */
     function checkSignature_EIP1271(
-        bytes32 msgHash,
+        bytes32 digestHash,
         address signer,
         bytes memory signature
     ) internal view {
-        bytes32 digestHash = msgHash.toEthSignedMessageHash();
-
         /**
          * check validity of signature:
          * 1) if `signer` is an EOA, then `signature` must be a valid ECDSA signature from `signer`,
@@ -48,12 +43,10 @@ library EIP1271SignatureUtils {
     }
 
     function isValidSignature_EIP1271(
-        bytes32 msgHash,
+        bytes32 digestHash,
         address signer,
         bytes memory signature
     ) internal view returns (bool) {
-        bytes32 digestHash = msgHash.toEthSignedMessageHash();
-
         /**
          * check validity of signature:
          * 1) if `signer` is an EOA, then `signature` must be a valid ECDSA signature from `signer`,
@@ -76,7 +69,7 @@ library EIP1271SignatureUtils {
 
     function isContract(address account) internal view returns (bool) {
         uint256 size;
-        assembly {
+        assembly ("memory-safe") {
             size := extcodesize(account)
         }
         return size > 0;

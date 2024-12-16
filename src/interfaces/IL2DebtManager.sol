@@ -2,14 +2,6 @@
 pragma solidity ^0.8.24;
 
 interface IL2DebtManager {
-    enum MarketOperationType {
-        Supply,
-        Borrow,
-        Repay,
-        Withdraw,
-        SupplyAndBorrow
-    }
-
     struct BorrowTokenConfigData {
         uint64 borrowApy;
         uint128 minShares;
@@ -28,7 +20,6 @@ interface IL2DebtManager {
         uint80 ltv;
         uint80 liquidationThreshold;
         uint96 liquidationBonus;
-        uint256 supplyCap;
     }
 
     struct TokenData {
@@ -42,13 +33,6 @@ interface IL2DebtManager {
         uint256 liquidationBonus;
     }
 
-    event SuppliedUSDC(uint256 amount);
-    event DepositedCollateral(
-        address indexed depositor,
-        address indexed user,
-        address indexed token,
-        uint256 amount
-    );
     event Supplied(
         address indexed sender,
         address indexed user,
@@ -58,32 +42,18 @@ interface IL2DebtManager {
     event Borrowed(
         address indexed user,
         address indexed token,
-        uint256 borrowUsdcAmount
+        uint256 amount
     );
     event Repaid(
         address indexed user,
         address indexed payer,
         address indexed token,
-        uint256 repaidUsdcDebtAmount
-    );
-    event RepaidWithCollateralToken(
-        address indexed user,
-        address indexed payer,
-        address indexed collateralToken,
-        uint256 beforeCollateralAmount,
-        uint256 afterCollateralAmount,
-        uint256 repaidUsdcDebtAmount
-    );
-    event RepaidWithCollateral(
-        address indexed user,
-        uint256 repaidUsdcDebtAmount,
-        TokenData[] collateralUsed
+        uint256 amount
     );
     event Liquidated(
         address indexed liquidator,
         address indexed user,
         address indexed debtTokenToLiquidate,
-        TokenData[] beforeCollateralAmount,
         LiquidationTokenData[] userCollateralLiquidated,
         uint256 beforeDebtAmount,
         uint256 debtAmountLiquidated
@@ -108,12 +78,6 @@ interface IL2DebtManager {
         uint256 totalBorrowingAmtBeforeInterest,
         uint256 totalBorrowingAmtAfterInterest
     );
-    event WithdrawCollateral(
-        address indexed user,
-        address indexed token,
-        uint256 amount
-    );
-    event AccountClosed(address indexed user, TokenData[] collateralWithdrawal);
     event BorrowTokenConfigSet(address indexed token, BorrowTokenConfig config);
     event CollateralTokenConfigSet(
         address indexed collateralToken,
@@ -163,7 +127,14 @@ interface IL2DebtManager {
     error SupplyCapBreached();
     error OnlyUserSafe();
     error UserSafeCannotSupplyDebtTokens();
+    error BorrowTokenCannotBeRemovedFromCollateral();
 
+    /**
+     * @notice Function to fetch the admin role
+     * @return ADMIN_ROLE 
+     */
+    function ADMIN_ROLE() external view returns (bytes32);
+    
     /**
      * @notice Function to fetch the address of the Cash Data Provider.
      * @return Cash Data Provider address
@@ -284,6 +255,12 @@ interface IL2DebtManager {
     function unsupportBorrowToken(address token) external;
 
     /**
+     * @notice Function to ensure that the debt position of the user safe is healthy
+     * @param user Address of the user safe
+     */
+    function ensureHealth(address user) external view;
+
+    /**
      * @notice Function to supply borrow tokens to the debt manager.
      * @param  user Address of the user to register for supply.
      * @param  borrowToken Address of the borrow token to supply.
@@ -297,18 +274,6 @@ interface IL2DebtManager {
      * @param  amount Amount of the borrow token to withdraw.
      */
     function withdrawBorrowToken(address borrowToken, uint256 amount) external;
-
-    /**
-     * @notice Function to deposit collateral into this contract.
-     * @param  token Address of the token to deposit.
-     * @param  user Address of the user safe to deposit collateral for.
-     * @param  amount Amount of the token to deposit.
-     */
-    function depositCollateral(
-        address token,
-        address user,
-        uint256 amount
-    ) external;
 
     /**
      * @notice Function for users to borrow funds for payment using the deposited collateral.
@@ -329,20 +294,6 @@ interface IL2DebtManager {
         address token,
         uint256 amount
     ) external;
-
-    /**
-     * @notice Function to withdraw collateral from the Debt Manager.
-     * @param  token Address of the collateral token to withdraw.
-     * @param  amount Amount of the collateral token to withdraw.
-     */
-    function withdrawCollateral(address token, uint256 amount) external;
-
-    /**
-     * @notice Function to close account with the Debt Manager.
-     * @notice All the debt should already be repaid before this function can be called.
-     * @notice Withdraws the remaining user's collateral to the User Safe.
-     */
-    function closeAccount() external;
 
     // https://docs.aave.com/faq/liquidations
     /**
@@ -371,7 +322,7 @@ interface IL2DebtManager {
     /**
      * @notice Function to fetch the collateral amount for the user.
      * @param  user Address of the user.
-     * @return Array of TokenData struct, total collateral amount in usdc.
+     * @return Array of TokenData struct, total collateral amount in usd.
      */
     function collateralOf(
         address user
@@ -391,15 +342,15 @@ interface IL2DebtManager {
     /**
      * @notice Function to fetch the borrowing amount of the user for a all the borrow tokens.
      * @param  user Address of the user.
-     * @return Array of TokenData struct, total borrow amount in usdc.
+     * @return Array of TokenData struct, total borrow amount in usd.
      */
     function borrowingOf(
         address user
     ) external view returns (TokenData[] memory, uint256);
 
     /**
-     * @notice Function to fetch the max borrow amount for liquidation purpose.
-     * @notice Calculates user's total collateral amount in USDC and finds max borrowable amount using liquidation threshold.
+     * @notice Function to fetch the max borrow amount for ltv or liquidation purpose.
+     * @notice Calculates user's total collateral amount in USD and finds max borrowable amount using liquidation threshold.
      * @param  user Address of the user.
      * @param  forLtv For ltv, pass true and for liquidation, pass false.
      * @return Max borrow amount for liquidation purpose.
@@ -410,7 +361,17 @@ interface IL2DebtManager {
     ) external view returns (uint256);
 
     /**
-     * @notice Function to determine the current borrowable amount in USDC for a user.
+     * @notice Function to fetch the max borrow and total current borrowings 
+     * @param user Address of the user safe
+     * @param tokenAmounts Token amounts of collateral
+     * @return Total max borrow for that user
+     * @return Current total borrowings of the user 
+     */
+    function getBorrowingPowerAndTotalBorrowing(address user, TokenData[] memory tokenAmounts) external view returns (uint256, uint256);
+
+
+    /**
+     * @notice Function to determine the current borrowable amount in USD for a user.
      * @param  user Address of the user.
      * @return Current borrowable amount for the user.
      */
@@ -455,10 +416,10 @@ interface IL2DebtManager {
     function totalSupplies() external view returns (TokenData[] memory, uint256);
 
     /**
-     * @notice Function to convert collateral token amount to equivalent USDC amount.
+     * @notice Function to convert collateral token amount to equivalent USD amount.
      * @param  collateralToken Address of collateral to convert.
      * @param  collateralAmount Amount of collateral token to convert.
-     * @return Equivalent USDC amount.
+     * @return Equivalent USD amount.
      */
     function convertCollateralTokenToUsd(
         address collateralToken,
@@ -466,42 +427,31 @@ interface IL2DebtManager {
     ) external view returns (uint256);
 
     /**
-     * @notice Function to convert usdc amount to collateral token amount.
+     * @notice Function to convert usd amount to collateral token amount.
      * @param  collateralToken Address of the collateral token.
-     * @param  debtUsdcAmount Amount of USDC for borrowing.
+     * @param  debtUsdAmount Amount of USD for borrowing.
      * @return Amount of collateral required.
      */
     function convertUsdToCollateralToken(
         address collateralToken,
-        uint256 debtUsdcAmount
+        uint256 debtUsdAmount
     ) external view returns (uint256);
 
     /**
-     * @notice Function to fetch the value of collateral deposited by the user in USDC.
+     * @notice Function to fetch the value of collateral deposited by the user in USD.
      * @param  user Address of the user.
-     * @return Total collateral value in USDC for the user.
+     * @return Total collateral value in USD for the user.
      */
     function getCollateralValueInUsd(
         address user
     ) external view returns (uint256);
 
     /**
-     * @notice Function to manage funds via supply, borrow, repay and withdraw from market.
-     * @notice Can only be called by an account with FUND_MANAGER_ROLE.
-     * @param marketOperationType Market operation type.
-     * @param data Data for the operation.
-     */
-    function fundManagementOperation(
-        uint8 marketOperationType,
-        bytes calldata data
-    ) external;
-
-    /**
      * @notice Function to fetch the user collateral for a particular token.
      * @param  user Address of the user.
      * @param  token Address of the token.
      * @return Amount of collateral in tokens.
-     * @return Amount of collateral in USDC.
+     * @return Amount of collateral in USD.
      */
     function getUserCollateralForToken(
         address user,
@@ -519,20 +469,10 @@ interface IL2DebtManager {
 
     /**
      * @notice Function to fetch the total borrowing amounts from this contract.
-     * @return Array of borrow tokens with respective amount in USDC.
-     * @return Total borrowing amount in USDC.
+     * @return Array of borrow tokens with respective amount in USD.
+     * @return Total borrowing amount in USD.
      */
     function totalBorrowingAmounts()
-        external
-        view
-        returns (TokenData[] memory, uint256);
-
-    /**
-     * @notice Function to fetch the total collateral amount in this contract.
-     * @return Array of Collateral struct.
-     * @return Total collateral in USDC.
-     */
-    function totalCollateralAmounts()
         external
         view
         returns (TokenData[] memory, uint256);
@@ -557,31 +497,25 @@ interface IL2DebtManager {
 
     /**
      * @notice Function to fetch the current state of collaterals and borrowings.
-     * @return totalCollaterals Array of collaterals in tuple(address token, uint256 amount) format.
-     * @return totalCollateralInUsd Total collateral value in USDC.
      * @return borrowings Array of borrowings in tuple(address token, uint256 amount) format.
-     * @return totalBorrowings Total borrowing value in USDC.
-     * @return totalLiquidCollateralAmounts Total liquid collateral amounts in tuple(address token, uint256 amount) format.
+     * @return totalBorrowingsInUsd Total borrowing value in USD.
      * @return totalLiquidStableAmounts Total liquid stable amounts in tuple(address token, uint256 amount) format.
      */
     function getCurrentState()
         external
         view
         returns (
-            TokenData[] memory totalCollaterals,
-            uint256 totalCollateralInUsd,
             TokenData[] memory borrowings,
-            uint256 totalBorrowings,
-            TokenData[] memory totalLiquidCollateralAmounts,
+            uint256 totalBorrowingsInUsd,
             TokenData[] memory totalLiquidStableAmounts
         );
 
     /**
      * @notice Function to fetch the current state of a user.
      * @return totalCollaterals Array of collaterals in tuple(address token, uint256 amount) format.
-     * @return totalCollateralInUsd Total collateral value in USDC.
+     * @return totalCollateralInUsd Total collateral value in USD.
      * @return borrowings Array of borrowings in tuple(address token, uint256 amount) format.
-     * @return totalBorrowings Total borrowing value in USDC.
+     * @return totalBorrowings Total borrowing value in USD.
      */
     function getUserCurrentState(address user)
         external

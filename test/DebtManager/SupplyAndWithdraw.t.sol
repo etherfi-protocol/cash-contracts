@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import {DebtManagerSetup, DebtManagerAdmin, PriceProvider, MockPriceProvider, MockERC20} from "./DebtManagerSetup.t.sol";
+import {Setup, DebtManagerAdmin, PriceProvider, MockPriceProvider, IAggregatorV3, MockERC20} from "../Setup.t.sol";
 import {IL2DebtManager} from "../../src/interfaces/IL2DebtManager.sol";
 import {AaveLib} from "../../src/libraries/AaveLib.sol";
 import {SafeERC20, IERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
@@ -9,9 +9,12 @@ import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IER
 import {IERC20Errors} from "@openzeppelin/contracts/interfaces/draft-IERC6093.sol";
 import {stdStorage, StdStorage} from "forge-std/Test.sol";
 import {IAccessControl} from "@openzeppelin/contracts/access/IAccessControl.sol";
+import {MessageHashUtils} from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
+import {IUserSafe, UserSafeLib} from "../../src/user-safe/UserSafeCore.sol";
 
-contract DebtManagerSupplyAndWithdrawTest is DebtManagerSetup {
+contract DebtManagerSupplyAndWithdrawTest is Setup {
     using SafeERC20 for IERC20;
+    using MessageHashUtils for bytes32;
 
     uint256 collateralAmt = 0.01 ether;
     IERC20 weth;
@@ -19,20 +22,30 @@ contract DebtManagerSupplyAndWithdrawTest is DebtManagerSetup {
     function setUp() public override {
         super.setUp();
 
-        if (!isFork(chainId))
-            weth = IERC20(address(new MockERC20("WETH", "WETH", 18)));
+        uint256 nonce = aliceSafe.nonce() + 1;
+        bytes32 msgHash = keccak256(
+            abi.encode(
+                UserSafeLib.SET_MODE_METHOD,
+                block.chainid,
+                address(aliceSafe),
+                nonce,
+                IUserSafe.Mode.Credit
+            )
+        );
+
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(
+            alicePk,
+            msgHash.toEthSignedMessageHash()
+        );
+
+        bytes memory signature = abi.encodePacked(r, s, v);
+        aliceSafe.setMode(IUserSafe.Mode.Credit, signature);
+        vm.warp(aliceSafe.incomingCreditModeStartTime() + 1);
+
+        if (!isFork(chainId)) weth = IERC20(address(new MockERC20("WETH", "WETH", 18)));
         else weth = IERC20(chainConfig.weth);
 
-        deal(address(weETH), address(owner), 1000 ether);
-        deal(address(usdc), address(owner), 1 ether);
-
-        vm.prank(address(userSafeFactory));
-        cashDataProvider.whitelistUserSafe(owner);
-
-        vm.startPrank(owner);
-        IERC20(address(weETH)).safeIncreaseAllowance(address(debtManager), collateralAmt);
-        debtManager.depositCollateral(address(weETH), owner, collateralAmt);
-        vm.stopPrank();
+        deal(address(weETH), address(aliceSafe), collateralAmt);
     }
 
     function test_SupplyAndWithdraw() public {
@@ -52,7 +65,7 @@ contract DebtManagerSupplyAndWithdrawTest is DebtManagerSetup {
             principle
         );
 
-        uint256 earnings = _borrowAndRepay(principle);
+        uint256 earnings = _borrowAndRepay();
 
         assertEq(
             debtManager.supplierBalance(notOwner, address(usdc)),
@@ -91,9 +104,35 @@ contract DebtManagerSupplyAndWithdrawTest is DebtManagerSetup {
         address[] memory borrowTokens = new address[](1);
         borrowTokens[0] = address(usdc);
 
-
         vm.startPrank(owner);
-        DebtManagerAdmin(address(debtManagerCore)).supportBorrowToken(
+        if (isFork(chainId)) {
+            address[] memory _tokens = new address[](1);
+            _tokens[0] = address(weth);
+            
+            PriceProvider.Config[] memory _configs = new PriceProvider.Config[](1); 
+            _configs[0] = PriceProvider.Config({
+                oracle: ethUsdcOracle,
+                priceFunctionCalldata: hex"",
+                isChainlinkType: true,
+                oraclePriceDecimals: IAggregatorV3(ethUsdcOracle).decimals(),
+                maxStaleness: 1 days,
+                dataType: PriceProvider.ReturnType.Int256,
+                isBaseTokenEth: false,
+                isStableToken: true
+            });
+            priceProvider.setTokenConfig(_tokens, _configs);
+        }
+
+        IL2DebtManager.CollateralTokenConfig memory collateralTokenConfig;
+        collateralTokenConfig.ltv = ltv;
+        collateralTokenConfig.liquidationThreshold = liquidationThreshold;
+        collateralTokenConfig.liquidationBonus = liquidationBonus;
+        debtManager.supportCollateralToken(
+            address(weth),
+            collateralTokenConfig
+        );
+
+        DebtManagerAdmin(address(debtManager)).supportBorrowToken(
             address(weth), 
             borrowApyPerSecond, 
             uint128(1 * 10 ** IERC20Metadata(address(weth)).decimals())
@@ -155,176 +194,29 @@ contract DebtManagerSupplyAndWithdrawTest is DebtManagerSetup {
     }
 
     function test_UserSafeCannotSupply() public {
-        // owner is a user safe
         vm.prank(alice);
         vm.expectRevert(IL2DebtManager.UserSafeCannotSupplyDebtTokens.selector);
-        debtManager.supply(owner, address(usdc), 1);
+        debtManager.supply(address(aliceSafe), address(usdc), 1);
     }
 
     function test_CannotWithdrawTokenThatWasNotSupplied() public {
         vm.prank(notOwner);
-        vm.expectRevert(IL2DebtManager.SharesCannotBeZero.selector);
+        vm.expectRevert(IL2DebtManager.ZeroTotalBorrowTokens.selector);
         debtManager.withdrawBorrowToken(address(weETH), 1 ether);
     }
 
-    function test_FundsManagementOnAave() public {
-        vm.startPrank(owner);
-
-        priceProvider = PriceProvider(
-            address(new MockPriceProvider(mockWeETHPriceInUsd))
-        );
-        cashDataProvider.setPriceProvider(address(priceProvider));
-
-        address newCollateralToken = address(weth);
-        uint80 newLtv = 80e18;
-        uint80 newLiquidationThreshold = 85e18;
-        uint96 newLiquidationBonus = 10e18;
-
-        IL2DebtManager.CollateralTokenConfig memory collateralTokenConfig;
-        collateralTokenConfig.ltv = newLtv;
-        collateralTokenConfig.liquidationThreshold = newLiquidationThreshold;
-        collateralTokenConfig.liquidationBonus = newLiquidationBonus;
-
-
-        debtManager.supportCollateralToken(
-            newCollateralToken,
-            collateralTokenConfig
-        );
-
-        deal(address(weth), address(debtManager), 1000 ether);
-
-        ///// SUPPLY
-        uint256 totalCollateralInAaveBefore = aaveV3Adapter
-            .getCollateralBalance(address(debtManager), address(weth));
-        assertEq(totalCollateralInAaveBefore, 0);
-
-        debtManager.fundManagementOperation(
-            uint8(AaveLib.MarketOperationType.Supply),
-            abi.encode(address(weth), collateralAmt)
-        );
-
-        uint256 totalCollateralInAaveAfter = aaveV3Adapter.getCollateralBalance(
-            address(debtManager),
-            address(weth)
-        );
-        assertEq(totalCollateralInAaveAfter, collateralAmt);
-
-        ///// BORROW
-        uint256 totalBorrowInAaveBefore = aaveV3Adapter.getDebt(
-            address(debtManager),
-            address(usdc)
-        );
-        assertEq(totalBorrowInAaveBefore, 0);
-
-        uint256 borrowAmt = 1e6;
-        debtManager.fundManagementOperation(
-            uint8(AaveLib.MarketOperationType.Borrow),
-            abi.encode(address(usdc), borrowAmt)
-        );
-
-        uint256 totalBorrowInAaveAfter = aaveV3Adapter.getDebt(
-            address(debtManager),
-            address(usdc)
-        );
-        assertEq(totalBorrowInAaveAfter, borrowAmt);
-
-        ///// REPAY
-        if (!isFork(chainId)) {
-            IERC20(address(usdc)).safeTransfer(address(debtManager), 10e6);
-        }
-
-        uint256 totalBorrowInAaveBeforeRepay = aaveV3Adapter.getDebt(
-            address(debtManager),
-            address(usdc)
-        );
-        assertEq(totalBorrowInAaveBeforeRepay, borrowAmt);
-
-        debtManager.fundManagementOperation(
-            uint8(AaveLib.MarketOperationType.Repay),
-            abi.encode(address(usdc), totalBorrowInAaveBeforeRepay)
-        );
-        uint256 totalBorrowInAaveAfterRepay = aaveV3Adapter.getDebt(
-            address(debtManager),
-            address(usdc)
-        );
-        assertEq(totalBorrowInAaveAfterRepay, 0);
-
-        ///// WITHDRAW
-        uint256 totalCollateralInAaveBeforeWithdraw = aaveV3Adapter
-            .getCollateralBalance(address(debtManager), address(weth));
-        assertEq(totalCollateralInAaveBeforeWithdraw, collateralAmt);
-
-        debtManager.fundManagementOperation(
-            uint8(AaveLib.MarketOperationType.Withdraw),
-            abi.encode(address(weth), totalCollateralInAaveBeforeWithdraw)
-        );
-
-        uint256 totalCollateralInAaveAfterWithdraw = aaveV3Adapter
-            .getCollateralBalance(address(debtManager), address(weth));
-        assertEq(totalCollateralInAaveAfterWithdraw, 0);
-
-        ///// SUPPLY AND BORROW
-
-        uint256 totalCollateralInAaveBeforeSupplyAndBorrow = aaveV3Adapter
-            .getCollateralBalance(address(debtManager), address(weth));
-        assertEq(totalCollateralInAaveBeforeSupplyAndBorrow, 0);
-        uint256 totalBorrowInAaveBeforeSupplyAndBorrow = aaveV3Adapter.getDebt(
-            address(debtManager),
-            address(usdc)
-        );
-        assertEq(totalBorrowInAaveBeforeSupplyAndBorrow, 0);
-
-        debtManager.fundManagementOperation(
-            uint8(AaveLib.MarketOperationType.SupplyAndBorrow),
-            abi.encode(address(weth), collateralAmt, address(usdc), 1e6)
-        );
-
-        uint256 totalCollateralInAaveAfterSupplyAndBorrow = aaveV3Adapter
-            .getCollateralBalance(address(debtManager), address(weth));
-        assertEq(totalCollateralInAaveAfterSupplyAndBorrow, collateralAmt);
-        uint256 totalBorrowInAaveAfterSupplyAndBorrow = aaveV3Adapter.getDebt(
-            address(debtManager),
-            address(usdc)
-        );
-        assertEq(totalBorrowInAaveAfterSupplyAndBorrow, 1e6);
-
-        vm.stopPrank();
-    }
-
-    function test_OnlyAdminCanManageFunds() public {
-        vm.startPrank(notOwner);
-        vm.expectRevert(
-            buildAccessControlRevertData(notOwner, ADMIN_ROLE)
-        );
-        debtManager.fundManagementOperation(
-            uint8(AaveLib.MarketOperationType.Supply),
-            abi.encode(address(weETH), collateralAmt)
-        );
-
-        vm.stopPrank();
-    }
-
-    function _borrowAndRepay(
-        uint256 collateralAmount
-    ) internal returns (uint256) {
-        deal(address(usdc), alice, 1 ether);
-        deal(address(weETH), alice, 1000 ether);
-
-        vm.startPrank(alice);
-        IERC20(address(weETH)).safeIncreaseAllowance(address(debtManager), collateralAmount);
-        debtManager.depositCollateral(address(weETH), alice, collateralAmount);
-
+    function _borrowAndRepay() internal returns (uint256) {
+        vm.startPrank(etherFiWallet);
         uint256 borrowAmt = debtManager.remainingBorrowingCapacityInUSD(
-            alice
+            address(aliceSafe)
         ) / 2;
-        debtManager.borrow(address(usdc), borrowAmt);
+        aliceSafe.spend(txId, address(usdc), borrowAmt);
 
         // 1 day after, there should be some interest accumulated
         vm.warp(block.timestamp + 24 * 60 * 60);
-        uint256 repayAmt = debtManager.borrowingOf(alice, address(usdc));
-
-        IERC20(address(usdc)).forceApprove(address(debtManager), repayAmt);
-        debtManager.repay(alice, address(usdc), repayAmt);
+        uint256 repayAmt = debtManager.borrowingOf(address(aliceSafe), address(usdc));
+        deal(address(usdc), address(aliceSafe), repayAmt);
+        aliceSafe.repay(address(usdc), repayAmt);
         vm.stopPrank();
 
         return repayAmt - borrowAmt;

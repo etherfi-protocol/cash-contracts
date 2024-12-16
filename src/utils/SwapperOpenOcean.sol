@@ -29,6 +29,9 @@ contract SwapperOpenOcean is ISwapper {
         uint256 _guaranteedAmount,
         bytes calldata _data
     ) external returns (uint256 toAssetAmount) {
+        if (IERC20(_fromAsset).allowance(address(this), address(swapRouter)) < _fromAssetAmount) 
+            IERC20(_fromAsset).forceApprove(swapRouter, type(uint256).max);
+            
         (
             ,
             address executor,

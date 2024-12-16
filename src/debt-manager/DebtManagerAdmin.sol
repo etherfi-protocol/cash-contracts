@@ -17,25 +17,15 @@ contract DebtManagerAdmin is DebtManagerStorage {
         address token
     ) external onlyRole(ADMIN_ROLE) {
         if (token == address(0)) revert InvalidValue();
-        if (_totalCollateralAmounts[token] != 0)
-            revert TotalCollateralAmountNotZero();
-
-        uint256 indexPlusOneForTokenToBeRemoved = _collateralTokenIndexPlusOne[
-            token
-        ];
+        if (isBorrowToken(token)) revert BorrowTokenCannotBeRemovedFromCollateral();
+        uint256 indexPlusOneForTokenToBeRemoved = _collateralTokenIndexPlusOne[token];
         if (indexPlusOneForTokenToBeRemoved == 0) revert NotACollateralToken();
 
         uint256 len = _supportedCollateralTokens.length;
         if (len == 1) revert NoCollateralTokenLeft();
 
-        _collateralTokenIndexPlusOne[
-            _supportedCollateralTokens[len - 1]
-        ] = indexPlusOneForTokenToBeRemoved;
-
-        _supportedCollateralTokens[
-            indexPlusOneForTokenToBeRemoved - 1
-        ] = _supportedCollateralTokens[len - 1];
-
+        _collateralTokenIndexPlusOne[_supportedCollateralTokens[len - 1]] = indexPlusOneForTokenToBeRemoved;
+        _supportedCollateralTokens[indexPlusOneForTokenToBeRemoved - 1] = _supportedCollateralTokens[len - 1];
         _supportedCollateralTokens.pop();
         delete _collateralTokenIndexPlusOne[token];
 
@@ -50,6 +40,7 @@ contract DebtManagerAdmin is DebtManagerStorage {
         uint64 borrowApy,
         uint128 minShares
     ) external onlyRole(ADMIN_ROLE) {
+        if (!isCollateralToken(token)) revert NotACollateralToken();
         _supportBorrowToken(token);
         _setBorrowTokenConfig(token, borrowApy, minShares);
     }
@@ -66,14 +57,8 @@ contract DebtManagerAdmin is DebtManagerStorage {
         uint256 len = _supportedBorrowTokens.length;
         if (len == 1) revert NoBorrowTokenLeft();
 
-        _borrowTokenIndexPlusOne[
-            _supportedBorrowTokens[len - 1]
-        ] = indexPlusOneForTokenToBeRemoved;
-
-        _supportedBorrowTokens[
-            indexPlusOneForTokenToBeRemoved - 1
-        ] = _supportedBorrowTokens[len - 1];
-
+        _borrowTokenIndexPlusOne[_supportedBorrowTokens[len - 1]] = indexPlusOneForTokenToBeRemoved;
+        _supportedBorrowTokens[indexPlusOneForTokenToBeRemoved - 1] = _supportedBorrowTokens[len - 1];
         _supportedBorrowTokens.pop();
         delete _borrowTokenIndexPlusOne[token];
         delete _borrowTokenConfig[token];
@@ -88,29 +73,20 @@ contract DebtManagerAdmin is DebtManagerStorage {
         _setCollateralTokenConfig(__collateralToken, __config);
     }
 
-    function setBorrowApy(
-        address token,
-        uint64 apy
-    ) external onlyRole(ADMIN_ROLE) {
+    function setBorrowApy(address token, uint64 apy) external onlyRole(ADMIN_ROLE) {
         _setBorrowApy(token, apy);
     }
 
-    function setMinBorrowTokenShares(
-        address token,
-        uint128 shares
-    ) external onlyRole(ADMIN_ROLE) {
+    function setMinBorrowTokenShares(address token, uint128 shares) external onlyRole(ADMIN_ROLE) {
         _setMinBorrowTokenShares(token, shares);
     }
 
     function _supportCollateralToken(address token) internal {
         if (token == address(0)) revert InvalidValue();
 
-        if (_collateralTokenIndexPlusOne[token] != 0)
-            revert AlreadyCollateralToken();
+        if (_collateralTokenIndexPlusOne[token] != 0) revert AlreadyCollateralToken();
 
-        uint256 price = IPriceProvider(_cashDataProvider.priceProvider()).price(
-            token
-        );
+        uint256 price = IPriceProvider(_cashDataProvider.priceProvider()).price(token);
         if (price == 0) revert OraclePriceZero();
 
         _supportedCollateralTokens.push(token);
@@ -135,17 +111,9 @@ contract DebtManagerAdmin is DebtManagerStorage {
         address collateralToken,
         CollateralTokenConfig memory config
     ) internal {
-        if (config.ltv > config.liquidationThreshold)
-            revert LtvCannotBeGreaterThanLiquidationThreshold();
-        
+        if (config.ltv > config.liquidationThreshold) revert LtvCannotBeGreaterThanLiquidationThreshold();
         if (config.liquidationThreshold + config.liquidationBonus > HUNDRED_PERCENT) revert InvalidValue();
-
-        emit CollateralTokenConfigSet(
-            collateralToken,
-            _collateralTokenConfig[collateralToken],
-            config
-        );
-
+        emit CollateralTokenConfigSet(collateralToken, _collateralTokenConfig[collateralToken], config);
         _collateralTokenConfig[collateralToken] = config;
     }
 
@@ -154,7 +122,7 @@ contract DebtManagerAdmin is DebtManagerStorage {
         uint64 borrowApy,
         uint128 minShares
     ) internal {
-        if (borrowApy == 0 || minShares == 0) revert InvalidValue();
+        if (borrowApy == 0 || borrowApy > MAX_BORROW_APY || minShares == 0) revert InvalidValue();
 
         BorrowTokenConfig memory cfg = BorrowTokenConfig({
             interestIndexSnapshot: 0,
@@ -170,7 +138,7 @@ contract DebtManagerAdmin is DebtManagerStorage {
     }
 
     function _setBorrowApy(address token, uint64 apy) internal {
-        if (apy == 0) revert InvalidValue();
+        if (apy == 0 || apy > MAX_BORROW_APY) revert InvalidValue();
         if (!isBorrowToken(token)) revert UnsupportedBorrowToken();
 
         _updateBorrowings(address(0));
@@ -186,11 +154,7 @@ contract DebtManagerAdmin is DebtManagerStorage {
         if (!isBorrowToken(token)) revert UnsupportedBorrowToken();
 
         _updateBorrowings(address(0));
-        emit MinSharesOfBorrowTokenSet(
-            token,
-            _borrowTokenConfig[token].minShares,
-            shares
-        );
+        emit MinSharesOfBorrowTokenSet(token, _borrowTokenConfig[token].minShares, shares);
         _borrowTokenConfig[token].minShares = shares;
     }
 }

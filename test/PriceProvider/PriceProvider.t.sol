@@ -6,7 +6,7 @@ import {PriceProvider} from "../../src/oracle/PriceProvider.sol";
 import {IAggregatorV3} from "../../src/interfaces/IAggregatorV3.sol";
 import {IWeETH} from "../../src/interfaces/IWeETH.sol";
 import {IAccessControl} from "@openzeppelin/contracts/access/IAccessControl.sol";
-
+import {UUPSProxy} from "../../src/UUPSProxy.sol";
 
 contract PriceProviderTest is Test {
     PriceProvider priceProvider;
@@ -27,7 +27,7 @@ contract PriceProviderTest is Test {
     PriceProvider.Config ethConfig;
     PriceProvider.Config maticConfig;
     function setUp() public {
-        string memory mainnet = "https://eth-pokt.nodies.app";
+        string memory mainnet = "https://rpc.ankr.com/eth";
         vm.createSelectFork(mainnet);
 
         vm.startPrank(owner);
@@ -41,7 +41,8 @@ contract PriceProviderTest is Test {
             oraclePriceDecimals: 18,
             maxStaleness: 0,
             dataType: PriceProvider.ReturnType.Uint256,
-            isBaseTokenEth: true
+            isBaseTokenEth: true,
+            isStableToken: false
         });
 
         btcConfig = PriceProvider.Config({
@@ -51,7 +52,8 @@ contract PriceProviderTest is Test {
             oraclePriceDecimals: IAggregatorV3(btcEthOracle).decimals(),
             maxStaleness: 1 days,
             dataType: PriceProvider.ReturnType.Int256,
-            isBaseTokenEth: true
+            isBaseTokenEth: true,
+            isStableToken: false
         });
 
         ethConfig = PriceProvider.Config({
@@ -61,7 +63,8 @@ contract PriceProviderTest is Test {
             oraclePriceDecimals: IAggregatorV3(ethUsdOracle).decimals(),
             maxStaleness: 1 days,
             dataType: PriceProvider.ReturnType.Int256,
-            isBaseTokenEth: false
+            isBaseTokenEth: false,
+            isStableToken: false
         });
 
         maticConfig = PriceProvider.Config({
@@ -71,7 +74,8 @@ contract PriceProviderTest is Test {
             oraclePriceDecimals: IAggregatorV3(maticUsdOracle).decimals(),
             maxStaleness: 1 days,
             dataType: PriceProvider.ReturnType.Int256,
-            isBaseTokenEth: false
+            isBaseTokenEth: false,
+            isStableToken: false
         });
 
         address[] memory initialTokens = new address[](3);
@@ -85,11 +89,15 @@ contract PriceProviderTest is Test {
         initialTokensConfig[1] = btcConfig;
         initialTokensConfig[2] = ethConfig;
 
-        priceProvider = new PriceProvider(
-            owner,
-            initialTokens,
-            initialTokensConfig
-        );
+        priceProvider = PriceProvider(address(new UUPSProxy(
+            address(new PriceProvider()), 
+            abi.encodeWithSelector(
+                PriceProvider.initialize.selector,
+                owner,
+                initialTokens,
+                initialTokensConfig
+            )
+        )));
 
         vm.stopPrank();
     }

@@ -1,16 +1,18 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import {DebtManagerSetup, PriceProvider, MockPriceProvider, MockERC20} from "./DebtManagerSetup.t.sol";
+import {IUserSafe, OwnerLib, UserSafeLib} from "../../src/user-safe/UserSafeCore.sol";
+import {Setup, PriceProvider, MockPriceProvider, MockERC20} from "../Setup.t.sol";
 import {IL2DebtManager} from "../../src/interfaces/IL2DebtManager.sol";
 import {SafeERC20, IERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IERC20Errors} from "@openzeppelin/contracts/interfaces/draft-IERC6093.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
+import {MessageHashUtils} from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
 
-
-contract DebtManagerLiquidateTest is DebtManagerSetup {
+contract DebtManagerLiquidateTest is Setup {
     using Math for uint256;
     using SafeERC20 for IERC20;
+    using MessageHashUtils for bytes32;
 
     uint256 collateralAmount = 0.01 ether;
     uint256 collateralValueInUsdc;
@@ -24,20 +26,34 @@ contract DebtManagerLiquidateTest is DebtManagerSetup {
             collateralAmount
         );
 
-        deal(address(usdc), alice, 1 ether);
+        uint256 nonce = aliceSafe.nonce() + 1;
+        bytes32 msgHash = keccak256(
+            abi.encode(
+                UserSafeLib.SET_MODE_METHOD,
+                block.chainid,
+                address(aliceSafe),
+                nonce,
+                IUserSafe.Mode.Credit
+            )
+        );
+
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(
+            alicePk,
+            msgHash.toEthSignedMessageHash()
+        );
+
+        bytes memory signature = abi.encodePacked(r, s, v);
+        aliceSafe.setMode(IUserSafe.Mode.Credit, signature);
+        vm.warp(aliceSafe.incomingCreditModeStartTime() + 1);
+
         deal(address(usdc), owner, 1 ether);
-        deal(address(weETH), alice, 1000 ether);
+        deal(address(weETH), address(aliceSafe), collateralAmount);
         // so that debt manager has funds for borrowings
         deal(address(usdc), address(debtManager), 1 ether);
+        borrowAmt = debtManager.remainingBorrowingCapacityInUSD(address(aliceSafe));
 
-        vm.startPrank(alice);
-        IERC20(address(weETH)).safeIncreaseAllowance(address(debtManager), collateralAmount);
-        debtManager.depositCollateral(address(weETH), alice, collateralAmount);
-
-        borrowAmt = debtManager.remainingBorrowingCapacityInUSD(alice);
-
-        debtManager.borrow(address(usdc), borrowAmt);
-        vm.stopPrank();
+        vm.prank(etherFiWallet);
+        aliceSafe.spend(txId, address(usdc), borrowAmt);
     }
 
     function test_SetLiquidationThreshold() public {     
@@ -52,10 +68,7 @@ contract DebtManagerLiquidateTest is DebtManagerSetup {
             collateralTokenConfig
         );
 
-        IL2DebtManager.CollateralTokenConfig memory configFromContract = debtManager.collateralTokenConfig(
-            address(weETH)
-        );
-
+        IL2DebtManager.CollateralTokenConfig memory configFromContract = debtManager.collateralTokenConfig(address(weETH));
         assertEq(configFromContract.liquidationThreshold, newThreshold);
     }
 
@@ -87,19 +100,17 @@ contract DebtManagerLiquidateTest is DebtManagerSetup {
         collateralTokenConfig.liquidationBonus = 5e18;
 
         debtManager.setCollateralTokenConfig(address(weETH), collateralTokenConfig);
-        assertEq(debtManager.liquidatable(alice), true);
+        assertEq(debtManager.liquidatable(address(aliceSafe)), true);
 
         address[] memory collateralTokenPreference = debtManager.getCollateralTokens();
 
         IERC20(address(usdc)).forceApprove(address(debtManager), borrowAmt);
-        debtManager.liquidate(alice, address(usdc), collateralTokenPreference);
+        debtManager.liquidate(address(aliceSafe), address(usdc), collateralTokenPreference);
 
         vm.stopPrank();
 
-        uint256 aliceCollateralAfter = debtManager.getCollateralValueInUsd(
-            alice
-        );
-        uint256 aliceDebtAfter = debtManager.borrowingOf(alice, address(usdc));
+        uint256 aliceSafeCollateralAfter = debtManager.getCollateralValueInUsd(address(aliceSafe));
+        uint256 aliceSafeDebtAfter = debtManager.borrowingOf(address(aliceSafe), address(usdc));
         uint256 liquidatorWeEthBalAfter = weETH.balanceOf(owner);
 
         uint256 liquidatedUsdcCollateralAmt = debtManager.convertUsdToCollateralToken(address(weETH), borrowAmt);
@@ -116,93 +127,78 @@ contract DebtManagerLiquidateTest is DebtManagerSetup {
             borrowAmt,
             10
         );
-        assertApproxEqAbs(aliceCollateralAfter, collateralValueInUsdc - borrowAmt - liquidationBonusInUsdc, 1);
-        assertEq(aliceDebtAfter, 0);
-    }
-
-    function test_PartialLiquidate() public {
-        vm.startPrank(owner);
-
-        // Current collateral is -> 0.01 ETH -> 30 USD
-        // With LTV 50% -> debt is 15 USDC
-        // Now if we make the ltv and liquidationThreshold 40% -> Max loan is 12 USDC
-        // So now if we liquidate 50% of user's holdings, we can partially liquidate the user
-        IL2DebtManager.CollateralTokenConfig memory collateralTokenConfig;
-        collateralTokenConfig.ltv = 40e18;
-        collateralTokenConfig.liquidationThreshold = 40e18;
-        collateralTokenConfig.liquidationBonus = 5e18;
-
-        debtManager.setCollateralTokenConfig(address(weETH), collateralTokenConfig);
-        assertEq(debtManager.liquidatable(alice), true);
-
-        // since we will be setting the liquidation threshold to 10%
-        uint256 liquidatorWeEthBalBefore = weETH.balanceOf(owner);
-        uint256 liquidationAmt = borrowAmt.ceilDiv(2);
-
-        address[] memory collateralTokenPreference = debtManager.getCollateralTokens();
-
-        IERC20(address(usdc)).forceApprove(address(debtManager), liquidationAmt);
-        debtManager.liquidate(alice, address(usdc), collateralTokenPreference);
-
-        vm.stopPrank();
-
-        uint256 aliceCollateralAfter = debtManager.getCollateralValueInUsd(
-            alice
-        );
-        uint256 aliceDebtAfter = debtManager.borrowingOf(alice, address(usdc));
-        uint256 liquidatorWeEthBalAfter = weETH.balanceOf(owner);
-
-        uint256 liquidatedUsdcCollateralAmt = debtManager.convertUsdToCollateralToken(address(weETH), liquidationAmt);
-        uint256 liquidationBonusReceived =  (
-            liquidatedUsdcCollateralAmt * collateralTokenConfig.liquidationBonus
-        ) / HUNDRED_PERCENT;
-        uint256 liquidationBonusInUsdc = debtManager.convertCollateralTokenToUsd(address(weETH), liquidationBonusReceived);
-
-
-        assertApproxEqAbs(
-            debtManager.convertCollateralTokenToUsd(
-                address(weETH),
-                liquidatorWeEthBalAfter - liquidatorWeEthBalBefore - liquidationBonusReceived
-            ),
-            liquidationAmt,
-            10
-        );
-        assertApproxEqAbs(
-            aliceCollateralAfter,
-            collateralValueInUsdc - liquidationAmt - liquidationBonusInUsdc,
-            10
-        );
-        assertApproxEqAbs(aliceDebtAfter, borrowAmt.ceilDiv(2), 10);
+        assertApproxEqAbs(aliceSafeCollateralAfter, collateralValueInUsdc - borrowAmt - liquidationBonusInUsdc, 1);
+        assertEq(aliceSafeDebtAfter, 0);
     }
 
     function test_CannotLiquidateIfNotLiquidatable() public {
         vm.startPrank(owner);
-        assertEq(debtManager.liquidatable(alice), false);
+        assertEq(debtManager.liquidatable(address(aliceSafe)), false);
         IERC20(address(usdc)).forceApprove(address(debtManager), borrowAmt);
 
         address[] memory collateralTokens = debtManager.getCollateralTokens();
         vm.expectRevert(IL2DebtManager.CannotLiquidateYet.selector);
-        debtManager.liquidate(alice, address(usdc), collateralTokens);
+        debtManager.liquidate(address(aliceSafe), address(usdc), collateralTokens);
+
+        vm.stopPrank();
+    }
+
+    function test_CannotLiquidateIfTokensPassedIsNotCollateralToken() public {
+        deal(address(usdc), address(aliceSafe), borrowAmt);
+        vm.prank(etherFiWallet);
+        aliceSafe.repay(address(usdc), borrowAmt);
+
+        priceProvider = PriceProvider(
+            address(new MockPriceProvider(mockWeETHPriceInUsd, address(usdc)))
+        );
+        vm.prank(owner);
+        cashDataProvider.setPriceProvider(address(priceProvider));
+
+        borrowAmt = debtManager.remainingBorrowingCapacityInUSD(address(aliceSafe));
+        // aliceSafe should borrow at new price for our calculations to be correct
+        vm.prank(etherFiWallet);
+        aliceSafe.spend(keccak256("newTxId"), address(usdc), borrowAmt);
+
+        vm.startPrank(owner);
+        uint256 newPrice = 1000e6; // 1000 USD per weETH
+        MockPriceProvider(address(priceProvider)).setPrice(newPrice);
+        
+        // Lower the thresholds for weETH as well
+        IL2DebtManager.CollateralTokenConfig memory collateralTokenConfigWeETH;
+        collateralTokenConfigWeETH.ltv = 5e18;
+        collateralTokenConfigWeETH.liquidationThreshold = 10e18;
+        collateralTokenConfigWeETH.liquidationBonus = 5e18;
+        debtManager.setCollateralTokenConfig(address(weETH), collateralTokenConfigWeETH);
+
+        address mockToken = address(new MockERC20("mockToken", "mock", 18));
+        address[] memory collateralTokenPreference = new address[](2);
+        collateralTokenPreference[0] = address(mockToken);
+        collateralTokenPreference[1] = address(weETH);
+
+        uint256 liquidationAmt = 5e6;
+
+        IERC20(address(usdc)).forceApprove(address(debtManager), liquidationAmt);
+        vm.expectRevert(IL2DebtManager.NotACollateralToken.selector);
+        debtManager.liquidate(address(aliceSafe), address(usdc), collateralTokenPreference);
 
         vm.stopPrank();
     }
 
     function test_LiquidatorIsChargedRightAmountOfBorrowTokens() public {
-        vm.startPrank(alice);
-        IERC20(address(usdc)).forceApprove(address(debtManager), borrowAmt);
-        debtManager.repay(alice, address(usdc), borrowAmt);
-        vm.stopPrank();
+        deal(address(usdc), address(aliceSafe), borrowAmt);
+        vm.prank(etherFiWallet);
+        aliceSafe.repay(address(usdc), borrowAmt);
 
         priceProvider = PriceProvider(
-            address(new MockPriceProvider(mockWeETHPriceInUsd))
+            address(new MockPriceProvider(mockWeETHPriceInUsd, address(usdc)))
         );
         vm.prank(owner);
         cashDataProvider.setPriceProvider(address(priceProvider));
 
-        borrowAmt = debtManager.remainingBorrowingCapacityInUSD(alice);
-        // Alice should borrow at new price for our calculations to be correct
-        vm.prank(alice);
-        debtManager.borrow(address(usdc), borrowAmt);
+        borrowAmt = debtManager.remainingBorrowingCapacityInUSD(address(aliceSafe));
+        // aliceSafe should borrow at new price for our calculations to be correct
+        vm.prank(etherFiWallet);
+        aliceSafe.spend(keccak256("newTxId"), address(usdc), borrowAmt);
 
         vm.startPrank(owner);
         uint256 newPrice = 1000e6; // 1000 USD per weETH
@@ -234,7 +230,7 @@ contract DebtManagerLiquidateTest is DebtManagerSetup {
         // total collateral liquidated -> 2.125 - 0.10625 USD -> 2.01875 USD
 
         // total liquidated amount -> 7.5 + 2.01875 USD = 9.51875 USD
-        
+
         uint256 liquidationAmt = 9.51875 * 1e6;
 
         address[] memory collateralTokenPreference = new address[](1);
@@ -242,54 +238,48 @@ contract DebtManagerLiquidateTest is DebtManagerSetup {
 
         uint256 ownerWeETHBalBefore = weETH.balanceOf(owner);
         uint256 ownerUsdcBalBefore = IERC20(address(usdc)).balanceOf(owner);
-        uint256 aliceDebtBefore = debtManager.borrowingOf(alice, address(usdc));
-        uint256 aliceCollateralBefore = debtManager.getCollateralValueInUsd(alice);
+        uint256 aliceSafeDebtBefore = debtManager.borrowingOf(address(aliceSafe), address(usdc));
+        uint256 aliceSafeCollateralBefore = debtManager.getCollateralValueInUsd(address(aliceSafe));
 
         IERC20(address(usdc)).forceApprove(address(debtManager), liquidationAmt);
-        debtManager.liquidate(alice, address(usdc), collateralTokenPreference);
+        debtManager.liquidate(address(aliceSafe), address(usdc), collateralTokenPreference);
 
         uint256 ownerWeETHBalAfter = weETH.balanceOf(owner);
         uint256 ownerUsdcBalAfter = IERC20(address(usdc)).balanceOf(owner);
-        uint256 aliceDebtAfter = debtManager.borrowingOf(alice, address(usdc));
-        uint256 aliceCollateralAfter = debtManager.getCollateralValueInUsd(alice);
+        uint256 aliceSafeDebtAfter = debtManager.borrowingOf(address(aliceSafe), address(usdc));
+        uint256 aliceSafeCollateralAfter = debtManager.getCollateralValueInUsd(address(aliceSafe));
 
         assertEq(ownerWeETHBalAfter - ownerWeETHBalBefore, collateralAmount);
         assertEq(ownerUsdcBalBefore - ownerUsdcBalAfter, liquidationAmt);
-        assertEq(aliceDebtBefore, borrowAmt);
-        assertEq(aliceDebtAfter, borrowAmt - liquidationAmt);
-        assertEq(aliceCollateralBefore, 10e6); // price dropped to 1000 USD and 0.01 weETH was collateral
-        assertEq(aliceCollateralAfter, 0);
+        assertEq(aliceSafeDebtBefore, borrowAmt);
+        assertEq(aliceSafeDebtAfter, borrowAmt - liquidationAmt);
+        assertEq(aliceSafeCollateralBefore, 10e6); // price dropped to 1000 USD and 0.01 weETH was collateral
+        assertEq(aliceSafeCollateralAfter, 0);
 
         vm.stopPrank();
     }
 
     function test_ChooseCollateralPreferenceWhenLiquidating() public {
-        vm.startPrank(alice);
-        IERC20(address(usdc)).forceApprove(address(debtManager), borrowAmt);
-        debtManager.repay(alice, address(usdc), borrowAmt);
-        vm.stopPrank();
-
-        vm.prank(address(userSafeFactory));
-        cashDataProvider.whitelistUserSafe(owner);
-        
+        deal(address(usdc), address(aliceSafe), borrowAmt);
+        vm.prank(etherFiWallet);
+        aliceSafe.repay(address(usdc), borrowAmt);
+                
         priceProvider = PriceProvider(
-            address(new MockPriceProvider(mockWeETHPriceInUsd))
+            address(new MockPriceProvider(mockWeETHPriceInUsd, address(usdc)))
         );
         vm.prank(owner);
         cashDataProvider.setPriceProvider(address(priceProvider));
 
-        borrowAmt = debtManager.remainingBorrowingCapacityInUSD(alice);
+        borrowAmt = debtManager.remainingBorrowingCapacityInUSD(address(aliceSafe));
         // Alice should borrow at new price for our calculations to be correct
-        vm.prank(alice);
-        debtManager.borrow(address(usdc), borrowAmt);
+        vm.prank(etherFiWallet);
+        aliceSafe.spend(keccak256("newTxId"), address(usdc), borrowAmt);
         
         address newCollateralToken = address(new MockERC20("collateral", "CTK", 18));
         IL2DebtManager.CollateralTokenConfig memory collateralTokenConfigNewCollateralToken;
         collateralTokenConfigNewCollateralToken.ltv = 5e18;
         collateralTokenConfigNewCollateralToken.liquidationThreshold = 10e18;
         collateralTokenConfigNewCollateralToken.liquidationBonus = 10e18;
-        collateralTokenConfigNewCollateralToken.supplyCap = 1000000 ether;
-        deal(newCollateralToken, owner, 100 ether);
 
         vm.startPrank(owner);
         debtManager.supportCollateralToken(
@@ -298,24 +288,20 @@ contract DebtManagerLiquidateTest is DebtManagerSetup {
         );
 
         uint256 collateralAmtNewToken = 0.005 ether;
-
-        // Add some amount of collateral for the new token as well
-        IERC20(address(newCollateralToken)).safeIncreaseAllowance(address(debtManager), collateralAmtNewToken);
-        debtManager.depositCollateral(address(newCollateralToken), alice, collateralAmtNewToken);
+        deal(newCollateralToken, address(aliceSafe), collateralAmtNewToken);
 
         // Lower the thresholds for weETH as well
         IL2DebtManager.CollateralTokenConfig memory collateralTokenConfigWeETH;
         collateralTokenConfigWeETH.ltv = 5e18;
         collateralTokenConfigWeETH.liquidationThreshold = 10e18;
         collateralTokenConfigWeETH.liquidationBonus = 5e18;
-        collateralTokenConfigNewCollateralToken.supplyCap = 1000000 ether;    
         debtManager.setCollateralTokenConfig(address(weETH), collateralTokenConfigWeETH);
 
         address[] memory collateralTokenPreference = new address[](2);
         collateralTokenPreference[0] = newCollateralToken;
         collateralTokenPreference[1] = address(weETH);
 
-        assertEq(debtManager.liquidatable(alice), true);
+        assertEq(debtManager.liquidatable(address(aliceSafe)), true);
 
         // currently, alice collateral -> 
         // 0.01 weETH + 0.005 newToken  => 30 + 15 = 45 USDC (since 3000 is the default price in mock price provider)
@@ -358,14 +344,14 @@ contract DebtManagerLiquidateTest is DebtManagerSetup {
 
         uint256 ownerWeETHBalBefore = weETH.balanceOf(owner);
         uint256 ownerNewTokenBalBefore = IERC20(newCollateralToken).balanceOf(owner);
-        uint256 aliceDebtBefore = debtManager.borrowingOf(alice, address(usdc));
+        uint256 aliceSafeDebtBefore = debtManager.borrowingOf(address(aliceSafe), address(usdc));
 
         IERC20(address(usdc)).forceApprove(address(debtManager), borrowAmt);
-        debtManager.liquidate(alice, address(usdc), collateralTokenPreference);
+        debtManager.liquidate(address(aliceSafe), address(usdc), collateralTokenPreference);
 
         vm.stopPrank();
 
-        _validate(newCollateralToken, ownerNewTokenBalBefore, ownerWeETHBalBefore, aliceDebtBefore);
+        _validate(newCollateralToken, ownerNewTokenBalBefore, ownerWeETHBalBefore, aliceSafeDebtBefore);
     }
 
     function _validate(
