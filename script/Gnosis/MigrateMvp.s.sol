@@ -106,30 +106,8 @@ contract MigrateMvp is Utils, GnosisHelpers {
         }
 
         {
-            // revoke roles
-            // string memory revokeEtherFiWalletRole = iToHex(abi.encodeWithSignature("revokeEtherFiWalletRole(address)", currentEtherFiWallet));
-            // gnosisTx = string(abi.encodePacked(gnosisTx, _getGnosisTransaction(addressToHex(cashDataProvider), revokeEtherFiWalletRole, false)));
-            
             string memory revokeCashDataProviderAdminRole = iToHex(abi.encodeWithSignature("revokeRole(bytes32,address)", ADMIN_ROLE, currentEtherFiWallet));
             gnosisTx = string(abi.encodePacked(gnosisTx, _getGnosisTransaction(addressToHex(cashDataProvider), revokeCashDataProviderAdminRole, true)));
-            
-            // string memory revokeAdminRoleOnFactory = iToHex(abi.encodeWithSignature("revokeRole(bytes32,address)", ADMIN_ROLE, currentEtherFiWallet));
-            // gnosisTx = string(abi.encodePacked(gnosisTx, _getGnosisTransaction(addressToHex(userSafeFactory), revokeAdminRoleOnFactory, false)));
-            
-            // string memory revokeTopUpRoleOnTopUpDest = iToHex(abi.encodeWithSignature("revokeRole(bytes32,address)", TOP_UP_ROLE, currentEtherFiWallet));
-            // gnosisTx = string(abi.encodePacked(gnosisTx, _getGnosisTransaction(addressToHex(topUpDestScroll), revokeTopUpRoleOnTopUpDest, false)));
-        }
-
-        {            
-            // grant roles
-            // string memory grantEtherFiWalletRole = iToHex(abi.encodeWithSignature("grantEtherFiWalletRole(address)", newEtherFiWallet));
-            // gnosisTx = string(abi.encodePacked(gnosisTx, _getGnosisTransaction(addressToHex(cashDataProvider), grantEtherFiWalletRole, false)));
-            
-            // string memory grantAdminRoleOnFactory = iToHex(abi.encodeWithSignature("grantRole(bytes32,address)", ADMIN_ROLE, newEtherFiWallet));
-            // gnosisTx = string(abi.encodePacked(gnosisTx, _getGnosisTransaction(addressToHex(userSafeFactory), grantAdminRoleOnFactory, false)));
-            
-            // string memory grantTopUpRoleOnTopUpDest = iToHex(abi.encodeWithSignature("grantRole(bytes32,address)", TOP_UP_ROLE, newTopUpAdmin));
-            // gnosisTx = string(abi.encodePacked(gnosisTx, _getGnosisTransaction(addressToHex(topUpDestScroll), grantTopUpRoleOnTopUpDest, true)));
 
             vm.createDir("./output", true);
             string memory path = "./output/UpgradeV2.01.json";
