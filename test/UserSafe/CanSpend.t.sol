@@ -164,7 +164,7 @@ contract UserSafeCanSpendTest is Setup {
         deal(address(usdc), address(aliceSafe), amountToSpend);
         _updateSpendingLimit(amountToSpend - 1, 1 ether);
         
-        vm.warp(block.timestamp + delay + 1);
+        vm.warp(block.timestamp + spendingLimitDelay + 1);
         (bool canSpend, string memory reason) = aliceSafe.canSpend(txId, address(usdc), amountToSpend);
         assertEq(canSpend, false);
         assertEq(reason, "Daily available spending limit less than amount requested");
@@ -210,7 +210,7 @@ contract UserSafeCanSpendTest is Setup {
         deal(address(usdc), address(aliceSafe), 10 ether);
         _updateSpendingLimit(amountToSpend - 1, 1 ether);
 
-        vm.warp(block.timestamp + delay + 1);
+        vm.warp(block.timestamp + spendingLimitDelay + 1);
         vm.prank(etherFiWallet);
         aliceSafe.spend(txId, address(usdc), 1);
 
@@ -249,7 +249,7 @@ contract UserSafeCanSpendTest is Setup {
 
         _updateSpendingLimit(amount - 1, 1 ether);
         
-        vm.warp(block.timestamp + delay + 1);
+        vm.warp(block.timestamp + spendingLimitDelay + 1);
         (bool canSpend, string memory reason) = aliceSafe.canSpend(keccak256("newTxId"), address(usdc), amount);
         assertEq(canSpend, false);
         assertEq(reason, "Daily spending limit already exhausted");

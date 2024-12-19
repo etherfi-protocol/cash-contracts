@@ -85,7 +85,7 @@ contract UserSafeSetters is UserSafeStorage {
         (SpendingLimit memory oldLimit, SpendingLimit memory newLimit) = _spendingLimit.updateSpendingLimit(
             dailyLimitInUsd,
             monthlyLimitInUsd,
-            _cashDataProvider.delay()
+            3600 // 1 hour
         );
 
         UserSafeEventEmitter(_cashDataProvider.userSafeEventEmitter()).emitSpendingLimitChanged(oldLimit, newLimit);

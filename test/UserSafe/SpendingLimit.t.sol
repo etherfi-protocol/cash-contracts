@@ -68,7 +68,7 @@ contract UserSafeSpendingLimitTest is Setup {
         });
         if (dailySpendingLimitInUsd < oldLimit.dailyLimit) {
             newLimit.newDailyLimit = dailySpendingLimitInUsd;
-            newLimit.dailyLimitChangeActivationTime = uint64(block.timestamp) + delay;
+            newLimit.dailyLimitChangeActivationTime = uint64(block.timestamp) + spendingLimitDelay;
         } else {
             newLimit.dailyLimit = dailySpendingLimitInUsd;
             newLimit.dailyRenewalTimestamp = uint256(block.timestamp).getStartOfNextDay(timezoneOffset);
@@ -78,7 +78,7 @@ contract UserSafeSpendingLimitTest is Setup {
         
         if (monthlySpendingLimitInUsd < oldLimit.monthlyLimit) {
             newLimit.newMonthlyLimit = monthlySpendingLimitInUsd;
-            newLimit.monthlyLimitChangeActivationTime = uint64(block.timestamp) + delay;
+            newLimit.monthlyLimitChangeActivationTime = uint64(block.timestamp) + spendingLimitDelay;
         } else {
             newLimit.monthlyLimit = monthlySpendingLimitInUsd;
             newLimit.monthlyRenewalTimestamp = uint256(block.timestamp).getStartOfNextMonth(timezoneOffset);
@@ -99,10 +99,10 @@ contract UserSafeSpendingLimitTest is Setup {
         assertEq(spendingLimitAfterUpdate.newMonthlyLimit, monthlySpendingLimitInUsd);
         assertEq(spendingLimitAfterUpdate.spentToday, transferAmount);
         assertEq(spendingLimitAfterUpdate.spentThisMonth, transferAmount);
-        assertEq(spendingLimitAfterUpdate.dailyLimitChangeActivationTime, block.timestamp + delay);
-        assertEq(spendingLimitAfterUpdate.monthlyLimitChangeActivationTime, block.timestamp + delay);
+        assertEq(spendingLimitAfterUpdate.dailyLimitChangeActivationTime, block.timestamp + spendingLimitDelay);
+        assertEq(spendingLimitAfterUpdate.monthlyLimitChangeActivationTime, block.timestamp + spendingLimitDelay);
 
-        vm.warp(block.timestamp + delay + 1);
+        vm.warp(block.timestamp + spendingLimitDelay + 1);
         SpendingLimit memory spendingLimitAfter = aliceSafe.applicableSpendingLimit();
         assertEq(spendingLimitAfter.dailyLimit, dailySpendingLimitInUsd);
         assertEq(spendingLimitAfter.monthlyLimit, monthlySpendingLimitInUsd);
@@ -142,7 +142,7 @@ contract UserSafeSpendingLimitTest is Setup {
         aliceSafe.updateSpendingLimit(newDailyLimit, newMonthlyLimit, signature);
     }
 
-    function test_UpdateDailySpendingLimitDoesNotDelayIfLimitIsGreater() public {
+    function test_UpdateDailySpendingLimitDoesNotspendingLimitDelayIfLimitIsGreater() public {
         uint256 newLimit = defaultDailySpendingLimit + 1;
         uint256 nonce = aliceSafe.nonce() + 1;
 
@@ -171,7 +171,7 @@ contract UserSafeSpendingLimitTest is Setup {
         assertEq(aliceSafe.applicableSpendingLimit().dailyLimitChangeActivationTime, 0);
     }
 
-    function test_UpdateMonthlySpendingLimitDoesNotDelayIfLimitIsGreater() public {
+    function test_UpdateMonthlySpendingLimitDoesNotspendingLimitDelayIfLimitIsGreater() public {
         uint256 newLimit = defaultMonthlySpendingLimit + 1;
         uint256 nonce = aliceSafe.nonce() + 1;
 
