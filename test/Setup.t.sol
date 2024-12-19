@@ -81,6 +81,7 @@ contract Setup is Utils {
     int256 timezoneOffset = 4 * 60 * 60; // Dubai timezone
     uint128 minShares;
     bytes32 txId = keccak256("txId");
+    uint64 spendingLimitDelay = 3600; // 1 hour
 
     function setUp() public virtual {
         chainId = vm.envString("TEST_CHAIN");
