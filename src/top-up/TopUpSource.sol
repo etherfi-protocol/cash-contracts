@@ -7,6 +7,7 @@ import {PausableUpgradeable} from "openzeppelin-contracts-upgradeable/contracts/
 import {SafeERC20, IERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {BridgeAdapterBase} from "./bridges/BridgeAdapterBase.sol";
 import {IWETH} from "../interfaces/IWETH.sol";
+import {IERC20Permit} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Permit.sol";
 
 contract TopUpSource is Initializable, UUPSUpgradeable, AccessControlDefaultAdminRulesUpgradeable, PausableUpgradeable {
     using SafeERC20 for IERC20;
@@ -21,14 +22,16 @@ contract TopUpSource is Initializable, UUPSUpgradeable, AccessControlDefaultAdmi
     uint96 public constant MAX_ALLOWED_SLIPPAGE = 200; // 2%
     bytes32 public constant BRIDGER_ROLE = keccak256("BRIDGER_ROLE");
     bytes32 public constant PAUSER_ROLE = keccak256("PAUSER_ROLE");
+    bytes32 public constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
     
     IWETH public weth;
     mapping (address token => TokenConfig config) private _tokenConfig;
     address private deprecated_variable;
 
     event TokenConfigSet(address[] tokens, TokenConfig[] configs);
-    event Bridge(address token, uint256 amount);
+    event Bridge(address indexed token, uint256 amount);
     event ETHDeposit(address sender, uint256 amount);
+    event TopUpUser(address indexed user, address indexed token, uint256 amount);
 
     error ArrayLengthMismatch();
     error TokenCannotBeZeroAddress();
@@ -36,6 +39,8 @@ contract TopUpSource is Initializable, UUPSUpgradeable, AccessControlDefaultAdmi
     error TokenConfigNotSet();
     error ZeroBalance();
     error DefaultAdminCannotBeZeroAddress();
+    error AmountCannotBeZero();
+    error OnlyAdmin();
 
     constructor() {
         _disableInitializers();
@@ -50,8 +55,44 @@ contract TopUpSource is Initializable, UUPSUpgradeable, AccessControlDefaultAdmi
 
         _grantRole(PAUSER_ROLE, _defaultAdmin);
         _grantRole(BRIDGER_ROLE, _defaultAdmin);
+        _grantRole(ADMIN_ROLE, _defaultAdmin);
 
         weth = IWETH(_weth);
+    }
+
+    function approveAndTopUpWithPermit(
+        address fundsOwner,
+        address token,
+        uint256 amount,
+        uint256 deadline,
+        bytes32 r,
+        bytes32 s,
+        uint8 v,
+        uint256 amountToTopUp
+    ) external {
+        try
+            IERC20Permit(token).permit(
+                fundsOwner,
+                address(this),
+                amount,
+                deadline,
+                v,
+                r,
+                s
+            )
+        {} catch {}
+
+        if (amountToTopUp > 0) {
+            if (!hasRole(ADMIN_ROLE, msg.sender)) revert OnlyAdmin();
+            IERC20(token).safeTransferFrom(fundsOwner, address(this), amountToTopUp);
+            emit TopUpUser(fundsOwner, token, amountToTopUp);
+        }
+    }
+
+    function topUpUser(address fundsOwner, address token, uint256 amount) external onlyRole(ADMIN_ROLE) {
+        if (amount == 0) revert AmountCannotBeZero();
+        IERC20(token).safeTransferFrom(fundsOwner, address(this), amount);
+        emit TopUpUser(fundsOwner, token, amount);
     }
 
     function tokenConfig(address token) external view returns (TokenConfig memory) {

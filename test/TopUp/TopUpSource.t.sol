@@ -10,6 +10,17 @@ import {SafeERC20, IERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeE
 import {IAccessControl} from "@openzeppelin/contracts/access/IAccessControl.sol";
 import {MockERC20} from "../../src/mocks/MockERC20.sol";
 
+// keccak256("Permit(address owner,address spender,uint256 value,uint256 nonce,uint256 deadline)");
+bytes32 constant PERMIT_TYPEHASH = 0x6e71edae12b1b97f4d1f60370fef10105fa2faae0126114a169c64845d6126c9;
+
+struct Permit {
+    address owner;
+    address spender;
+    uint256 value;
+    uint256 nonce;
+    uint256 deadline;
+}
+
 contract TopUpSourceTest is Test {
     using SafeERC20 for IERC20;
 
@@ -324,6 +335,92 @@ contract TopUpSourceTest is Test {
         vm.stopPrank();
     }
 
+    function test_TopUpWithPermit() public {
+        uint256 amount = 10 ether;
+        uint256 deadline = type(uint256).max;
+        bytes32 DOMAIN_SEPARATOR_WEETH = 0xe481930428c599d86cf3522b2e43b0e3006041a472f66cb41fa924ac01d3a22b;
+
+        (address jake, uint256 jakePk) = makeAddrAndKey("jake");
+        deal(address(weETH), address(jake), 100 ether);
+
+        Permit memory permit = Permit({
+            owner: jake,
+            spender: address(topUpSrc),
+            value: amount,
+            nonce: 0,
+            deadline: deadline
+        });
+
+        bytes32 digest = getTypedDataHash(DOMAIN_SEPARATOR_WEETH, permit);
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(jakePk, digest);
+
+        vm.prank(owner);
+        vm.expectEmit(true, true, true, true);
+        emit TopUpSource.TopUpUser(address(jake), address(weETH), 1 ether);
+        topUpSrc.approveAndTopUpWithPermit(
+            jake,
+            address(weETH),
+            amount,
+            deadline,
+            r,
+            s,
+            v,
+            1 ether
+        );
+        
+    }
+
+    function test_TopUpJustPermit() public {
+        uint256 amount = 10 ether;
+        uint256 deadline = type(uint256).max;
+        bytes32 DOMAIN_SEPARATOR_WEETH = 0xe481930428c599d86cf3522b2e43b0e3006041a472f66cb41fa924ac01d3a22b;
+
+        (address jake, uint256 jakePk) = makeAddrAndKey("jake");
+        deal(address(weETH), address(jake), 100 ether);
+
+        Permit memory permit = Permit({
+            owner: jake,
+            spender: address(topUpSrc),
+            value: amount,
+            nonce: 0,
+            deadline: deadline
+        });
+
+        bytes32 digest = getTypedDataHash(DOMAIN_SEPARATOR_WEETH, permit);
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(jakePk, digest);
+
+        vm.prank(notOwner);
+        topUpSrc.approveAndTopUpWithPermit(
+            jake,
+            address(weETH),
+            amount,
+            deadline,
+            r,
+            s,
+            v,
+            0
+        );
+        
+        assertEq(weETH.allowance(jake, address(topUpSrc)), amount);
+    }
+
+    function test_TopUpWithAllowance() public {
+        uint256 amount = 1 ether;
+        deal(address(weETH), address(alice), 100 ether);
+
+        vm.prank(alice);
+        weETH.approve(address(topUpSrc), amount);
+        
+        vm.prank(owner);
+        vm.expectEmit(true, true, true, true);
+        emit TopUpSource.TopUpUser(address(alice), address(weETH), amount);
+        topUpSrc.topUpUser(
+            alice,
+            address(weETH),
+            amount
+        );
+    }
+
     function buildAccessControlRevertData(
         address account,
         bytes32 role
@@ -333,6 +430,37 @@ contract TopUpSourceTest is Test {
                 IAccessControl.AccessControlUnauthorizedAccount.selector,
                 account,
                 role
+            );
+    }
+
+    function getTypedDataHash(
+        bytes32 DOMAIN_SEPARATOR,
+        Permit memory _permit
+    ) internal pure returns (bytes32) {
+        return
+            keccak256(
+                abi.encodePacked(
+                    "\x19\x01",
+                    DOMAIN_SEPARATOR,
+                    getStructHash(_permit)
+                )
+            );
+    }
+
+    // computes the hash of a permit
+    function getStructHash(
+        Permit memory _permit
+    ) internal pure returns (bytes32) {
+        return
+            keccak256(
+                abi.encode(
+                    PERMIT_TYPEHASH,
+                    _permit.owner,
+                    _permit.spender,
+                    _permit.value,
+                    _permit.nonce,
+                    _permit.deadline
+                )
             );
     }
 }

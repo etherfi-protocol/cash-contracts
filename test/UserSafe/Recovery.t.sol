@@ -6,6 +6,7 @@ import {MessageHashUtils} from "@openzeppelin/contracts/utils/cryptography/Messa
 import {EIP1271SignatureUtils} from "../../src/libraries/EIP1271SignatureUtils.sol";
 import {Setup} from "../Setup.t.sol";
 import {OwnerLib} from "../../src/libraries/OwnerLib.sol";
+import {console} from "forge-std/console.sol";
 
 contract UserSafeRecoveryTest is Setup {
     using MessageHashUtils for bytes32;
@@ -271,6 +272,50 @@ contract UserSafeRecoveryTest is Setup {
         vm.expectRevert(
             IUserSafe.UserRecoverySignerIsUnsetCannotUseIndexZero.selector
         );
+        aliceSafe.recoverUserSafe(newOwnerBytes, signatures);
+    }
+
+    function test_RecoveryWithSafe() public {
+        vm.startPrank(owner);
+        cashDataProvider.setEtherFiRecoverySigner(0xa265C271adbb0984EFd67310cfe85A77f449e291);
+        cashDataProvider.setThirdPartyRecoverySigner(0xbfCe61CE31359267605F18dcE65Cb6c3cc9694A7); 
+        vm.stopPrank();
+
+        address newOwner = makeAddr("newOwner");
+        bytes memory newOwnerBytes = abi.encode(newOwner);
+
+        uint256 nonce = aliceSafe.nonce() + 1;
+        bytes32 msgHash = keccak256(
+            abi.encode(
+                UserSafeLib.RECOVERY_METHOD,
+                block.chainid,
+                address(aliceSafe),
+                nonce,
+                newOwnerBytes
+            )
+        );
+
+        console.logBytes(
+            abi.encode(
+                UserSafeLib.RECOVERY_METHOD,
+                block.chainid,
+                address(aliceSafe),
+                nonce,
+                newOwnerBytes
+            )
+        );
+
+        IUserSafe.Signature[2] memory signatures;
+        signatures[0] = IUserSafe.Signature({
+            index: 1,
+            signature: hex"30b1a49da864a3723a773841caa5a8ed7d51da9abaab94f935573e15a26cd43953af8814fa48d6760e34d81a867fff402773f900ad84662b49fe11515ad688b21b"
+        });
+
+        signatures[1] = IUserSafe.Signature({
+            index: 2,
+            signature: hex"126fada0071190da14acfc93ae3538a5fe81b98b689bcf961ebb7fd14bde006e2ab3acc86ac571d58307358d878800e8910fe2ac26032cf875b8591270b82e9f1b"
+        });
+
         aliceSafe.recoverUserSafe(newOwnerBytes, signatures);
     }
 
