@@ -1,21 +1,22 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.24;
 
-import {UserSafeLens} from "../src/user-safe/UserSafeLens.sol";
-import {UserSafeCore} from "../src/user-safe/UserSafeCore.sol";
-import {UserSafeSetters} from "../src/user-safe/UserSafeSetters.sol";
-import {CashbackDispatcher} from "../src/cashback-dispatcher/CashbackDispatcher.sol";
-import {SettlementDispatcher} from "../src/settlement-dispatcher/SettlementDispatcher.sol";
-import {UserSafeFactory} from "../src/user-safe/UserSafeFactory.sol";
-import {DebtManagerCore} from "../src/debt-manager/DebtManagerCore.sol";
-import {DebtManagerAdmin} from "../src/debt-manager/DebtManagerAdmin.sol";
-import {UUPSProxy} from "../src/UUPSProxy.sol";
-import {CashDataProvider} from "../src/utils/CashDataProvider.sol";
-import {stdJson} from "forge-std/StdJson.sol";
-import {GnosisHelpers} from "../utils/GnosisHelpers.sol";
-import {Utils} from "./user-safe/Utils.sol";
+import {UserSafeLens} from "../../src/user-safe/UserSafeLens.sol";
+import {UserSafeCore} from "../../src/user-safe/UserSafeCore.sol";
+import {UserSafeSetters} from "../../src/user-safe/UserSafeSetters.sol";
+import {CashbackDispatcher} from "../../src/cashback-dispatcher/CashbackDispatcher.sol";
+import {SettlementDispatcher} from "../../src/settlement-dispatcher/SettlementDispatcher.sol";
+import {UserSafeFactory} from "../../src/user-safe/UserSafeFactory.sol";
+import {DebtManagerCore} from "../../src/debt-manager/DebtManagerCore.sol";
+import {DebtManagerAdmin} from "../../src/debt-manager/DebtManagerAdmin.sol";
+import {UUPSProxy} from "../../src/UUPSProxy.sol";
+import {CashDataProvider} from "../../src/utils/CashDataProvider.sol";
+import {GnosisHelpers} from "../../utils/GnosisHelpers.sol";
+import {Utils} from "../../script/user-safe/Utils.sol";
+import {Test} from "forge-std/Test.sol";
 
-contract MigrateMvp is Utils, GnosisHelpers {
+contract Migrate is Utils, GnosisHelpers {
+    bytes32 ETHER_FI_WALLET_ROLE = keccak256("ETHER_FI_WALLET_ROLE");
     bytes32 ADMIN_ROLE = keccak256("ADMIN_ROLE");
     bytes32 TOP_UP_ROLE = keccak256("TOP_UP_ROLE");
 
@@ -43,15 +44,15 @@ contract MigrateMvp is Utils, GnosisHelpers {
     uint32 optimismDestEid = 30111;
     address owner = 0xA6cf33124cb342D1c604cAC87986B965F428AAC4;
     address currentEtherFiWallet = 0x2e0BE8D3D9f1833fbACf9A5e9f2d470817Ff0c00;
-    address newEtherFiWallet = 0x20C4f96d14738d10B107036b3D1826D47b584E62;
-    address newTopUpAdmin = 0xd6f5D5eadD8B86aA6271C811a503BcD78DdD8eE4;
+    // address newEtherFiWallet = 0x20C4f96d14738d10B107036b3D1826D47b584E62;
+    // address newTopUpAdmin = 0xd6f5D5eadD8B86aA6271C811a503BcD78DdD8eE4;
     address newRykiOPAddress = 0x6f7F522075AA5483d049dF0Ef81FcdD3b0ace7f4;
 
+    function setUp() public {
+        vm.createSelectFork("https://rpc.scroll.io");
+    }
 
-    function run() public {
-        uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
-        vm.startBroadcast(deployerPrivateKey);
-
+    function test_MigrateNewVersion() public {
         string memory gnosisTx = _getGnosisHeader(vm.toString(block.chainid));
 
         {
@@ -135,9 +136,9 @@ contract MigrateMvp is Utils, GnosisHelpers {
             string memory path = "./output/UpgradeV2.01.json";
 
             vm.writeFile(path, gnosisTx);
+            
+            executeGnosisTransactionBundle(path, owner);
         }
-
-        vm.stopBroadcast();
     }
 
     function deployLens() public returns (address) {
