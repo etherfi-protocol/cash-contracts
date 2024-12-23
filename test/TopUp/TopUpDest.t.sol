@@ -2,23 +2,17 @@
 pragma solidity ^0.8.24;
 
 import {Test} from "forge-std/Test.sol"; 
-import {TopUpDest, EIP1271SignatureUtils, PausableUpgradeable} from "../../src/top-up/TopUpDest.sol";
+import {TopUpDest, EIP1271SignatureUtils, MessageHashUtils, PausableUpgradeable} from "../../src/top-up/TopUpDest.sol";
 import {CashDataProvider, ICashDataProvider} from "../../src/utils/CashDataProvider.sol";
 import {UUPSProxy} from "../../src/UUPSProxy.sol";
 import {MockERC20} from "../../src/mocks/MockERC20.sol";
 import {IAccessControl} from "@openzeppelin/contracts/access/IAccessControl.sol";
 
-bytes32 constant USER_SAFE_REGISTRY_TYPEHASH =
-    keccak256("MapWalletToUserSafe(address wallet,address userSafe,uint256 nonce,uint256 deadline)");
-
-struct MapWalletToUserSafe {
-    address wallet;
-    address userSafe;
-    uint256 nonce;
-    uint256 deadline;
-}
 
 contract TopUpDestTest is Test {
+    using MessageHashUtils for bytes32;
+    bytes32 constant SET_WALLET_TO_USER_SAFE = keccak256("SET_WALLET_TO_USER_SAFE");
+
     address userSafeFactory = makeAddr("userSafeFactory");
     address owner = makeAddr("owner");
     address noRole = makeAddr("noRole");
@@ -78,58 +72,31 @@ contract TopUpDestTest is Test {
 
     function test_CanRegisterWalletToUserSafe() public {
         (address alice, uint256 alicePk) = makeAddrAndKey("alice");
-        bytes32 domainSeparator = topUpDest.DOMAIN_SEPARATOR();
-        MapWalletToUserSafe memory mapWalletToUserSafe = MapWalletToUserSafe({
-            wallet: alice,
-            userSafe: userSafe,
-            nonce: topUpDest.nonces(alice),
-            deadline: 100
-        });
-        
-        bytes32 digest = getTypedDataHash(domainSeparator, mapWalletToUserSafe);
-        (uint8 v, bytes32 r, bytes32 s) = vm.sign(alicePk, digest);
-        bytes memory signature = abi.encodePacked(r, s, v);
+        bytes memory signature = getMappingSignature(alice, alicePk, userSafe);
 
         vm.expectEmit(true, true, true, true);
         emit TopUpDest.WalletToUserSafeRegistered(alice, userSafe);
-        topUpDest.mapWalletToUserSafe(alice, userSafe, 100, signature);
+        topUpDest.mapWalletToUserSafe(alice, userSafe, signature);
 
         assertEq(topUpDest.walletToUserSafeRegistry(alice), userSafe);
     }
 
     function test_CannotRegisterWalletToUserSafeIfWalletIsAddressZero() public {
         vm.expectRevert(TopUpDest.WalletCannotBeAddressZero.selector);
-        topUpDest.mapWalletToUserSafe(address(0), address(1), 10, new bytes(0));
+        topUpDest.mapWalletToUserSafe(address(0), address(1), new bytes(0));
     }
 
     function test_CannotRegisterWalletToUserSafeIfUserSafeIsNotRegistered() public {
         vm.expectRevert(TopUpDest.NotARegisteredUserSafe.selector);
-        topUpDest.mapWalletToUserSafe(address(1), address(1), 10, new bytes(0));
-    }
-
-    function test_CannotRegisterWalletToUserSafeIfDeadlineHasPassed() public {
-        vm.warp(100);
-        vm.expectRevert(TopUpDest.ExpiredSignature.selector);
-        topUpDest.mapWalletToUserSafe(address(1), userSafe, 10, new bytes(0));
+        topUpDest.mapWalletToUserSafe(address(1), address(1), new bytes(0));
     }
 
     function test_CannotRegisterWalletToUserSafeIfSignatureIsInvalid() public {
         (address alice, uint256 alicePk) = makeAddrAndKey("alice");
-        bytes32 domainSeparator = topUpDest.DOMAIN_SEPARATOR();
-        MapWalletToUserSafe memory mapWalletToUserSafe = MapWalletToUserSafe({
-            wallet: alice,
-            userSafe: userSafe,
-            nonce: 0,
-            deadline: 100
-        });
-        
-        bytes32 digest = getTypedDataHash(domainSeparator, mapWalletToUserSafe);
-        (uint8 v, bytes32 r, bytes32 s) = vm.sign(alicePk, digest);
-        
-        bytes memory signature = abi.encodePacked(r, s, v);
+        bytes memory signature = getMappingSignature(alice, alicePk, userSafe);
 
         vm.expectRevert(EIP1271SignatureUtils.InvalidSigner.selector);
-        topUpDest.mapWalletToUserSafe(notUserSafe, userSafe, 100, signature);
+        topUpDest.mapWalletToUserSafe(notUserSafe, userSafe, signature);
     }
 
     function test_CanDeposit() external {
@@ -266,7 +233,7 @@ contract TopUpDestTest is Test {
 
         vm.expectEmit(true, true, true, true);
         emit TopUpDest.TopUpBatch(chainIds, txIds, userSafes, tokens, amounts);
-        topUpDest.topUpUserSafe(chainIds, txIds, userSafes, tokens, amounts);
+        topUpDest.topUpUserSafeBatch(chainIds, txIds, userSafes, tokens, amounts);
         vm.stopPrank();
 
         uint256 balTopUpDestAfter = token.balanceOf(address(topUpDest));
@@ -301,25 +268,25 @@ contract TopUpDestTest is Test {
         
         txIds = new bytes32[](3);
         vm.expectRevert(TopUpDest.ArrayLengthMismatch.selector);
-        topUpDest.topUpUserSafe(chainIds, txIds, userSafes, tokens, amounts);
+        topUpDest.topUpUserSafeBatch(chainIds, txIds, userSafes, tokens, amounts);
         
         txIds = new bytes32[](2);
         userSafes = new address[](3);
         vm.expectRevert(TopUpDest.ArrayLengthMismatch.selector);
-        topUpDest.topUpUserSafe(chainIds, txIds, userSafes, tokens, amounts);
+        topUpDest.topUpUserSafeBatch(chainIds, txIds, userSafes, tokens, amounts);
         
         txIds = new bytes32[](2);
         userSafes = new address[](2);
         tokens = new address[](3);
         vm.expectRevert(TopUpDest.ArrayLengthMismatch.selector);
-        topUpDest.topUpUserSafe(chainIds, txIds, userSafes, tokens, amounts);
+        topUpDest.topUpUserSafeBatch(chainIds, txIds, userSafes, tokens, amounts);
 
         txIds = new bytes32[](2);
         userSafes = new address[](2);
         tokens = new address[](2);
         amounts = new uint256[](3);
         vm.expectRevert(TopUpDest.ArrayLengthMismatch.selector);
-        topUpDest.topUpUserSafe(chainIds, txIds, userSafes, tokens, amounts);
+        topUpDest.topUpUserSafeBatch(chainIds, txIds, userSafes, tokens, amounts);
 
         vm.stopPrank();
     }
@@ -450,34 +417,24 @@ contract TopUpDestTest is Test {
             );
     }
 
-    // computes the hash of the fully encoded EIP-712 message for the domain, which can be used to recover the signer
-    function getTypedDataHash(
-        bytes32 DOMAIN_SEPARATOR,
-        MapWalletToUserSafe memory _mapWalletToUserSafe
-    ) internal pure returns (bytes32) {
-        return
-            keccak256(
-                abi.encodePacked(
-                    "\x19\x01",
-                    DOMAIN_SEPARATOR,
-                    getStructHash(_mapWalletToUserSafe)
-                )
-            );
-    }
+    function getMappingSignature(address wallet, uint256 privateKey, address safe) internal view returns (bytes memory) {
+        uint256 nonce = topUpDest.nonces(wallet);
 
-    // computes the hash of a permit
-    function getStructHash(
-        MapWalletToUserSafe memory _mapWalletToUserSafe
-    ) internal pure returns (bytes32) {
-        return
-            keccak256(
-                abi.encode(
-                    USER_SAFE_REGISTRY_TYPEHASH,
-                    _mapWalletToUserSafe.wallet,
-                    _mapWalletToUserSafe.userSafe,
-                    _mapWalletToUserSafe.nonce,
-                    _mapWalletToUserSafe.deadline
-                )
-            );
+        bytes32 msgHash = keccak256(abi.encode(
+            SET_WALLET_TO_USER_SAFE,
+            block.chainid,
+            address(topUpDest),
+            nonce,
+            wallet, 
+            safe
+        ));
+
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(
+            privateKey,
+            msgHash.toEthSignedMessageHash()
+        );
+        bytes memory signature = abi.encodePacked(r, s, v);
+
+        return signature;
     }
 }

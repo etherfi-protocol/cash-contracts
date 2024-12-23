@@ -404,6 +404,40 @@ contract TopUpSourceTest is Test {
         assertEq(weETH.allowance(jake, address(topUpSrc)), amount);
     }
 
+    function test_PermitFailsIfDeadlinePassed() public {
+        uint256 amount = 10 ether;
+        uint256 deadline = block.timestamp;
+        bytes32 DOMAIN_SEPARATOR_WEETH = 0xe481930428c599d86cf3522b2e43b0e3006041a472f66cb41fa924ac01d3a22b;
+
+        (address jake, uint256 jakePk) = makeAddrAndKey("jake");
+        deal(address(weETH), address(jake), 100 ether);
+
+        Permit memory permit = Permit({
+            owner: jake,
+            spender: address(topUpSrc),
+            value: amount,
+            nonce: 0,
+            deadline: deadline
+        });
+
+        bytes32 digest = getTypedDataHash(DOMAIN_SEPARATOR_WEETH, permit);
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(jakePk, digest);
+
+        vm.warp(block.timestamp + 1);
+
+        vm.expectRevert(TopUpSource.DeadlineAlreadyPassed.selector);
+        topUpSrc.approveAndTopUpWithPermit(
+            jake,
+            address(weETH),
+            amount,
+            deadline,
+            r,
+            s,
+            v,
+            0
+        );
+    }
+
     function test_TopUpWithAllowance() public {
         uint256 amount = 1 ether;
         deal(address(weETH), address(alice), 100 ether);

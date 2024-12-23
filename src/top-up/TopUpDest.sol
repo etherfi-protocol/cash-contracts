@@ -11,17 +11,18 @@ import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import {NoncesUpgradeable} from "openzeppelin-contracts-upgradeable/contracts/utils/NoncesUpgradeable.sol";
 import {ICashDataProvider} from "../interfaces/ICashDataProvider.sol";
 import {EIP1271SignatureUtils} from "../libraries/EIP1271SignatureUtils.sol";
+import {MessageHashUtils} from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
 
 contract TopUpDest is Initializable, UUPSUpgradeable, EIP712Upgradeable, NoncesUpgradeable, AccessControlDefaultAdminRulesUpgradeable, ReentrancyGuardTransientUpgradeable, PausableUpgradeable {
     using SafeERC20 for IERC20;
     using EIP1271SignatureUtils for bytes32;
-
-    bytes32 public constant USER_SAFE_REGISTRY_TYPEHASH =
-        keccak256("MapWalletToUserSafe(address wallet,address userSafe,uint256 nonce,uint256 deadline)");
+    using MessageHashUtils for bytes32;
 
     bytes32 public constant DEPOSITOR_ROLE = keccak256("DEPOSITOR_ROLE");
     bytes32 public constant TOP_UP_ROLE = keccak256("TOP_UP_ROLE");
     bytes32 public constant PAUSER_ROLE = keccak256("PAUSER_ROLE");
+    
+    bytes32 public constant SET_WALLET_TO_USER_SAFE = keccak256("SET_WALLET_TO_USER_SAFE");
 
     mapping(address token => uint256 deposits) public deposits;
     mapping(uint256 chainId => mapping(bytes32 txId => bool status)) public transactionCompleted;
@@ -62,22 +63,37 @@ contract TopUpDest is Initializable, UUPSUpgradeable, EIP712Upgradeable, NoncesU
         _grantRole(TOP_UP_ROLE, _defaultAdmin);
     }
 
-    function DOMAIN_SEPARATOR() external view returns (bytes32) {
-        return _domainSeparatorV4();
-    }
+    // function DOMAIN_SEPARATOR() external view returns (bytes32) {
+    //     return _domainSeparatorV4();
+    // }
+
+    // function mapWalletToUserSafe(
+    //     address wallet,
+    //     address userSafe,
+    //     uint256 deadline,
+    //     bytes memory signature
+    // ) external {
+    //     if (wallet == address(0)) revert WalletCannotBeAddressZero();
+    //     if (!cashDataProvider.isUserSafe(userSafe)) revert NotARegisteredUserSafe();
+    //     if (block.timestamp > deadline) revert ExpiredSignature();
+    //     bytes32 structHash = keccak256(abi.encode(USER_SAFE_REGISTRY_TYPEHASH, wallet, userSafe, _useNonce(wallet), deadline));
+    //     bytes32 hash = _hashTypedDataV4(structHash);
+    //     hash.checkSignature_EIP1271(wallet, signature);
+    //     walletToUserSafeRegistry[wallet] = userSafe;
+
+    //     emit WalletToUserSafeRegistered(wallet, userSafe);
+    // }
 
     function mapWalletToUserSafe(
         address wallet,
         address userSafe,
-        uint256 deadline,
         bytes memory signature
     ) external {
         if (wallet == address(0)) revert WalletCannotBeAddressZero();
         if (!cashDataProvider.isUserSafe(userSafe)) revert NotARegisteredUserSafe();
-        if (block.timestamp > deadline) revert ExpiredSignature();
-        bytes32 structHash = keccak256(abi.encode(USER_SAFE_REGISTRY_TYPEHASH, wallet, userSafe, _useNonce(wallet), deadline));
-        bytes32 hash = _hashTypedDataV4(structHash);
-        hash.checkSignature_EIP1271(wallet, signature);
+        
+        bytes32 msgHash = keccak256(abi.encode(SET_WALLET_TO_USER_SAFE, block.chainid, address(this), _useNonce(wallet), wallet, userSafe));
+        msgHash.toEthSignedMessageHash().checkSignature_EIP1271(wallet, signature);
         walletToUserSafeRegistry[wallet] = userSafe;
 
         emit WalletToUserSafeRegistered(wallet, userSafe);
@@ -112,7 +128,7 @@ contract TopUpDest is Initializable, UUPSUpgradeable, EIP712Upgradeable, NoncesU
         emit Withdrawal(token, amount);
     }
 
-    function topUpUserSafe(
+    function topUpUserSafeBatch(
         uint256[] memory chainIds, 
         bytes32[] memory txIds,
         address[] memory userSafes,

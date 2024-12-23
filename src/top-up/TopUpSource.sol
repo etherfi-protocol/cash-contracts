@@ -41,6 +41,7 @@ contract TopUpSource is Initializable, UUPSUpgradeable, AccessControlDefaultAdmi
     error DefaultAdminCannotBeZeroAddress();
     error AmountCannotBeZero();
     error OnlyAdmin();
+    error DeadlineAlreadyPassed();
 
     constructor() {
         _disableInitializers();
@@ -80,7 +81,9 @@ contract TopUpSource is Initializable, UUPSUpgradeable, AccessControlDefaultAdmi
                 r,
                 s
             )
-        {} catch {}
+        {} catch {
+            if (block.timestamp > deadline) revert DeadlineAlreadyPassed();
+        }
 
         if (amountToTopUp > 0) {
             if (!hasRole(ADMIN_ROLE, msg.sender)) revert OnlyAdmin();

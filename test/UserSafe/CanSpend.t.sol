@@ -252,7 +252,7 @@ contract UserSafeCanSpendTest is Setup {
         vm.warp(block.timestamp + spendingLimitDelay + 1);
         (bool canSpend, string memory reason) = aliceSafe.canSpend(keccak256("newTxId"), address(usdc), amount);
         assertEq(canSpend, false);
-        assertEq(reason, "Daily spending limit already exhausted");
+        assertEq(reason, "Daily available spending limit less than amount requested");
     }
 
     function test_CanSpendWithDebitModeFailsIfIncomingDailyLimitIsLowerThanAmountUsed() external {
