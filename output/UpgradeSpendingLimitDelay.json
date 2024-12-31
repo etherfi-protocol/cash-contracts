@@ -1,1 +1,11 @@
-{"chainId":"534352","meta": { "txBuilderVersion": "1.16.5" }, "transactions": [{"to":"0x18fa07df94b4e9f09844e1128483801b24fe8a27","value":"0","data":"0x9a5282b8000000000000000000000000c7f2cf4845c6db0e1a1e91ed41bcd0fcc1b0e141"}]}
+{
+  "chainId": "534352",
+  "meta": { "txBuilderVersion": "1.16.5" },
+  "transactions": [
+    {
+      "to": "0x18fa07df94b4e9f09844e1128483801b24fe8a27",
+      "value": "0",
+      "data": "0x9a5282b8000000000000000000000000bf78560265d4cd6d9dddb2faf68de97c7d8ccb8e"
+    }
+  ]
+}
