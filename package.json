@@ -19,8 +19,11 @@
     "compile": "forge compile"
   },
   "dependencies": {
+    "@safe-global/api-kit": "^2.5.7",
+    "@safe-global/protocol-kit": "^5.2.0",
+    "@safe-global/types-kit": "^1.0.1",
     "axios": "^1.7.8",
-    "dotenv": "^16.4.5",
+    "dotenv": "^16.4.7",
     "ethers": "^5.7.2"
   },
   "devDependencies": {
