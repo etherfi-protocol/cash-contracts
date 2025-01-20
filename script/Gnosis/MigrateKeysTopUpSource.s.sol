@@ -8,7 +8,7 @@ contract MigrateKeysTopUpSource is Utils, GnosisHelpers {
     bytes32 BRIDGER_ROLE = keccak256("BRIDGER_ROLE");
 
     address currentTopUpBridger = 0x2e0BE8D3D9f1833fbACf9A5e9f2d470817Ff0c00;
-    address newTopUpBridger = 0x2e0BE8D3D9f1833fbACf9A5e9f2d470817Ff0c00;
+    address newTopUpBridger = 0xb473201cbFc2ed6FEd9eD960fACCD9E733B1C26E;
 
     address topUpSource = 0xC85276fec421d0CA3c0eFd4be2B7F569bc7b5b99;
 

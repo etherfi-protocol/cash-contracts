@@ -2,9 +2,8 @@
 pragma solidity ^0.8.24;
 
 import {GnosisHelpers} from "../../utils/GnosisHelpers.sol";
-import {Utils} from "../user-safe/Utils.sol";
 
-contract MigrateKeysScroll is Utils, GnosisHelpers {
+contract MigrateKeysScroll is GnosisHelpers {
     bytes32 ADMIN_ROLE = keccak256("ADMIN_ROLE");
     bytes32 TOP_UP_ROLE = keccak256("TOP_UP_ROLE");
     bytes32 BRIDGER_ROLE = keccak256("BRIDGER_ROLE");
@@ -20,11 +19,11 @@ contract MigrateKeysScroll is Utils, GnosisHelpers {
     address currentTopUpAdmin = 0x2e0BE8D3D9f1833fbACf9A5e9f2d470817Ff0c00;
     address currentDispatcherBridger = 0x2e0BE8D3D9f1833fbACf9A5e9f2d470817Ff0c00;
 
-    address newEtherFiWallet = 0x20C4f96d14738d10B107036b3D1826D47b584E62;
-    address newTopUpAdminCashBE = 0xd6f5D5eadD8B86aA6271C811a503BcD78DdD8eE4;
-    address newTopUpAdminTopUpBE = 0xd6f5D5eadD8B86aA6271C811a503BcD78DdD8eE4;
-    address newUserSafeFactoryAdmin = 0x2e0BE8D3D9f1833fbACf9A5e9f2d470817Ff0c00;
-    address newDispatcherBridger = 0x2e0BE8D3D9f1833fbACf9A5e9f2d470817Ff0c00;
+    address newUserSafeFactoryAdmin = 0xc8E5a04b85513cDb99ac6301E35f80F039D5dCC5;
+    address newTopUpAdminCashBE = 0xc6F5A0182aD9F92dB99562e98e252aFbEaaca582;
+    address newEtherFiWallet = 0x334962E5a3997eE1D480EECc64F4809dB308b6f6;
+    address newTopUpAdminTopUpBE = 0xb473201cbFc2ed6FEd9eD960fACCD9E733B1C26E;
+    address newDispatcherBridger = 0xb473201cbFc2ed6FEd9eD960fACCD9E733B1C26E;
 
     function run() public {
         string memory gnosisTx = _getGnosisHeader(vm.toString(block.chainid));

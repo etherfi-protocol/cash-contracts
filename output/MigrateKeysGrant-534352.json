@@ -1,0 +1,36 @@
+{
+  "chainId": "534352",
+  "meta": { "txBuilderVersion": "1.16.5" },
+  "transactions": [
+    {
+      "to": "0xb1f5bbc3e4de0c767ace41eab8a28b837fba966f",
+      "value": "0",
+      "data": "0x82947e2e000000000000000000000000334962e5a3997ee1d480eecc64f4809db308b6f6"
+    },
+    {
+      "to": "0xb1f5bbc3e4de0c767ace41eab8a28b837fba966f",
+      "value": "0",
+      "data": "0x82947e2e000000000000000000000000c8e5a04b85513cdb99ac6301e35f80f039d5dcc5"
+    },
+    {
+      "to": "0x18fa07df94b4e9f09844e1128483801b24fe8a27",
+      "value": "0",
+      "data": "0x2f2ff15da49807205ce4d355092ef5a8a18f56e8913cf4a201fbe287825b095693c21775000000000000000000000000c8e5a04b85513cdb99ac6301e35f80f039d5dcc5"
+    },
+    {
+      "to": "0xeb61c16a60ab1b4a9a1f8e92305808f949f4ea9b",
+      "value": "0",
+      "data": "0x2f2ff15d5e4bd437d29fad01c10cdcfff414f0d6b0e84b96d2dade88d780d45b5630696b000000000000000000000000c6f5a0182ad9f92db99562e98e252afbeaaca582"
+    },
+    {
+      "to": "0xeb61c16a60ab1b4a9a1f8e92305808f949f4ea9b",
+      "value": "0",
+      "data": "0x2f2ff15d5e4bd437d29fad01c10cdcfff414f0d6b0e84b96d2dade88d780d45b5630696b000000000000000000000000b473201cbfc2ed6fed9ed960faccd9e733b1c26e"
+    },
+    {
+      "to": "0x4dca5093e0bb450d7f7961b5df0a9d4c24b24786",
+      "value": "0",
+      "data": "0x2f2ff15dc809a7fd521f10cdc3c068621a1c61d5fd9bb3f1502a773e53811bc248d919a8000000000000000000000000b473201cbfc2ed6fed9ed960faccd9e733b1c26e"
+    }
+  ]
+}
