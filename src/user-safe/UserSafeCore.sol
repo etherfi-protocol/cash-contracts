@@ -23,6 +23,12 @@ contract UserSafeCore is UserSafeStorage {
     using ArrayDeDupTransient for address[];
     using Math for uint256;
 
+    error BorrowNotZero();
+    error NativeTransferFailed();
+    error InvalidInput();
+
+    event Migrate(address newSafe);
+
     constructor(address __cashDataProvider) UserSafeStorage(__cashDataProvider) {}
 
     function initialize(
@@ -265,6 +271,36 @@ contract UserSafeCore is UserSafeStorage {
                 ++i;
             }
         }
+    }
+
+    function migrate(address[] memory tokens, address newSafe) external onlyEtherFiWallet {
+        IL2DebtManager debtManager = IL2DebtManager(_cashDataProvider.etherFiCashDebtManager());
+        ( , uint256 totalBorrowings) = debtManager.borrowingOf(address(this));
+        if (totalBorrowings != 0) revert BorrowNotZero();
+
+        uint256 length = tokens.length;
+        if (newSafe == address(0) || length == 0) revert InvalidInput();
+
+        uint256 bal;
+
+        for (uint256 i = 0; i < length; ) {
+            if (tokens[i] == 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE) {
+                bal = address(this).balance;
+                if (bal > 0) { 
+                    (bool success, ) = newSafe.call{value: bal}("");
+                    if (!success) revert NativeTransferFailed();
+                }
+            } else {
+                bal = IERC20(tokens[i]).balanceOf(address(this));
+                if (bal > 0) IERC20(tokens[i]).safeTransfer(newSafe, bal);
+            }
+
+            unchecked {
+                ++i;
+            }
+        }
+
+        emit Migrate(newSafe);
     }
 
     function processWithdrawal() external nonReentrant {
