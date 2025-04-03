@@ -54,6 +54,11 @@ interface IUserSafe {
     error OnlyBorrowToken();
     error RecipientCannotBeAddressZero();
     error BorrowingsExceedMaxBorrowAfterSpending();
+    error BorrowNotZero();
+    error NativeTransferFailed();
+    error InvalidInput();
+
+    function migrate(address[] memory tokens, address newSafe) external;
 
     /**
      * @notice Function to fetch the current mode of the safe (Debit/Credit)
