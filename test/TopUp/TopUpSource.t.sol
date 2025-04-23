@@ -8,6 +8,8 @@ import {EtherFiOFTBridgeAdapter} from "../../src/top-up/bridges/EtherFiOFTBridge
 import {UUPSProxy} from "../../src/UUPSProxy.sol";
 import {SafeERC20, IERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IAccessControl} from "@openzeppelin/contracts/access/IAccessControl.sol";
+import {NTTAdapter} from "../../src/top-up/bridges/NTTAdapter.sol";
+
 
 contract TopUpSourceTest is Test {
     using SafeERC20 for IERC20;
@@ -19,15 +21,20 @@ contract TopUpSourceTest is Test {
     TopUpSource topUpSrc;
     EtherFiOFTBridgeAdapter oftBridgeAdapter;
     StargateAdapter stargateAdapter;
+    NTTAdapter nttAdapter;
 
     uint96 maxSlippage = 100;
 
     IERC20 weth = IERC20(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2);
     IERC20 weETH = IERC20(0xCd5fE23C85820F7B72D0926FC9b05b43E359b7ee);
     IERC20 usdc = IERC20(0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48);
+    IERC20 ethfi = IERC20(0xFe0c30065B384F05761f15d0CC899D4F9F9Cc0eB);
+
 
     address weETHOftAddress = 0xcd2eb13D6831d4602D80E5db9230A57596CDCA63;
     address usdcStargatePool = 0xc026395860Db2d07ee33e05fE50ed7bD583189C7;
+    address nttManager = 0x344169Cc4abE9459e77bD99D13AA8589b55b6174;
+
 
     function setUp() external {
         vm.createSelectFork("https://ethereum-rpc.publicnode.com");
@@ -40,13 +47,14 @@ contract TopUpSourceTest is Test {
         vm.startPrank(owner);
         stargateAdapter = new StargateAdapter();
         oftBridgeAdapter = new EtherFiOFTBridgeAdapter();
+        nttAdapter = new NTTAdapter();
 
-        address[] memory tokens = new address[](2);
-        TopUpSource.TokenConfig[] memory tokenConfigs = new TopUpSource.TokenConfig[](2);
+        address[] memory tokens = new address[](3);
+        TopUpSource.TokenConfig[] memory tokenConfigs = new TopUpSource.TokenConfig[](3);
         
         tokens[0] = address(usdc);
         tokens[1] = address(weETH);
-
+        tokens[2] = address(ethfi);
         tokenConfigs[0] = TopUpSource.TokenConfig({
             bridgeAdapter: address(stargateAdapter),
             recipientOnDestChain: alice,
@@ -59,6 +67,13 @@ contract TopUpSourceTest is Test {
             recipientOnDestChain: alice,
             maxSlippageInBps: maxSlippage,
             additionalData: abi.encode(weETHOftAddress)
+        });
+
+        tokenConfigs[2] = TopUpSource.TokenConfig({
+            bridgeAdapter: address(nttAdapter),
+            recipientOnDestChain: alice,
+            maxSlippageInBps: maxSlippage,
+            additionalData: abi.encode(nttManager)
         });
 
         address topUpSrcImpl = address(new TopUpSource());
@@ -100,12 +115,12 @@ contract TopUpSourceTest is Test {
     }
 
     function test_CanSetTokenConfig() public {
-        address[] memory tokens = new address[](2);
-        TopUpSource.TokenConfig[] memory tokenConfigs = new TopUpSource.TokenConfig[](2);
+        address[] memory tokens = new address[](3);
+        TopUpSource.TokenConfig[] memory tokenConfigs = new TopUpSource.TokenConfig[](3);
         
         tokens[0] = address(usdc);
         tokens[1] = address(weETH);
-
+        tokens[2] = address(ethfi);
         tokenConfigs[0] = TopUpSource.TokenConfig({
             bridgeAdapter: address(stargateAdapter),
             recipientOnDestChain: alice,
@@ -118,6 +133,13 @@ contract TopUpSourceTest is Test {
             recipientOnDestChain: alice,
             maxSlippageInBps: maxSlippage,
             additionalData: abi.encode(weETHOftAddress)
+        });
+
+        tokenConfigs[2] = TopUpSource.TokenConfig({
+            bridgeAdapter: address(nttAdapter),
+            recipientOnDestChain: alice,
+            maxSlippageInBps: maxSlippage,
+            additionalData: abi.encode(nttManager)
         });
 
         vm.prank(owner);
@@ -134,6 +156,11 @@ contract TopUpSourceTest is Test {
         assertEq(topUpSrc.tokenConfig(address(weETH)).recipientOnDestChain, tokenConfigs[1].recipientOnDestChain);
         assertEq(topUpSrc.tokenConfig(address(weETH)).maxSlippageInBps, tokenConfigs[1].maxSlippageInBps);
         assertEq(topUpSrc.tokenConfig(address(weETH)).additionalData, tokenConfigs[1].additionalData);
+
+        assertEq(topUpSrc.tokenConfig(address(ethfi)).bridgeAdapter, tokenConfigs[2].bridgeAdapter);
+        assertEq(topUpSrc.tokenConfig(address(ethfi)).recipientOnDestChain, tokenConfigs[2].recipientOnDestChain);
+        assertEq(topUpSrc.tokenConfig(address(ethfi)).maxSlippageInBps, tokenConfigs[2].maxSlippageInBps);
+        assertEq(topUpSrc.tokenConfig(address(ethfi)).additionalData, tokenConfigs[2].additionalData);
     }
 
     function test_OnlyOwnerCanSetTokenConfig() public {
@@ -276,6 +303,18 @@ contract TopUpSourceTest is Test {
 
     function test_BridgeWeETH() public {
         address token = address(weETH);
+        uint256 amount = 1 ether;
+        deal(token, address(topUpSrc), amount);
+        ( , uint256 fee) = topUpSrc.getBridgeFee(token);
+
+        vm.prank(owner);
+        vm.expectEmit(true, true, true, true);
+        emit TopUpSource.Bridge(token, amount);
+        topUpSrc.bridge{value: fee}(token);
+    }
+
+    function test_BridgeEthfi() public {
+        address token = address(ethfi);
         uint256 amount = 1 ether;
         deal(token, address(topUpSrc), amount);
         ( , uint256 fee) = topUpSrc.getBridgeFee(token);
