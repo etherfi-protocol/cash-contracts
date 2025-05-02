@@ -1,3 +1,6 @@
+This repo is deprecate. visit https://github.com/etherfi-protocol/cash-v3
+
+
 # ether.fi Cash Smart Contracts
 
 Welcome to the ether.fi Cash Smart Contracts repository! This project powers the ether.fi Cash product, providing seamless debit and credit functionalities for users.
